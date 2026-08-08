@@ -103,6 +103,21 @@
   /* ---------- touch helpers ---------- */
   const IS_TOUCH = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
 
+  // haptic tick — Android only; iOS ignores it, which is fine
+  const buzz = (ms) => { try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) {} };
+
+  // keep the screen awake during a battle (phones dim fast while you watch a wave)
+  let wakeLock = null;
+  async function keepAwake(on) {
+    try {
+      if (on && IS_TOUCH && 'wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen');
+      else if (!on && wakeLock) { wakeLock.release(); wakeLock = null; }
+    } catch (e) { /* not granted — harmless */ }
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && UI.game) keepAwake(true);
+  });
+
   /* iPhones mute WebAudio when the ring/silent switch is on silent, because a
      web page counts as "ambient" sound. Declaring a playback session — and
      keeping a silent <audio> loop alive as the fallback for older iOS — moves
@@ -122,6 +137,84 @@
   function syncCancelBtn() {
     const g = UI.game;
     $('#btn-cancel-place').classList.toggle('show', !!(g && g.placingType && !g.over));
+  }
+
+  /* Tray slots, touch: hold shows the penguin's description card; drag out of
+     the dock and you are carrying the penguin — the card vanishes, the ghost
+     follows the finger, and lifting on the map places it. A quick tap still
+     arms for tap-then-drag. Vertical strokes stay with the browser (tray
+     scrolling): touch-action pan-y makes those fire pointercancel here. */
+  function attachTrayDrag(slot, id) {
+    let timer = null, showing = false, carrying = false, swallow = false;
+    const clear = () => { if (timer) { clearTimeout(timer); timer = null; } };
+
+    slot.addEventListener('pointerdown', (ev) => {
+      if (ev.pointerType === 'mouse') return;   // mouse keeps hover + click
+      showing = false; carrying = false; swallow = false;
+      clear();
+      timer = setTimeout(() => {
+        timer = null;
+        const g = UI.game;
+        if (g && !g.placingType) { showing = true; showTooltip(slot, id); }
+      }, 200);
+    });
+
+    slot.addEventListener('pointermove', (ev) => {
+      if (ev.pointerType === 'mouse') return;
+      const g = UI.game;
+      if (!g || g.over) return;
+      const dockLeft = $('#dock').getBoundingClientRect().left;
+      if (!carrying && ev.clientX < dockLeft - 4) {
+        // finger left the pane: the description goes away and the penguin comes along
+        clear();
+        if (showing) { hideTooltip(); showing = false; }
+        const cost = G.scaleCost(G.TOWERS[id].cost, g.diffId);
+        if (g.cash < cost) {
+          sfx.error(); buzz(30);
+          toast(`Need ${fmt(cost)} for a ${G.TOWERS[id].name}.`, 'bad');
+          swallow = true;
+          return;
+        }
+        carrying = true; swallow = true;
+        g.placingType = id;
+        g.selected = null;
+        syncCancelBtn(); renderDockSel(); updateHud();
+      }
+      if (carrying) g.mouse = canvasPos(ev);
+    });
+
+    const done = (ev) => {
+      if (ev.pointerType === 'mouse') return;
+      clear();
+      const g = UI.game;
+      if (carrying && g && g.placingType === id) {
+        const pos = canvasPos(ev);
+        const placed = g.placeTower(id, pos.x, pos.y);
+        if (placed) { sfx.place(); buzz(12); }
+        else { sfx.error(); buzz(30); }
+        // carried penguins are one-shot: no sticky armed state to cancel after
+        g.placingType = null;
+        g.mouse = { x: -999, y: -999 };
+        syncCancelBtn(); renderDockSel(); updateHud();
+      } else if (showing) {
+        armTooltipDismiss();
+      }
+      carrying = false;
+    };
+    slot.addEventListener('pointerup', done);
+    slot.addEventListener('pointercancel', () => {   // tray scroll took the gesture
+      clear();
+      if (showing) { hideTooltip(); showing = false; }
+      if (carrying) {
+        const g = UI.game;
+        if (g && g.placingType === id) { g.placingType = null; g.mouse = { x: -999, y: -999 }; syncCancelBtn(); renderDockSel(); updateHud(); }
+        carrying = false;
+      }
+    });
+    // swallow the tap that follows a long-press or a completed drag
+    slot.addEventListener('click', (ev) => {
+      if (showing || swallow) { ev.stopPropagation(); ev.preventDefault(); showing = false; swallow = false; }
+    }, true);
   }
 
   /* Long-press stands in for hover: it opens the same tooltip and swallows the
@@ -369,6 +462,7 @@
     renderDockSel();
     updateWavePreview();
     updateHud();
+    keepAwake(true);
     banner(save ? `Welcome back — Wave ${game.wave}` : `${game.level.name} — ${G.DIFFICULTIES[game.diffId].name}`);
     G.music.play(G.music.trackForLevel(levelIdx));
     G.music.setTempoScale(Math.pow(1.01, game.wave - 1));
@@ -377,6 +471,7 @@
   function exitToMenu(saveFirst) {
     const g = UI.game;
     if (g && saveFirst && !g.over) doSave(true);
+    keepAwake(false);
     UI.game = null;
     $('#hud-stats').style.display = 'none';
     $('#hud-sys').style.display = 'none';
@@ -557,7 +652,7 @@
           slot.addEventListener('mouseenter', () => showTooltip(slot, id));
           slot.addEventListener('mouseleave', hideTooltip);
           slot.addEventListener('click', () => armTower(id));
-          attachLongPress(slot, () => showTooltip(slot, id));
+          attachTrayDrag(slot, id);
           group.appendChild(slot);
         }
         rowEl.appendChild(group);
@@ -605,10 +700,17 @@
     tip.style.display = 'block';
     const r = anchor.getBoundingClientRect();
     const tr = tip.getBoundingClientRect();
+    const dock = $('#dock').getBoundingClientRect();
+    if (IS_TOUCH && r.left >= dock.left && dock.left > tr.width + 16) {
+      // side-dock: the card sits beside the pane, level with the finger
+      tip.style.left = Math.max(8, dock.left - tr.width - 10) + 'px';
+      tip.style.top = Math.max(8, Math.min(window.innerHeight - tr.height - 8, r.top + r.height / 2 - tr.height / 2)) + 'px';
+      return;
+    }
     let x = r.left + r.width / 2 - tr.width / 2;
     x = Math.max(8, Math.min(window.innerWidth - tr.width - 8, x));
     tip.style.left = x + 'px';
-    tip.style.top = (r.top - tr.height - 10) + 'px';
+    tip.style.top = Math.max(8, r.top - tr.height - 10) + 'px';
   }
   function hideTooltip() { $('#tooltip').style.display = 'none'; }
 

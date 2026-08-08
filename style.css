@@ -735,7 +735,9 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
    The selection card stops holding a seat and floats only when used.
    ============================================================ */
 @media (orientation: landscape) and (max-height: 560px) {
-  :root { --dockw: clamp(186px, 27vw, 240px); }
+  /* Slim rail: three penguins per row instead of five, so the dock can give
+     back ~80px of width to the battlefield without shrinking the icons. */
+  :root { --dockw: clamp(140px, 19vw, 170px); }
 
   /* Side dock, not a bottom bar. A phone in landscape is ~2.2 wide to 1 tall
      while the battlefields are 1.6-1.75, so height is what the map is starved
@@ -777,28 +779,29 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
   }
   #palette::-webkit-scrollbar { display: none; }
   .pal-row { flex-direction: column; gap: 5px; width: 100%; }
-  .pal-group { flex: none; gap: 4px; padding: 3px; width: 100%; justify-content: space-between; }
-  /* comfortable finger-size penguins; the tray scrolls smoothly for the rest */
-  .slot { flex: 1 1 0; min-width: 0; max-width: none; padding: 4px 1px 3px; border-radius: 8px; }
-  .slot canvas { width: 36px; height: 36px; }
+  /* three finger-size penguins per row; the tray scrolls smoothly for the rest */
+  .pal-group { flex: none; display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 3px; width: 100%; }
+  .slot { width: auto; min-width: 0; max-width: none; padding: 4px 1px 3px; border-radius: 8px; touch-action: pan-y; }
+  .slot canvas { width: 34px; height: 34px; }
   .slot-cost { font-size: 10.5px; line-height: 1.15; letter-spacing: -0.3px; }
   .slot-key { display: none; }          /* no keyboard to mirror */
 
   #dock-powers { order: 2; flex: none; padding: 4px 5px; gap: 2px; }
   .dp-label { display: none; }
-  .dp-grid { grid-template-columns: repeat(6, 1fr); gap: 4px; width: 100%; }
-  .dp-btn { width: auto; height: 32px; font-size: 15px; border-radius: 8px; }
+  .dp-grid { grid-template-columns: repeat(3, 1fr); gap: 4px; width: 100%; }
+  .dp-btn { width: auto; height: 36px; font-size: 16px; border-radius: 8px; }
   .dp-count { font-size: 9px; min-width: 13px; line-height: 1.4; top: -5px; right: -4px; }
 
-  #command { order: 3; flex: none; width: 100%; min-width: 0; max-width: none; gap: 5px; }
-  #wave-preview { max-height: 20px; }
-  .wp-chip { font-size: 10.5px; padding: 1px 6px; }
-  .wp-label { font-size: 10px; }
-  #send-wave { padding: 11px 8px; font-size: 14px; }
+  #command { order: 3; flex: none; width: 100%; min-width: 0; max-width: none; gap: 4px; }
+  #wave-preview { max-height: 20px; gap: 3px; }
+  .wp-chip { font-size: 10px; padding: 0 5px; gap: 3px; }
+  .wp-chip i { width: 8px; height: 8px; }
+  .wp-label { display: none; }
+  #send-wave { padding: 11px 6px; font-size: 13.5px; }
   #send-wave kbd, #cmd-row kbd { display: none; }
-  #cmd-row { gap: 5px; }
-  .btn.tiny { padding: 8px 9px; font-size: 12px; }
-  .hud-check { font-size: 11.5px; gap: 5px; }
+  #cmd-row { gap: 4px; justify-content: space-between; }
+  .btn.tiny { padding: 8px 8px; font-size: 12px; }
+  .hud-check { font-size: 0; gap: 0; }   /* switch only — the word doesn't fit the rail */
 
   /* selection card floats over the battlefield, only when it has something to say */
   #dock-sel {
