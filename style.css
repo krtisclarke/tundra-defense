@@ -142,12 +142,15 @@ html.touch #btn-cancel-place.show { display: block; }
   z-index: 5;
 }
 
-/* global fullscreen toggle — always visible, above overlay screens */
+/* global fullscreen toggle — always visible, above overlay screens.
+   Hidden on touch devices: phones can't fullscreen a Safari page, and the
+   home-screen app is already fullscreen — it only covered the battlefield. */
 #btn-fs {
   position: fixed;
   top: 14px; right: 16px;
   z-index: 30;
 }
+html.touch #btn-fs { display: none; }
 .icon-btn {
   display: inline-flex;
   align-items: center;
@@ -768,16 +771,17 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
     overflow-y: auto;
     overflow-x: hidden;
     scrollbar-width: none;
-    -webkit-overflow-scrolling: touch;
+    -webkit-overflow-scrolling: touch;   /* momentum scrolling */
     touch-action: pan-y;
+    overscroll-behavior: contain;
   }
   #palette::-webkit-scrollbar { display: none; }
-  .pal-row { flex-direction: column; gap: 4px; width: 100%; }
-  .pal-group { flex: none; gap: 3px; padding: 2px; width: 100%; justify-content: space-between; }
-  /* sized so all four class groups fit without scrolling */
-  .slot { flex: 1 1 0; min-width: 0; max-width: none; padding: 3px 1px 2px; border-radius: 7px; }
-  .slot canvas { width: 24px; height: 24px; }
-  .slot-cost { font-size: 9px; line-height: 1.1; letter-spacing: -0.3px; }
+  .pal-row { flex-direction: column; gap: 5px; width: 100%; }
+  .pal-group { flex: none; gap: 4px; padding: 3px; width: 100%; justify-content: space-between; }
+  /* comfortable finger-size penguins; the tray scrolls smoothly for the rest */
+  .slot { flex: 1 1 0; min-width: 0; max-width: none; padding: 4px 1px 3px; border-radius: 8px; }
+  .slot canvas { width: 36px; height: 36px; }
+  .slot-cost { font-size: 10.5px; line-height: 1.15; letter-spacing: -0.3px; }
   .slot-key { display: none; }          /* no keyboard to mirror */
 
   #dock-powers { order: 2; flex: none; padding: 4px 5px; gap: 2px; }
@@ -835,6 +839,7 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
   .icon-btn { width: 34px; height: 34px; }
   .icon-btn svg { width: 17px; height: 17px; }
   #btn-fs { top: 8px; right: calc(var(--dockw) + 10px); }
+  html.touch #hud-sys { right: 10px; }   /* no fullscreen button to clear */
   #banner { top: 44px; font-size: 20px; }
   #toasts { top: 48px; left: 10px; }
   .toast { font-size: 12.5px; padding: 7px 12px; }

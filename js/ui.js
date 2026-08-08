@@ -103,6 +103,22 @@
   /* ---------- touch helpers ---------- */
   const IS_TOUCH = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
 
+  /* iPhones mute WebAudio when the ring/silent switch is on silent, because a
+     web page counts as "ambient" sound. Declaring a playback session — and
+     keeping a silent <audio> loop alive as the fallback for older iOS — moves
+     the game into the media category, which the switch does not mute. */
+  function unlockMobileAudio() {
+    if (!IS_TOUCH) return;
+    try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) {}
+    try {
+      const a = new Audio('data:audio/wav;base64,UklGRjQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YRAAAAAAAAAAAAAAAAAAAAAAAAAA');
+      a.loop = true;
+      a.setAttribute('playsinline', '');
+      const p = a.play();
+      if (p && p.catch) p.catch(() => {});
+    } catch (e) { /* audio unavailable */ }
+  }
+
   function syncCancelBtn() {
     const g = UI.game;
     $('#btn-cancel-place').classList.toggle('show', !!(g && g.placingType && !g.over));
@@ -1065,6 +1081,7 @@
 
     // browsers unlock audio on the first gesture — start the menu tune then
     const kickAudio = () => {
+      unlockMobileAudio();
       G.music.setMuted(UI.profile.muted);
       if (!UI.game) G.music.play('menu');
       window.removeEventListener('pointerdown', kickAudio);
