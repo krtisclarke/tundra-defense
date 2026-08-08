@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "tundra-defense",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["serve.js"],
+      "port": 8642
+    },
+    {
+      "name": "tundra-defense-alt",
+      "runtimeExecutable": "env",
+      "runtimeArgs": ["PORT=8643", "node", "serve.js"],
+      "port": 8643
+    }
+  ]
+}
