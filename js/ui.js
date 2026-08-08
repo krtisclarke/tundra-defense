@@ -150,10 +150,10 @@
 
     slot.addEventListener('pointerdown', (ev) => {
       if (ev.pointerType === 'mouse') return;   // mouse keeps hover + click
-      /* the touch must not start a text selection or compat mouse gesture;
-         the synthesized click (tap-to-arm) still fires, and touch-action
-         still hands vertical strokes to the tray scroller */
-      ev.preventDefault();
+      /* no preventDefault here: iOS Safari would swallow the synthesized
+         click that tap-to-arm depends on (Chrome keeps it, per spec).
+         Selection during drags is suppressed by CSS instead —
+         user-select/touch-callout on .slot and html/body */
       showing = false; carrying = false; swallow = false;
       clear();
       timer = setTimeout(() => {
