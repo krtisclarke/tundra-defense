@@ -8,17 +8,19 @@ Runs in any modern browser on **Mac and PC** — no install, no internet, no dep
 Also playable on a **phone or tablet held sideways**: the controls become a side dock with
 a drag-to-place touch scheme, and you can add it to your home screen as a full-screen app.
 
+### Play it anywhere
+
+**https://krtisclarke.github.io/tundra-defense/** — the hosted copy, kept current with
+this repo. On a phone, open it once and **Share → Add to Home Screen** (iPhone) or
+**⋮ → Add to Home screen** (Android): you get a full-screen app with its own icon, and
+after that first visit it keeps working **offline** — no computer, no internet.
+
 ### Playing on a phone
 
-1. Start the game on your computer (`Play on Mac.command` / `Play on Windows.bat`).
-2. On the phone (same Wi-Fi), open `http://<your computer's IP>:8642` in the browser.
-3. Optional, for the app feel: **Share → Add to Home Screen** (iPhone) or
-   **⋮ → Add to Home screen** (Android). Launching from that icon opens full-screen with
-   its own icon — no address bar, no browser buttons.
-
-Hold the phone **sideways**. Tap a penguin to pick it up, drag on the map to aim the
-ghost, lift your finger to place. Long-press any penguin or boost for its stats. The
-home-screen app still loads from your computer, so the computer must be on and serving.
+Hold the phone **sideways** (portrait shows a rotate prompt). Tap a penguin to pick it
+up, drag on the map to aim the ghost, lift your finger to place. Long-press any penguin
+or boost for its stats. The controls live in a side dock so the battlefield gets the
+whole screen height.
 
 ## How to run
 
