@@ -150,6 +150,10 @@
 
     slot.addEventListener('pointerdown', (ev) => {
       if (ev.pointerType === 'mouse') return;   // mouse keeps hover + click
+      /* the touch must not start a text selection or compat mouse gesture;
+         the synthesized click (tap-to-arm) still fires, and touch-action
+         still hands vertical strokes to the tray scroller */
+      ev.preventDefault();
       showing = false; carrying = false; swallow = false;
       clear();
       timer = setTimeout(() => {
