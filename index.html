@@ -96,32 +96,41 @@
     </div>
 
     <div class="screen" id="screen-levels">
-      <h2>Choose a Battlefield</h2>
-      <div class="pebble-chip" title="Pebbles — win battles to earn them">🪨 <b class="js-pebbles">0</b> pebbles</div>
+      <div class="screen-head">
+        <button class="btn small" id="btn-levels-back">← Menu</button>
+        <h2>Choose a Battlefield</h2>
+        <span class="pebble-chip" title="Pebbles — win battles to earn them">🪨 <b class="js-pebbles">0</b> pebbles</span>
+      </div>
       <div id="level-grid"></div>
-      <button class="btn" id="btn-levels-back">← Back</button>
     </div>
 
     <div class="screen" id="screen-diff">
-      <h2>Choose Your Challenge</h2>
+      <div class="screen-head">
+        <button class="btn small" id="btn-diff-back">← Back</button>
+        <h2>Choose Your Challenge</h2>
+        <span class="pebble-chip" title="Pebbles — win battles to earn them">🪨 <b class="js-pebbles">0</b> pebbles</span>
+      </div>
       <p class="blurb" id="diff-sub"></p>
-      <div class="pebble-chip" title="Pebbles — win battles to earn them">🪨 <b class="js-pebbles">0</b> pebbles</div>
       <div id="diff-grid"></div>
       <button class="btn" id="btn-diff-shop">🪨 Boost Shop</button>
-      <button class="btn" id="btn-diff-back">← Back</button>
     </div>
 
     <div class="screen" id="screen-shop">
-      <h2>🪨 Boost Shop</h2>
-      <div class="pebble-chip" title="Pebbles — win battles to earn them">🪨 <b class="js-pebbles">0</b> pebbles</div>
+      <div class="screen-head">
+        <button class="btn small" id="btn-shop-back">← Back</button>
+        <h2>🪨 Boost Shop</h2>
+        <span class="pebble-chip" title="Pebbles — win battles to earn them">🪨 <b class="js-pebbles">0</b> pebbles</span>
+      </div>
       <p class="blurb">Stock up before battle. Boosts you own appear in the command dock during a match —
         one click fires them. Win battles to earn more pebbles.</p>
       <div id="shop-grid"></div>
-      <button class="btn" id="btn-shop-back">← Back</button>
     </div>
 
     <div class="screen" id="screen-howto">
-      <h2>How to Play</h2>
+      <div class="screen-head">
+        <button class="btn small" id="btn-howto-back">← Back</button>
+        <h2>How to Play</h2>
+      </div>
       <div class="howto">
         <p><b>Goal:</b> stop the sea lions from reaching the colony igloo. Each leak costs lives — bigger sea lions cost more. Survive every wave to win the level and unlock the next.</p>
         <p><b>Difficulty:</b> pick it when you start a battle. <b>Easy</b> — 30 waves, towers 15% cheaper, +25% lives. <b>Medium</b> — 40 waves, standard prices and lives. <b>Hard</b> — 50 waves, towers 15% pricier, −20% lives. Every campaign ends on a boss.</p>
@@ -139,7 +148,6 @@
           (on iPhone/iPad: Save to Files — an iCloud Drive folder syncs it to your other devices), and <b>📂 Load Backup</b> restores it anywhere.</p>
         <p class="keys-line"><kbd>Space</kbd> send wave · <kbd>Tab</kbd> speed · <kbd>P</kbd> pause · <kbd>M</kbd> mute · <kbd>Esc</kbd> cancel / menu</p>
       </div>
-      <button class="btn" id="btn-howto-back">← Back</button>
     </div>
 
     <div class="screen" id="screen-pause">

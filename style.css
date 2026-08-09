@@ -518,6 +518,25 @@ kbd {
   box-shadow: var(--shadow);
 }
 .screen.active { display: block; animation: screenIn 0.28s cubic-bezier(0.2, 0.9, 0.3, 1.1); }
+
+/* sticky screen header: the back button stays in reach no matter how far
+   the battlefield list (or the how-to text) has been scrolled.
+   Negative margins must mirror the .screen padding so the bar spans edge to edge. */
+.screen-head {
+  position: sticky;
+  top: -32px;   /* sticky offsets the margin box — cancel the negative margin */
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: -32px -38px 18px;
+  padding: 12px 16px;
+  background: linear-gradient(180deg, rgba(23, 35, 54, 0.99), rgba(19, 30, 47, 0.96));
+  border-bottom: 1px solid var(--line);
+}
+.screen-head h2 { flex: 1; margin: 0; font-size: 22px; text-align: center; }
+.screen-head .btn { flex: none; }
+.screen-head .pebble-chip { flex: none; margin: 0; }
 @keyframes screenIn {
   from { opacity: 0; transform: translateY(14px) scale(0.97); }
   to { opacity: 1; transform: none; }
@@ -885,6 +904,9 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
 
   /* menus have to fit a 390px-tall screen */
   .screen { padding: 16px 18px; max-height: calc(100dvh - 20px); border-radius: 14px; }
+  .screen-head { top: -16px; margin: -16px -18px 12px; padding: 8px 10px; gap: 8px; }
+  .screen-head h2 { font-size: 17px; }
+  .screen-head .pebble-chip { padding: 4px 10px; font-size: 12px; }
   .title-art { font-size: 34px; }
   h1 { font-size: 28px; }
   h2 { font-size: 20px; margin-bottom: 10px; }
