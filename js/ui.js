@@ -187,6 +187,15 @@
       if (carrying) g.mouse = canvasPos(ev);
     });
 
+    /* Once the description card is up — or a penguin is being carried — the
+       gesture is ours: stop the tray scroller from claiming the touch. With
+       selection now disabled, iOS otherwise hands a hold-then-drag to the
+       scroller and fires pointercancel, eating the drag. Quick strokes
+       (no card yet) still scroll the tray natively. */
+    slot.addEventListener('touchmove', (ev) => {
+      if (showing || carrying) ev.preventDefault();
+    }, { passive: false });
+
     const done = (ev) => {
       if (ev.pointerType === 'mouse') return;
       clear();
