@@ -685,6 +685,19 @@
       slot.classList.toggle('armed', g.placingType === slot.dataset.type);
     }
 
+    /* upgrade buttons light up the moment they become affordable — the card
+       itself only re-renders on selection changes, so without this the
+       poor/can state would freeze at whatever the cash was back then */
+    for (const b of document.querySelectorAll('#dock-sel .btn.upg-mini[data-cost]')) {
+      const can = g.cash >= +b.dataset.cost;
+      if (can && !b.classList.contains('can')) {
+        b.classList.add('flash');   // one pulse right as it crosses the line
+        b.addEventListener('animationend', () => b.classList.remove('flash'), { once: true });
+      }
+      b.classList.toggle('can', can);
+      b.classList.toggle('poor', !can);
+    }
+
     // boost inventory in the dock
     for (const btn of document.querySelectorAll('#dock-powers .dp-btn')) {
       const owned = UI.profile.powerInv[btn.dataset.power] || 0;
@@ -974,8 +987,9 @@
       } else {
         const u = path.tiers[tier];
         const uCost = G.scaleCost(u.cost, g.diffId);
-        btn = el('button', 'btn upg-mini' + (g.cash < uCost ? ' poor' : ''),
-          `<kbd>${key}</kbd><span class="um-name">${u.name}</span><span class="um-sub">${'●'.repeat(tier)}${'○'.repeat(3 - tier)} · <b>${fmt(uCost)}</b></span>`);
+        btn = el('button', 'btn upg-mini' + (g.cash < uCost ? ' poor' : ' can'),
+          `<kbd>${key}</kbd><span class="um-name">${u.name}</span><span class="um-desc">${u.desc}</span><span class="um-sub">${'●'.repeat(tier)}${'○'.repeat(3 - tier)} · <b>${fmt(uCost)}</b></span>`);
+        btn.dataset.cost = uCost;   // updateHud re-checks this as fish come in
         btn.title = u.desc;
         btn.onclick = () => buyUpgrade(t, p);
       }
