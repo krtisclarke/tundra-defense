@@ -109,14 +109,57 @@
     c.fillStyle = bg;
     c.fillRect(0, 0, G.W, G.H);
 
-    // rolling drifts: soft light/shadow lobes
-    for (let i = 0; i < 26; i++) {
+    // low sun from the top-left: warm light there, cool blue toward bottom-right
+    // (dark caverns get pale moonlight instead of sun)
+    const dk = !!th.dark;
+    const sun = c.createLinearGradient(0, 0, G.W, G.H);
+    sun.addColorStop(0, dk ? 'rgba(196,214,255,0.12)' : 'rgba(255,244,214,0.30)');
+    sun.addColorStop(0.45, 'rgba(255,244,214,0)');
+    sun.addColorStop(1, dk ? 'rgba(10,16,40,0.22)' : 'rgba(58,92,160,0.16)');
+    c.fillStyle = sun;
+    c.fillRect(0, 0, G.W, G.H);
+
+    // big wind-carved ice plates: subtle tone shifts with a crisp lit edge
+    for (let i = 0; i < 7; i++) {
+      const px = rnd() * G.W, py = rnd() * G.H;
+      const pr = 130 + rnd() * 240;
+      const pts = [];
+      const n = 7 + (rnd() * 4 | 0);
+      for (let k = 0; k < n; k++) {
+        const a = (k / n) * TAU;
+        const rr = pr * (0.6 + rnd() * 0.5);
+        pts.push([px + Math.cos(a) * rr, py + Math.sin(a) * rr * 0.7]);
+      }
+      const plate = () => {
+        c.beginPath();
+        c.moveTo((pts[0][0] + pts[1][0]) / 2, (pts[0][1] + pts[1][1]) / 2);
+        for (let k = 1; k <= n; k++) {
+          const [ax, ay] = pts[k % n], [bx, by] = pts[(k + 1) % n];
+          c.quadraticCurveTo(ax, ay, (ax + bx) / 2, (ay + by) / 2);
+        }
+        c.closePath();
+      };
+      c.fillStyle = rnd() > 0.5
+        ? (dk ? 'rgba(215,225,255,0.08)' : 'rgba(255,255,255,0.22)')
+        : (dk ? 'rgba(10,18,48,0.14)' : 'rgba(96,132,186,0.10)');
+      plate(); c.fill();
+      c.save();
+      c.translate(0, -2);
+      c.strokeStyle = dk ? 'rgba(215,225,255,0.14)' : 'rgba(255,255,255,0.35)'; c.lineWidth = 1.4;
+      plate(); c.stroke();
+      c.restore();
+    }
+
+    // rolling drifts: soft light/shadow lobes sculpt the surface
+    for (let i = 0; i < 30; i++) {
       const x = rnd() * G.W, y = rnd() * G.H;
       const rx = 90 + rnd() * 200, ry = 26 + rnd() * 60;
       const ang = (rnd() - 0.5) * 0.8;
       const light = rnd() > 0.45;
       const gr = c.createRadialGradient(0, 0, 4, 0, 0, rx);
-      gr.addColorStop(0, light ? 'rgba(255,255,255,0.36)' : 'rgba(84,118,164,0.19)');
+      gr.addColorStop(0, light
+        ? (dk ? 'rgba(210,222,255,0.16)' : 'rgba(255,255,255,0.42)')
+        : (dk ? 'rgba(8,14,40,0.24)' : 'rgba(76,112,168,0.22)'));
       gr.addColorStop(1, 'rgba(255,255,255,0)');
       c.save();
       c.translate(x, y); c.rotate(ang); c.scale(1, ry / rx);
@@ -222,17 +265,34 @@
     const shore = th.shore || '#bfe0ea';
     if (wt.rect) {
       const { x, y, w, h } = wt.rect;
-      // shore halo
+      const ph1 = rnd() * TAU, ph2 = rnd() * TAU;
+      const topY = (xx) => y + Math.sin(xx * 0.045 + ph1) * 5;
+      const botY = (xx) => y + h + Math.sin(xx * 0.05 + ph2) * 5;
+      // one closed river shape with gently waving banks; pad also widens the
+      // ends so mid-map pools keep their shore band on all four sides
+      const river = (pad) => {
+        c.beginPath();
+        c.moveTo(x - pad, topY(x) - pad);
+        for (let xx = x + 20; xx <= x + w; xx += 20) c.lineTo(xx, topY(xx) - pad);
+        c.lineTo(x + w + pad, topY(x + w) - pad);
+        c.lineTo(x + w + pad, botY(x + w) + pad);
+        for (let xx = x + w - 20; xx >= x; xx -= 20) c.lineTo(xx, botY(xx) + pad);
+        c.lineTo(x - pad, botY(x) + pad);
+        c.closePath();
+      };
+      // shore halo with a crisp dark contour
       c.fillStyle = shore;
-      c.fillRect(x, y - 7, w, h + 14);
+      river(9); c.fill();
+      c.strokeStyle = 'rgba(20,42,72,0.35)'; c.lineWidth = 2.5;
+      c.stroke();
       const gr = c.createLinearGradient(0, y, 0, y + h);
       gr.addColorStop(0, shade(deep, 55));
       gr.addColorStop(0.5, deep);
       gr.addColorStop(1, shade(deep, 25));
       c.fillStyle = gr;
-      c.fillRect(x, y, w, h);
+      river(0); c.fill();
       // static current lines
-      c.strokeStyle = 'rgba(255,255,255,0.16)';
+      c.strokeStyle = 'rgba(255,255,255,0.18)';
       c.lineWidth = 1.5;
       for (let i = 0; i < 6; i++) {
         const yy = y + 14 + (h - 28) * (i / 5);
@@ -243,30 +303,42 @@
         }
         c.stroke();
       }
-      // recessed bank: dark inner shadow at the top, light lip at the bottom
+      // recessed bank: dark inner shadow along the top, light lip along the bottom
       c.strokeStyle = 'rgba(15,35,60,0.35)';
-      c.lineWidth = 6;
-      c.beginPath(); c.moveTo(x, y + 4); c.lineTo(x + w, y + 4); c.stroke();
+      c.lineWidth = 5;
+      c.beginPath();
+      for (let xx = x; xx <= x + w; xx += 20) { const yy = topY(xx) + 4; xx === x ? c.moveTo(xx, yy) : c.lineTo(xx, yy); }
+      c.stroke();
       c.strokeStyle = 'rgba(255,255,255,0.4)';
       c.lineWidth = 2.5;
-      c.beginPath(); c.moveTo(x, y + h + 1); c.lineTo(x + w, y + h + 1); c.stroke();
-      // foam edges
-      c.strokeStyle = 'rgba(255,255,255,0.55)';
+      c.beginPath();
+      for (let xx = x; xx <= x + w; xx += 20) { const yy = botY(xx) + 10; xx === x ? c.moveTo(xx, yy) : c.lineTo(xx, yy); }
+      c.stroke();
+      // foam hugging both banks
+      c.strokeStyle = 'rgba(255,255,255,0.6)';
       c.lineWidth = 2;
       c.setLineDash([8, 10]);
-      c.beginPath(); c.moveTo(x, y + 2); c.lineTo(x + w, y + 2); c.stroke();
-      c.beginPath(); c.moveTo(x, y + h - 2); c.lineTo(x + w, y + h - 2); c.stroke();
+      c.beginPath();
+      for (let xx = x; xx <= x + w; xx += 20) { const yy = topY(xx) + 2; xx === x ? c.moveTo(xx, yy) : c.lineTo(xx, yy); }
+      c.stroke();
+      c.beginPath();
+      for (let xx = x; xx <= x + w; xx += 20) { const yy = botY(xx) - 2; xx === x ? c.moveTo(xx, yy) : c.lineTo(xx, yy); }
+      c.stroke();
       c.setLineDash([]);
       // floes
       for (let i = 0; i < Math.max(2, w / 400 | 0); i++) drawFloe(c, x + 40 + rnd() * (w - 80), y + 18 + rnd() * (h - 36), 10 + rnd() * 14, rnd);
     } else {
-      // shore ring
+      // shore ring with a crisp dark contour
       c.fillStyle = shore;
-      c.beginPath(); c.arc(wt.x, wt.y, wt.r + 7, 0, TAU); c.fill();
-      const gr = c.createRadialGradient(wt.x - wt.r * 0.25, wt.y - wt.r * 0.25, wt.r * 0.15, wt.x, wt.y, wt.r);
-      gr.addColorStop(0, shade(deep, 70));
-      gr.addColorStop(0.65, deep);
-      gr.addColorStop(1, shade(deep, 18));
+      c.beginPath(); c.arc(wt.x, wt.y, wt.r + 8, 0, TAU); c.fill();
+      c.strokeStyle = 'rgba(20,42,72,0.35)'; c.lineWidth = 2.5;
+      c.stroke();
+      // shallow bright rim, deep vivid centre
+      const gr = c.createRadialGradient(wt.x, wt.y, wt.r * 0.1, wt.x, wt.y, wt.r);
+      gr.addColorStop(0, shade(deep, -18));
+      gr.addColorStop(0.55, deep);
+      gr.addColorStop(0.9, shade(deep, 48));
+      gr.addColorStop(1, shade(deep, 72));
       c.fillStyle = gr;
       c.beginPath(); c.arc(wt.x, wt.y, wt.r, 0, TAU); c.fill();
       // recessed basin: dark crescent up top, light lip at the bottom
@@ -275,18 +347,21 @@
       c.beginPath(); c.arc(wt.x, wt.y + 2, wt.r - 3, Math.PI * 1.1, Math.PI * 1.9); c.stroke();
       c.strokeStyle = 'rgba(255,255,255,0.45)';
       c.lineWidth = 2.5;
-      c.beginPath(); c.arc(wt.x, wt.y, wt.r + 7, Math.PI * 0.15, Math.PI * 0.85); c.stroke();
+      c.beginPath(); c.arc(wt.x, wt.y, wt.r + 8, Math.PI * 0.15, Math.PI * 0.85); c.stroke();
       // foam ring
-      c.strokeStyle = 'rgba(255,255,255,0.55)';
+      c.strokeStyle = 'rgba(255,255,255,0.6)';
       c.lineWidth = 2;
       c.setLineDash([7, 9]);
       c.beginPath(); c.arc(wt.x, wt.y, wt.r - 3, 0, TAU); c.stroke();
       c.setLineDash([]);
-      // inner ripple rings
-      c.strokeStyle = 'rgba(255,255,255,0.14)';
-      c.lineWidth = 1.5;
-      c.beginPath(); c.arc(wt.x, wt.y, wt.r * 0.62, 0, TAU); c.stroke();
-      c.beginPath(); c.arc(wt.x, wt.y, wt.r * 0.34, 0, TAU); c.stroke();
+      // sun glitter across the middle
+      c.fillStyle = 'rgba(255,255,255,0.35)';
+      for (let i = 0; i < 9; i++) {
+        const a = rnd() * TAU, rr = rnd() * wt.r * 0.55;
+        c.beginPath();
+        c.ellipse(wt.x + Math.cos(a) * rr, wt.y + Math.sin(a) * rr * 0.8, 2.4 + rnd() * 2.6, 1 + rnd(), 0, 0, TAU);
+        c.fill();
+      }
       if (wt.r > 78) {
         drawFloe(c, wt.x - wt.r * 0.35, wt.y + wt.r * 0.3, wt.r * 0.16, rnd);
         drawFloe(c, wt.x + wt.r * 0.42, wt.y - wt.r * 0.28, wt.r * 0.13, rnd);
@@ -330,6 +405,9 @@
     c.stroke();
     c.restore();
 
+    // crisp dark contour ring so the trail pops off the snow
+    trace(); c.strokeStyle = shade(th.pathEdge || '#b0a284', -52); c.lineWidth = G.PATH_HALF * 2 + 11; c.stroke();
+
     // raised-edge bevel: dark base peeking below, then border, body, lit core
     c.save();
     c.translate(0, 3);
@@ -358,17 +436,21 @@
       c.stroke();
     }
 
-    // piled snow bumps along the edges
-    c.fillStyle = 'rgba(255,255,255,0.65)';
-    for (let d = 12; d < total; d += 34) {
+    // piled snow banks scalloping the edges — irregular clumps, not beads
+    for (let d = 12; d < total; d += 22 + rnd() * 26) {
       const p = pathPoint(pts, d);
       for (const side of [-1, 1]) {
-        if (rnd() > 0.72) continue;
+        if (rnd() > 0.66) continue;
         const nx = Math.cos(p.ang + Math.PI / 2) * side, ny = Math.sin(p.ang + Math.PI / 2) * side;
-        const off = G.PATH_HALF + 2 + rnd() * 3;
-        c.beginPath();
-        c.ellipse(p.x + nx * off, p.y + ny * off, 3.5 + rnd() * 3.5, 2 + rnd() * 2, p.ang, 0, TAU);
-        c.fill();
+        const off = G.PATH_HALF + 2 + rnd() * 5;
+        const bx = p.x + nx * off, by = p.y + ny * off;
+        const brx = 3 + rnd() * 6, bry = 2 + rnd() * 3;
+        c.fillStyle = th.dark ? 'rgba(8,14,40,0.30)' : 'rgba(120,150,195,0.28)';
+        c.beginPath(); c.ellipse(bx + 1.5, by + 2, brx, bry, p.ang + (rnd() - 0.5) * 0.6, 0, TAU); c.fill();
+        c.fillStyle = th.dark
+          ? `rgba(196,208,244,${0.2 + rnd() * 0.14})`
+          : `rgba(255,255,255,${0.6 + rnd() * 0.35})`;
+        c.beginPath(); c.ellipse(bx, by, brx, bry, p.ang + (rnd() - 0.5) * 0.6, 0, TAU); c.fill();
       }
     }
 
@@ -410,9 +492,9 @@
     };
 
     if (kind === 'pines') {
-      place(9, G.PATH_HALF + 42, drawPine, 16, 14);
-      place(8, G.PATH_HALF + 34, drawTuft, 5, 4);
-      place(5, G.PATH_HALF + 34, drawStone, 5, 6);
+      place(13, G.PATH_HALF + 42, drawPine, 16, 14);
+      place(10, G.PATH_HALF + 34, drawTuft, 5, 4);
+      place(6, G.PATH_HALF + 34, drawStone, 5, 6);
     } else if (kind === 'reeds') {
       // reeds hug the river banks
       for (const wt of level.water) {
@@ -470,6 +552,23 @@
         meta.torches.push({ x: tx, y: ty });
       }
     }
+
+    // frame the map edges with scenery so the world doesn't just fade out
+    const edgeFn = kind === 'crystals' ? drawCrystalShard : kind === 'dead' ? drawDeadTree : drawPine;
+    for (let i = 0; i < 16; i++) {
+      for (let tries = 0; tries < 30; tries++) {
+        const side = (rnd() * 4) | 0;
+        let x, y;
+        if (side === 0) { x = rnd() * G.W; y = 16 + rnd() * 26; }
+        else if (side === 1) { x = rnd() * G.W; y = G.H - 14 - rnd() * 26; }
+        else if (side === 2) { x = 16 + rnd() * 26; y = rnd() * G.H; }
+        else { x = G.W - 16 - rnd() * 26; y = rnd() * G.H; }
+        if (!pathDistOk(level.paths, x, y, G.PATH_HALF + 28)) continue;
+        if (waterHit(level, x, y, 30)) continue;
+        edgeFn(c, x, y, (kind === 'crystals' ? 7 : 11) + rnd() * 7, rnd);
+        break;
+      }
+    }
   }
 
   function propShadow(c, x, y, rx) {
@@ -479,17 +578,21 @@
     c.beginPath(); c.ellipse(x + rx * 0.22, y + 1, rx, rx * 0.34, 0, 0, TAU); c.fill();
   }
   function drawPine(c, x, y, s, rnd) {
-    propShadow(c, x, y + s * 0.9, s * 0.75);
-    c.fillStyle = '#6b4f35';
-    c.fillRect(x - s * 0.08, y + s * 0.55, s * 0.16, s * 0.4);
-    const green = ['#2e6b4f', '#357a5b', '#2a5f46'][(rnd() * 3) | 0];
+    propShadow(c, x, y + s * 0.9, s * 0.8);
+    c.fillStyle = '#7a5535';
+    c.fillRect(x - s * 0.11, y + s * 0.5, s * 0.22, s * 0.45);
+    c.strokeStyle = '#4e3520'; c.lineWidth = 1.2;
+    c.strokeRect(x - s * 0.11, y + s * 0.5, s * 0.22, s * 0.45);
+    const green = ['#2f7c56', '#399165', '#2b6d4c'][(rnd() * 3) | 0];
+    const dark = shade(green, -38);
     for (let i = 0; i < 3; i++) {
-      const w = s * (1 - i * 0.24), yy = y + s * 0.55 - i * s * 0.52;
+      const w = s * (1.08 - i * 0.26), yy = y + s * 0.55 - i * s * 0.52;
       c.fillStyle = green;
-      c.beginPath(); c.moveTo(x - w * 0.62, yy); c.lineTo(x, yy - s * 0.75); c.lineTo(x + w * 0.62, yy); c.closePath(); c.fill();
-      c.fillStyle = 'rgba(255,255,255,0.85)';
-      c.beginPath(); c.moveTo(x - w * 0.34, yy - s * 0.30); c.lineTo(x, yy - s * 0.75); c.lineTo(x + w * 0.34, yy - s * 0.30);
-      c.quadraticCurveTo(x, yy - s * 0.16, x - w * 0.34, yy - s * 0.30); c.closePath(); c.fill();
+      c.beginPath(); c.moveTo(x - w * 0.66, yy); c.lineTo(x, yy - s * 0.8); c.lineTo(x + w * 0.66, yy); c.closePath(); c.fill();
+      c.strokeStyle = dark; c.lineWidth = 1.5; c.stroke();
+      c.fillStyle = '#f6fbff';
+      c.beginPath(); c.moveTo(x - w * 0.36, yy - s * 0.3); c.lineTo(x, yy - s * 0.8); c.lineTo(x + w * 0.36, yy - s * 0.3);
+      c.quadraticCurveTo(x, yy - s * 0.14, x - w * 0.36, yy - s * 0.3); c.closePath(); c.fill();
     }
   }
   function drawTuft(c, x, y, s, rnd) {
@@ -510,7 +613,8 @@
     c.lineTo(x - s * 0.5, y - s * 0.5); c.lineTo(x + s * 0.2, y - s * 0.7); c.lineTo(x + s * 0.9, y - s * 0.1);
     c.lineTo(x + s, y + s * 0.4);
     c.closePath(); c.fill();
-    c.fillStyle = 'rgba(255,255,255,0.6)';
+    c.strokeStyle = '#5b6771'; c.lineWidth = 1.4; c.stroke();
+    c.fillStyle = 'rgba(255,255,255,0.75)';
     c.beginPath(); c.moveTo(x - s * 0.5, y - s * 0.5); c.lineTo(x + s * 0.2, y - s * 0.7); c.lineTo(x + s * 0.35, y - s * 0.4); c.lineTo(x - s * 0.25, y - s * 0.22); c.closePath(); c.fill();
   }
   function drawReeds(c, x, y, s, rnd) {
@@ -779,12 +883,21 @@
     ctx.restore();
   }
 
-  /* ================= PENGUIN ================= */
-  function drawPenguin(ctx, x, y, r0, typeId, aim, t) {
+  /* ================= PENGUIN =================
+     up = [weaponTier, gearTier] (0-3 each). Upgrades change the look:
+     weapon path grows the prop (glowing at max), gear path adds a
+     sash → cape → gold-trimmed cape, and veterans stand a bit taller. */
+  function drawPenguin(ctx, x, y, r0, typeId, aim, t, up) {
     const look = (typeId && G.LOOKS[typeId]) || {};
-    const r = r0 * (look.scale || 1);
+    const tierA = up ? up[0] : 0;
+    const tierB = up ? up[1] : 0;
+    const tiers = tierA + tierB;
+    const r = r0 * (look.scale || 1) * (1 + tiers * 0.03);
     const body = look.tint || '#2b3138';
     const belly = look.belly || '#f4f6f8';
+    const ink = shade(body.startsWith('#') ? body : '#2b3138', -70);
+    const twDef = typeId && G.TOWERS[typeId];
+    const clsColor = (twDef && G.CLASSES[twDef.cls] && G.CLASSES[twDef.cls].color) || '#e05252';
 
     ctx.save();
     ctx.translate(x, y);
@@ -794,6 +907,30 @@
     ctx.beginPath(); ctx.ellipse(r * 0.3, r * 0.8, r * 1.15, r * 0.46, 0, 0, TAU); ctx.fill();
     ctx.fillStyle = 'rgba(25,42,62,0.20)';
     ctx.beginPath(); ctx.ellipse(r * 0.16, r * 0.76, r * 0.9, r * 0.36, 0, 0, TAU); ctx.fill();
+
+    // veteran ground ring (4+ total tiers)
+    if (tiers >= 4) {
+      ctx.strokeStyle = clsColor;
+      ctx.save(); ctx.globalAlpha = 0.4 + Math.sin(t * 2.5) * 0.12;
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.ellipse(r * 0.1, r * 0.76, r * 1.05, r * 0.42, 0, 0, TAU); ctx.stroke();
+      ctx.restore();
+    }
+
+    // gear-path cape billows out behind (tier 2+), gold-trimmed at tier 3
+    if (tierB >= 2) {
+      const sway = Math.sin(t * 2.2) * r * 0.07;
+      ctx.fillStyle = shade(clsColor, -12);
+      ctx.beginPath();
+      ctx.moveTo(-r * 0.34, -r * 0.62);
+      ctx.quadraticCurveTo(-r * 1.3, -r * 0.1 + sway, -r * 1.12, r * 0.72 + sway);
+      ctx.quadraticCurveTo(-r * 0.55, r * 0.95, -r * 0.12, r * 0.7);
+      ctx.lineTo(r * 0.05, -r * 0.5);
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = tierB >= 3 ? '#ffd166' : shade(clsColor, -46);
+      ctx.lineWidth = r * (tierB >= 3 ? 0.1 : 0.06);
+      ctx.stroke();
+    }
 
     if (look.prop === 'jetpack') {
       ctx.fillStyle = look.propColor || '#e07b39';
@@ -809,30 +946,52 @@
       ctx.fillRect(r * 0.55, -r * 1.56, r * 0.42, r * 0.2);
     }
 
-    ctx.fillStyle = '#f0a840';
-    ctx.beginPath(); ctx.ellipse(-r * 0.4, r * 0.72, r * 0.28, r * 0.14, 0, 0, TAU); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(r * 0.4, r * 0.72, r * 0.28, r * 0.14, 0, 0, TAU); ctx.fill();
+    // outlined webbed feet
+    ctx.fillStyle = '#f7ae3c';
+    ctx.strokeStyle = '#b26f1d'; ctx.lineWidth = Math.max(1, r * 0.07);
+    ctx.beginPath(); ctx.ellipse(-r * 0.4, r * 0.72, r * 0.28, r * 0.14, 0, 0, TAU); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(r * 0.4, r * 0.72, r * 0.28, r * 0.14, 0, 0, TAU); ctx.fill(); ctx.stroke();
 
-    // sphere-shaded body: highlight upper-left, darker rim lower-right
+    // sphere-shaded body with a bold cartoon outline
     const bodyGrad = ctx.createRadialGradient(-r * 0.3, -r * 0.45, r * 0.12, 0, 0, r * 1.15);
-    bodyGrad.addColorStop(0, shade(body.startsWith('#') ? body : '#2b3138', 34));
+    bodyGrad.addColorStop(0, shade(body.startsWith('#') ? body : '#2b3138', 40));
     bodyGrad.addColorStop(0.55, body);
-    bodyGrad.addColorStop(1, shade(body.startsWith('#') ? body : '#2b3138', -28));
+    bodyGrad.addColorStop(1, shade(body.startsWith('#') ? body : '#2b3138', -30));
     ctx.fillStyle = bodyGrad;
     ctx.beginPath(); ctx.ellipse(0, 0, r * 0.82, r, 0, 0, TAU); ctx.fill();
+    ctx.strokeStyle = ink; ctx.lineWidth = Math.max(1.2, r * 0.11);
+    ctx.stroke();
     const bellyGrad = ctx.createRadialGradient(-r * 0.18, -r * 0.1, r * 0.1, 0, r * 0.14, r * 0.85);
     bellyGrad.addColorStop(0, '#ffffff');
     bellyGrad.addColorStop(0.6, belly);
-    bellyGrad.addColorStop(1, shade(belly.startsWith('#') ? belly : '#f4f6f8', -30));
+    bellyGrad.addColorStop(1, shade(belly.startsWith('#') ? belly : '#f4f6f8', -34));
     ctx.fillStyle = bellyGrad;
     ctx.beginPath(); ctx.ellipse(0, r * 0.14, r * 0.55, r * 0.72, 0, 0, TAU); ctx.fill();
+    // glossy crown highlight — sells the rounded head
+    ctx.fillStyle = 'rgba(255,255,255,0.30)';
+    ctx.beginPath(); ctx.ellipse(-r * 0.3, -r * 0.62, r * 0.3, r * 0.16, 0.5, 0, TAU); ctx.fill();
 
-    ctx.fillStyle = body;
+    // gear-path sash across the chest (tier 1+)
+    if (tierB >= 1) {
+      ctx.save();
+      ctx.beginPath(); ctx.ellipse(0, 0, r * 0.82, r, 0, 0, TAU); ctx.clip();
+      ctx.strokeStyle = clsColor; ctx.lineWidth = r * 0.2; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(-r * 0.66, -r * 0.2); ctx.lineTo(r * 0.5, r * 0.62); ctx.stroke();
+      if (tierB >= 3) {
+        ctx.strokeStyle = '#ffd166'; ctx.lineWidth = r * 0.06;
+        ctx.beginPath(); ctx.moveTo(-r * 0.66, -r * 0.2); ctx.lineTo(r * 0.5, r * 0.62); ctx.stroke();
+      }
+      ctx.restore();
+    }
+
     const flap = Math.sin(t * 6) * 0.15;
+    ctx.fillStyle = body;
+    ctx.strokeStyle = ink;
+    ctx.lineWidth = Math.max(1, r * 0.09);
     ctx.save(); ctx.rotate(0.5 + flap);
-    ctx.beginPath(); ctx.ellipse(-r * 0.85, 0, r * 0.18, r * 0.55, 0, 0, TAU); ctx.fill(); ctx.restore();
+    ctx.beginPath(); ctx.ellipse(-r * 0.85, 0, r * 0.18, r * 0.55, 0, 0, TAU); ctx.fill(); ctx.stroke(); ctx.restore();
     ctx.save(); ctx.rotate(-0.5 - flap);
-    ctx.beginPath(); ctx.ellipse(r * 0.85, 0, r * 0.18, r * 0.55, 0, 0, TAU); ctx.fill(); ctx.restore();
+    ctx.beginPath(); ctx.ellipse(r * 0.85, 0, r * 0.18, r * 0.55, 0, 0, TAU); ctx.fill(); ctx.stroke(); ctx.restore();
 
     if (look.cheeks) {
       ctx.fillStyle = look.cheeks;
@@ -840,26 +999,54 @@
       ctx.beginPath(); ctx.ellipse(r * 0.44, -r * 0.34, r * 0.14, r * 0.2, -0.3, 0, TAU); ctx.fill();
     }
 
+    // big glossy eyes that track the aim
     ctx.fillStyle = '#fff';
-    ctx.beginPath(); ctx.arc(-r * 0.26, -r * 0.42, r * 0.17, 0, TAU); ctx.fill();
-    ctx.beginPath(); ctx.arc(r * 0.26, -r * 0.42, r * 0.17, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.arc(-r * 0.26, -r * 0.42, r * 0.19, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.arc(r * 0.26, -r * 0.42, r * 0.19, 0, TAU); ctx.fill();
     ctx.fillStyle = '#1a1d21';
     const lx = aim != null ? Math.cos(aim) * r * 0.05 : 0;
     const ly = aim != null ? Math.sin(aim) * r * 0.05 : 0;
-    ctx.beginPath(); ctx.arc(-r * 0.26 + lx, -r * 0.42 + ly, r * 0.08, 0, TAU); ctx.fill();
-    ctx.beginPath(); ctx.arc(r * 0.26 + lx, -r * 0.42 + ly, r * 0.08, 0, TAU); ctx.fill();
-    ctx.fillStyle = '#f0a840';
-    ctx.beginPath(); ctx.moveTo(-r * 0.14, -r * 0.28); ctx.lineTo(r * 0.14, -r * 0.28); ctx.lineTo(0, -r * 0.08); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.arc(-r * 0.26 + lx, -r * 0.42 + ly, r * 0.095, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.arc(r * 0.26 + lx, -r * 0.42 + ly, r * 0.095, 0, TAU); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.beginPath(); ctx.arc(-r * 0.29 + lx, -r * 0.46 + ly, r * 0.035, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.arc(r * 0.23 + lx, -r * 0.46 + ly, r * 0.035, 0, TAU); ctx.fill();
+    // two-tone outlined beak
+    ctx.fillStyle = '#f7ae3c';
+    ctx.beginPath(); ctx.moveTo(-r * 0.16, -r * 0.3); ctx.lineTo(r * 0.16, -r * 0.3); ctx.lineTo(0, -r * 0.06); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#b26f1d'; ctx.lineWidth = Math.max(1, r * 0.05); ctx.stroke();
+    ctx.fillStyle = '#ffd07a';
+    ctx.beginPath(); ctx.moveTo(-r * 0.1, -r * 0.29); ctx.lineTo(r * 0.1, -r * 0.29); ctx.lineTo(0, -r * 0.2); ctx.closePath(); ctx.fill();
 
-    drawHat(ctx, r * 1.18, look, t);      // oversized hats: role reads at a glance
-    drawProp(ctx, r * 1.32, look, aim, t); // oversized weapons/props
-    drawRoleExtras(ctx, r, typeId, t);
+    // oversized hat & weapon: role reads at a glance. The weapon grows with
+    // its path, and a maxed path glows gold.
+    if (tierB >= 3) {
+      ctx.save();
+      ctx.shadowColor = 'rgba(255,209,102,0.85)'; ctx.shadowBlur = r * 0.5;
+      drawHat(ctx, r * 1.18, look, t);
+      ctx.restore();
+    } else {
+      drawHat(ctx, r * 1.18, look, t);
+    }
+    const propS = 1 + tierA * 0.13;
+    const propR = r * 1.32 * propS;
+    if (tierA >= 3) {
+      ctx.save();
+      ctx.shadowColor = 'rgba(255,209,102,0.85)'; ctx.shadowBlur = r * 0.55;
+      drawProp(ctx, propR, look, aim, t, propS);
+      ctx.restore();
+    } else {
+      drawProp(ctx, propR, look, aim, t, propS);
+    }
+    drawRoleExtras(ctx, r, typeId, t, tierA, tierB);
 
     ctx.restore();
   }
 
-  /* extra per-role flourishes so each penguin's job is unmistakable */
-  function drawRoleExtras(ctx, r, typeId, t) {
+  /* extra per-role flourishes so each penguin's job is unmistakable;
+     a few of them thicken up as the weapon path (tierA) grows */
+  function drawRoleExtras(ctx, r, typeId, t, tierA, tierB) {
+    tierA = tierA || 0; tierB = tierB || 0;
     switch (typeId) {
       case 'slush': // slush tank backpack
         ctx.fillStyle = '#2e8fa3';
@@ -867,11 +1054,11 @@
         ctx.fillStyle = 'rgba(140,225,245,0.85)';
         rounded(ctx, -r * 0.88, -r * 0.34, r * 0.28, r * 0.4, r * 0.1);
         break;
-      case 'artillery': // shell pile
+      case 'artillery': // shell pile grows with the Shells path
         ctx.fillStyle = '#2f3b47';
-        for (let i = 0; i < 3; i++) {
+        for (let i = 0; i < 3 + tierA; i++) {
           ctx.beginPath();
-          ctx.ellipse(-r * 0.9 + i * r * 0.3, r * 0.78, r * 0.12, r * 0.2, 0.3, 0, TAU);
+          ctx.ellipse(-r * 0.9 + i * r * 0.26, r * 0.78, r * 0.12, r * 0.2, 0.3, 0, TAU);
           ctx.fill();
         }
         break;
@@ -885,15 +1072,16 @@
           ctx.closePath(); ctx.fill();
         }
         break;
-      case 'sunpriest': { // radiating sun rays around the halo
+      case 'sunpriest': { // radiating sun rays around the halo — more with power
+        const rays = 6 + tierA * 2;
         ctx.save();
         ctx.translate(0, -r * 1.4);
         ctx.rotate(t * 0.8);
         ctx.strokeStyle = 'rgba(255,209,102,0.8)';
         ctx.lineWidth = r * 0.07;
         ctx.lineCap = 'round';
-        for (let i = 0; i < 6; i++) {
-          const a = (i / 6) * TAU;
+        for (let i = 0; i < rays; i++) {
+          const a = (i / rays) * TAU;
           ctx.beginPath();
           ctx.moveTo(Math.cos(a) * r * 0.6, Math.sin(a) * r * 0.6 * 0.5);
           ctx.lineTo(Math.cos(a) * r * 0.85, Math.sin(a) * r * 0.85 * 0.5);
@@ -902,15 +1090,17 @@
         ctx.restore();
         break;
       }
-      case 'blizzard': // orbiting snowflakes
+      case 'blizzard': { // orbiting snowflakes — a thicker flurry when upgraded
+        const n = 4 + tierA;
         ctx.fillStyle = 'rgba(240,250,255,0.9)';
-        for (let i = 0; i < 4; i++) {
-          const a = t * 2.2 + (i * TAU) / 4;
+        for (let i = 0; i < n; i++) {
+          const a = t * 2.2 + (i * TAU) / n;
           ctx.beginPath();
           ctx.arc(Math.cos(a) * r * 1.25, Math.sin(a) * r * 0.7 - r * 0.15, r * 0.09, 0, TAU);
           ctx.fill();
         }
         break;
+      }
       case 'drummer': { // visible beat shockwave
         const beat = (t * 1.5) % 1;
         ctx.strokeStyle = `rgba(224,101,63,${(1 - beat) * 0.5})`;
@@ -1108,7 +1298,10 @@
     }
   }
 
-  function drawProp(ctx, r, look, aim, t) {
+  /* r carries the upgrade growth; rb is the un-grown radius so held props
+     (staffs, flags) stay anchored in the flipper while their size scales */
+  function drawProp(ctx, r, look, aim, t, s) {
+    const rb = r / (s || 1);
     const c = look.propColor || '#7d8a96';
     switch (look.prop) {
       case 'sling':
@@ -1168,18 +1361,19 @@
         ctx.restore();
         break;
       case 'staff': case 'crookstaff': {
+        const px = rb * 0.66;
         ctx.strokeStyle = '#6b4f35'; ctx.lineWidth = r * 0.12; ctx.lineCap = 'round';
-        ctx.beginPath(); ctx.moveTo(r * 0.66, r * 0.6); ctx.lineTo(r * 0.66, -r * 0.7); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(px, rb * 0.6); ctx.lineTo(px, -r * 0.7); ctx.stroke();
         if (look.prop === 'crookstaff') {
-          ctx.beginPath(); ctx.arc(r * 0.52, -r * 0.7, r * 0.15, 0, Math.PI * 1.4); ctx.stroke();
+          ctx.beginPath(); ctx.arc(px - r * 0.14, -r * 0.7, r * 0.15, 0, Math.PI * 1.4); ctx.stroke();
         }
         const glow = 0.65 + Math.sin(t * 4) * 0.25;
         ctx.fillStyle = look.propColor || '#5ee8a8';
         ctx.save(); ctx.globalAlpha = glow * 0.35;
-        ctx.beginPath(); ctx.arc(r * 0.66, -r * 0.86, r * 0.34, 0, TAU); ctx.fill();
+        ctx.beginPath(); ctx.arc(px, -r * 0.86, r * 0.34, 0, TAU); ctx.fill();
         ctx.restore();
         ctx.save(); ctx.globalAlpha = glow;
-        ctx.beginPath(); ctx.arc(r * 0.66, -r * 0.86, r * 0.16, 0, TAU); ctx.fill();
+        ctx.beginPath(); ctx.arc(px, -r * 0.86, r * 0.16, 0, TAU); ctx.fill();
         ctx.restore();
         break;
       }
@@ -1234,12 +1428,14 @@
         ctx.beginPath(); ctx.arc(0, -r * 0.1, r * 0.4, Math.PI * 1.25, Math.PI * 1.75); ctx.stroke();
         ctx.restore();
         break;
-      case 'flag':
+      case 'flag': {
+        const px = rb * 0.7;
         ctx.strokeStyle = '#8a5a33'; ctx.lineWidth = r * 0.1; ctx.lineCap = 'round';
-        ctx.beginPath(); ctx.moveTo(r * 0.7, r * 0.5); ctx.lineTo(r * 0.7, -r * 0.75); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(px, rb * 0.5); ctx.lineTo(px, -r * 0.75); ctx.stroke();
         ctx.fillStyle = c;
-        ctx.beginPath(); ctx.moveTo(r * 0.74, -r * 0.75); ctx.lineTo(r * 1.35, -r * 0.55); ctx.lineTo(r * 0.74, -r * 0.35); ctx.closePath(); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(px + r * 0.04, -r * 0.75); ctx.lineTo(px + r * 0.65, -r * 0.55); ctx.lineTo(px + r * 0.04, -r * 0.35); ctx.closePath(); ctx.fill();
         break;
+      }
     }
   }
 
@@ -1293,7 +1489,7 @@
       px -= Math.cos(tw.aim) * 5.5 * fireF;
       py -= Math.sin(tw.aim) * 5.5 * fireF;
     }
-    drawPenguin(ctx, px, py, pr, tw.type, tw.aim, t + tw.id);
+    drawPenguin(ctx, px, py, pr, tw.type, tw.aim, t + tw.id, tw.up);
 
     if (tw.type === 'jetpack') {
       ctx.save();
@@ -1311,16 +1507,24 @@
       ctx.restore();
     }
 
-    const tiers = tw.up[0] + tw.up[1];
-    if (tiers > 0) {
-      for (let i = 0; i < tiers; i++) {
-        ctx.fillStyle = '#ffd166';
-        ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.arc(tw.x - (tiers - 1) * 4 + i * 8, tw.y - 32, 3, 0, TAU);
-        ctx.fill(); ctx.stroke();
-      }
+    // tier pips, colour-coded per path: gold = first path, cyan = second
+    const tA = tw.up[0], tB = tw.up[1];
+    if (tA + tB > 0) {
+      const gap = tA > 0 && tB > 0 ? 5 : 0;
+      let ppx = tw.x - ((tA + tB - 1) * 8 + gap) / 2;
+      const ppy = tw.y - 34;
+      for (let i = 0; i < tA; i++) { drawPip(ctx, ppx, ppy, '#ffd166'); ppx += 8; }
+      ppx += gap;
+      for (let i = 0; i < tB; i++) { drawPip(ctx, ppx, ppy, '#6fd7f5'); ppx += 8; }
     }
+  }
+
+  function drawPip(ctx, x, y, col) {
+    ctx.fillStyle = col;
+    ctx.strokeStyle = 'rgba(10,18,28,0.6)'; ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x, y - 3.6); ctx.lineTo(x + 3.2, y); ctx.lineTo(x, y + 3.6); ctx.lineTo(x - 3.2, y);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
   }
 
   /* ================= SEA LION ================= */
@@ -1414,10 +1618,10 @@
     ctx.fillStyle = shade(col, 34);
     ctx.beginPath(); ctx.ellipse(0, r * 0.4, r * 0.9, r * 0.34, 0, 0, TAU); ctx.fill();
     // glossy spine highlight — sells the rounded body
-    ctx.globalAlpha = 0.2;
+    ctx.globalAlpha = 0.28;
     ctx.fillStyle = '#ffffff';
     ctx.beginPath(); ctx.ellipse(-r * 0.02, -r * 0.2, r * 0.8, r * 0.17, 0, 0, TAU); ctx.fill();
-    ctx.globalAlpha = 0.35;
+    ctx.globalAlpha = 0.45;
     ctx.beginPath(); ctx.ellipse(r * 0.7, -r * 0.22, r * 0.2, r * 0.1, 0.3, 0, TAU); ctx.fill();
     // mottled spots (seeded per enemy)
     if (!e.boss && e.type !== 'stealth') {
@@ -1460,10 +1664,10 @@
     }
     ctx.restore();
 
-    // body outline
-    ctx.strokeStyle = shade(col, -48);
-    ctx.globalAlpha = hidden ? 0.25 : 0.5;
-    ctx.lineWidth = 1.6;
+    // bold cartoon outline
+    ctx.strokeStyle = shade(col, -58);
+    ctx.globalAlpha = hidden ? 0.4 : 0.9;
+    ctx.lineWidth = Math.max(1.6, r * 0.13);
     sealBody(ctx, r);
     ctx.stroke();
     ctx.globalAlpha = hidden ? 0.45 : 1;
@@ -1481,12 +1685,16 @@
     ctx.beginPath(); ctx.moveTo(-r * 0.07, r * 0.12); ctx.lineTo(-r * 0.09, r * 0.48); ctx.stroke();
     ctx.restore();
 
-    // head
+    // head (ghosted like the body when the sea lion is unrevealed stealth)
+    const ghost = hidden ? 0.45 : 1;
     ctx.fillStyle = col;
     ctx.beginPath(); ctx.arc(r * 0.75, 0, r * 0.48, 0, TAU); ctx.fill();
-    ctx.strokeStyle = shade(col, -48); ctx.globalAlpha = 0.4; ctx.lineWidth = 1.4;
+    ctx.strokeStyle = shade(col, -58); ctx.globalAlpha = 0.85 * ghost; ctx.lineWidth = Math.max(1.4, r * 0.11);
     ctx.beginPath(); ctx.arc(r * 0.75, 0, r * 0.48, -1.9, 1.9); ctx.stroke();
-    ctx.globalAlpha = hidden ? 0.45 : 1;
+    // head gloss
+    ctx.globalAlpha = 0.3 * ghost; ctx.fillStyle = '#ffffff';
+    ctx.beginPath(); ctx.ellipse(r * 0.62, -r * 0.24, r * 0.2, r * 0.1, -0.4, 0, TAU); ctx.fill();
+    ctx.globalAlpha = ghost;
     // muzzle
     ctx.fillStyle = shade(col, 38);
     ctx.beginPath(); ctx.ellipse(r * 1.02, r * 0.12, r * 0.26, r * 0.19, 0.15, 0, TAU); ctx.fill();
@@ -1999,26 +2207,26 @@
   };
 
   /* ---------- shop icons ---------- */
-  G.drawTowerIcon = function (canvas, typeId) {
+  G.drawTowerIcon = function (canvas, typeId, up) {
     const ctx = canvas.getContext('2d');
     const s = canvas.width;
     ctx.clearRect(0, 0, s, s);
     if (typeId === 'igloo') {
       drawIgloo(ctx, s / 2, s / 2 + 6, s * 0.3);
-      drawPenguin(ctx, s * 0.74, s * 0.66, s * 0.15, typeId, null, 0);
+      drawPenguin(ctx, s * 0.74, s * 0.66, s * 0.15, typeId, null, 0, up);
     } else if (typeId === 'vendor') {
       ctx.save(); ctx.translate(s / 2, s / 2);
       ctx.fillStyle = '#8a5a33'; ctx.fillRect(-s * 0.32, 0, s * 0.64, s * 0.22);
       ctx.fillStyle = '#d9534f'; ctx.fillRect(-s * 0.36, -s * 0.14, s * 0.72, s * 0.14);
       ctx.fillStyle = '#f8f9fa'; ctx.fillRect(-s * 0.36, -s * 0.14, s * 0.18, s * 0.14); ctx.fillRect(0, -s * 0.14, s * 0.18, s * 0.14);
       ctx.restore();
-      drawPenguin(ctx, s * 0.72, s * 0.68, s * 0.16, typeId, null, 0);
+      drawPenguin(ctx, s * 0.72, s * 0.68, s * 0.16, typeId, null, 0, up);
     } else if (typeId === 'torpedo' || typeId === 'depth') {
       ctx.fillStyle = typeId === 'torpedo' ? '#5a748c' : '#7a5c3e';
       ctx.beginPath(); ctx.ellipse(s / 2, s * 0.72, s * 0.36, s * 0.13, 0, 0, TAU); ctx.fill();
-      drawPenguin(ctx, s / 2, s / 2, s * 0.27, typeId, null, 0);
+      drawPenguin(ctx, s / 2, s / 2, s * 0.27, typeId, null, 0, up);
     } else {
-      drawPenguin(ctx, s / 2, s / 2 + 2, s * 0.28, typeId, null, 0);
+      drawPenguin(ctx, s / 2, s / 2 + 2, s * 0.28, typeId, null, 0, up);
     }
   };
 

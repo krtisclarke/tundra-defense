@@ -962,7 +962,7 @@
     const head = el('div', 'ds-head');
     const cv = document.createElement('canvas');
     cv.width = 40; cv.height = 40;
-    G.drawTowerIcon(cv, t.type);
+    G.drawTowerIcon(cv, t.type, t.up);
     head.appendChild(cv);
     const stats = [];
     if (c.damage) stats.push(`⚔ ${Math.round(c.damage * t.buff.dmg * 10) / 10}`);
