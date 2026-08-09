@@ -312,6 +312,73 @@
   }
   function updateFsButton() { $('#btn-fs').innerHTML = isFullscreen() ? ICON_FS_EXIT : ICON_FS; }
 
+  /* ---------- progress backup: one file the player keeps ----------
+     Phones/tablets get the share sheet (Save to Files on iOS — an iCloud Drive
+     folder syncs it across devices); everywhere else it downloads. Loading
+     opens the file picker, which on iOS is the Files app. */
+  function collectBackup() {
+    const saves = {};
+    for (let i = 0; i < G.LEVELS.length; i++) {
+      const s = store.get(saveKey(i), null);
+      if (s) saves[i] = s;
+    }
+    return {
+      game: 'tundra-defense', kind: 'progress-backup', version: 1,
+      exported: new Date().toISOString(),
+      profile: UI.profile,
+      saves,
+    };
+  }
+
+  async function exportProgress() {
+    const name = 'tundra-defense-progress-' + new Date().toISOString().slice(0, 10) + '.json';
+    const blob = new Blob([JSON.stringify(collectBackup(), null, 2)], { type: 'application/json' });
+    if (IS_TOUCH && navigator.canShare) {
+      const file = new File([blob], name, { type: 'application/json' });
+      if (navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file], title: 'Tundra Defense progress' });
+          toast('Progress backed up 💾');
+          return;
+        } catch (e) {
+          if (e && e.name === 'AbortError') return;   // player closed the share sheet
+          /* share refused — fall through to a plain download */
+        }
+      }
+    }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    toast('Backup saved — check your downloads 💾');
+  }
+
+  function importProgress(file) {
+    const reader = new FileReader();
+    reader.onerror = () => toast('Could not read that file.', 'bad');
+    reader.onload = () => {
+      let data = null;
+      try { data = JSON.parse(reader.result); } catch (e) { /* not JSON — caught below */ }
+      if (!data || data.game !== 'tundra-defense' || data.kind !== 'progress-backup' || !data.profile) {
+        toast('That file is not a Tundra Defense backup.', 'bad');
+        return;
+      }
+      if (!confirm('Load this backup? It replaces the progress on this device.')) return;
+      store.set(PROFILE_KEY, data.profile);
+      for (let i = 0; i < G.LEVELS.length; i++) {
+        if (data.saves && data.saves[i]) store.set(saveKey(i), data.saves[i]);
+        else store.del(saveKey(i));
+      }
+      UI.profile = getProfile();   // re-read through the backfill, so old backups gain new fields
+      show('#screen-menu');        // refreshes every pebble chip
+      toast('Progress loaded ✔');
+    };
+    reader.readAsText(file);
+  }
+
   function buildMainMenu() {
     $('#btn-play').onclick = () => { buildLevelSelect(); show('#screen-levels'); };
     $('#btn-shop').onclick = () => buildShop('#screen-menu');
@@ -322,7 +389,15 @@
       store.del(PROFILE_KEY);
       for (let i = 0; i < G.LEVELS.length; i++) store.del(saveKey(i));
       UI.profile = getProfile();
+      show('#screen-menu');   // pebble chips back to zero
       toast('Progress reset.');
+    };
+    $('#btn-export').onclick = exportProgress;
+    $('#btn-import').onclick = () => $('#import-file').click();
+    $('#import-file').onchange = (ev) => {
+      const f = ev.target.files && ev.target.files[0];
+      ev.target.value = '';   // so picking the same file again still fires change
+      if (f) importProgress(f);
     };
     $('#btn-resume').onclick = closePauseMenu;
     $('#btn-pause-save').onclick = () => { doSave(false); };

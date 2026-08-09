@@ -178,6 +178,10 @@ sound effects together.
 - The **💾 Save** button saves **mid-wave** — even with sea lions on the field — and the level
   screen shows a **Continue** button to pick up exactly where you left off.
 - Progress is stored in your browser (localStorage). *Reset Progress* on the main menu wipes it.
+- **💾 Back Up Progress** (main menu) writes everything — pebbles, unlocks, saved games — to one
+  file you keep. On iPhone/iPad it opens the share sheet (**Save to Files**; pick an iCloud Drive
+  folder and it follows you to your other devices). **📂 Load Backup** restores it anywhere,
+  including a different browser or computer.
 
 ### Controls
 

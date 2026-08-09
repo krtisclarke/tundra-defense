@@ -86,6 +86,11 @@
       <button class="btn big primary" id="btn-play">Play</button>
       <button class="btn big" id="btn-shop">🪨 Boost Shop</button>
       <button class="btn big" id="btn-howto">How to Play</button>
+      <div class="menu-io">
+        <button class="btn" id="btn-export">💾 Back Up Progress</button>
+        <button class="btn" id="btn-import">📂 Load Backup</button>
+      </div>
+      <input type="file" id="import-file" accept=".json,application/json" hidden />
       <button class="btn big danger-ghost" id="btn-reset">Reset Progress</button>
       <p class="footnote">Progress &amp; mid-match saves are stored in this browser.</p>
     </div>
@@ -129,7 +134,9 @@
         <p><b>Manage:</b> click a placed penguin — its card appears in the bottom-left. <kbd>Q</kbd>/<kbd>W</kbd> buy its two upgrade paths (3 tiers each, only one path can reach Tier 3), <kbd>T</kbd> cycles targeting, <kbd>X</kbd> sells.</p>
         <p><b>Sea lions:</b> bigger ones split into smaller ones when destroyed. Watch for <b>Stealth</b> (needs detection), <b>Armored</b> (shred or pierce it), <b>Regenerators</b>, and bosses on waves 20, 30, 40, 50. The next wave's composition is previewed next to the Send button.</p>
         <p><b>Economy:</b> two currencies. 🐟 <b>Fish</b> is match money — pops and wave clears pay it, and it recruits and upgrades penguins (it resets each battle). 🪨 <b>Pebbles</b> persist forever and buy boosts and retries. Fish Vendors net extra fish every wave — early economy snowballs.</p>
-        <p><b>Saving:</b> autosaves after every wave; <kbd>Ctrl/⌘+S</kbd> (or the save button) saves <i>mid-wave</i>. Resume from the level screen.</p>
+        <p><b>Saving:</b> autosaves after every wave; <kbd>Ctrl/⌘+S</kbd> (or the save button) saves <i>mid-wave</i>. Resume from the level screen.
+          Progress lives in this browser — <b>💾 Back Up Progress</b> (main menu) writes it all to one file you keep
+          (on iPhone/iPad: Save to Files — an iCloud Drive folder syncs it to your other devices), and <b>📂 Load Backup</b> restores it anywhere.</p>
         <p class="keys-line"><kbd>Space</kbd> send wave · <kbd>Tab</kbd> speed · <kbd>P</kbd> pause · <kbd>M</kbd> mute · <kbd>Esc</kbd> cancel / menu</p>
       </div>
       <button class="btn" id="btn-howto-back">← Back</button>

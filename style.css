@@ -410,6 +410,8 @@ kbd {
 .btn.small { padding: 6px 11px; font-size: 12px; border-radius: 9px; }
 .btn.tiny { padding: 6px 11px; font-size: 13px; border-radius: 8px; }
 .btn.big { display: block; width: 280px; margin: 9px auto; padding: 13px; font-size: 15.5px; border-radius: 12px; }
+/* backup / restore pair on the main menu */
+.menu-io { display: flex; gap: 8px; justify-content: center; margin: 4px auto 6px; }
 .btn.danger { background: rgba(224, 96, 106, 0.14); border-color: rgba(224, 96, 106, 0.4); color: #ff9ba3; }
 .btn.danger:hover { background: rgba(224, 96, 106, 0.26); }
 .btn.danger-ghost { background: transparent; border-color: transparent; color: #d98a8a; }
