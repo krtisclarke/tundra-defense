@@ -636,7 +636,7 @@
     keepAwake(true);
     banner(save ? `Welcome back — Wave ${game.wave}` : `${game.level.name} — ${G.DIFFICULTIES[game.diffId].name}`);
     G.music.play(G.music.trackForLevel(levelIdx));
-    G.music.setTempoScale(Math.pow(1.01, game.wave - 1));
+    G.music.setTempoScale(G.tempoForWave(game.wave));
   }
 
   function exitToMenu(saveFirst) {
@@ -665,7 +665,8 @@
     const g = UI.game;
     if (kind === 'waveStart') {
       sfx.wave();
-      G.music.setTempoScale(Math.pow(1.01, payload - 1)); // +1% tempo per wave (capped in music.js)
+      // +1% tempo per wave, but the march stops getting faster at wave 75
+      G.music.setTempoScale(G.tempoForWave(payload));
       if (g.endless && payload === G.ORCA_WAVE) {
         sfx.boss();
         banner('🌊 THE TIDE COMES IN — the orcas have found you');
@@ -1093,7 +1094,7 @@
     show(null);
     sfx.upgrade();
     G.music.play(G.music.trackForLevel(g.levelIdx));
-    G.music.setTempoScale(Math.pow(1.01, g.wave - 1));
+    G.music.setTempoScale(G.tempoForWave(g.wave));
     banner(`Second chance — Wave ${g.wave}`);
     toast(`🪨 −${price} pebbles. Lives restored to ${g.lives} — regroup and hold the line!`);
     updateWavePreview();
@@ -1341,7 +1342,7 @@
     show(null);
     sfx.wave();
     G.music.play(G.music.trackForLevel(g.levelIdx));
-    G.music.setTempoScale(Math.pow(1.01, g.wave - 1));
+    G.music.setTempoScale(G.tempoForWave(g.wave));
     banner(`🌊 The Endless Tide — Wave ${g.wave}`);
     toast('Victory is banked — now hold as long as you can. Every 10th wave pays 🪨 pebbles.');
     updateWavePreview();

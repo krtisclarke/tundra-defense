@@ -240,8 +240,10 @@
       M.track = null; M.trackName = null;
     },
     setTempoScale(x) {
-      // capped at 1.8× so endless runs (100+ waves) don't turn into a chipmunk march
-      M.tempoScale = Math.max(0.5, Math.min(1.8, x));
+      /* Ceiling sits just above the wave-75 cap (1.01^74 = 2.086) so the wave
+         cap is what actually binds — this is only a backstop against a bad
+         caller. Previously 1.8, which silently stopped the music at wave 60. */
+      M.tempoScale = Math.max(0.5, Math.min(2.1, x));
     },
     setMuted(muted) {
       M.muted = muted;
