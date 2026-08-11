@@ -1215,17 +1215,19 @@
   /* ---------------- Global penguin nerf ----------------
      Applied to every penguin and hero after its upgrades are totalled, so it
      covers base stats and upgrade bonuses alike without touching 120 tiers by
-     hand. Damage and fire rate compound: these leave a penguin at 0.75 x 0.85
-     = 64% of its old damage per second, with 15% less reach and 20% weaker
-     buffs.
+     hand.
 
-     Set by measurement against two yardsticks. A scripted learner still clears
-     battlefield 1 on Easy with 124 lives and now genuinely loses on Medium,
-     where before it strolled through with 144. A mature 84-tower board gives
-     up about 13 waves of endless depth. The originally requested
-     0.50/0.67/0.67 left the learner at 34% DPS and lost battlefield 1 on Easy
-     at wave 13, which would have made the game unlearnable. */
-  G.NERF = { damage: 0.75, rate: 0.85, range: 0.85, aura: 0.80 };
+     Damage is back at full: every penguin hits for its printed number again.
+     What stays nerfed is everything around the hit — 15% shorter reach, 15%
+     slower fire, 20% weaker buffs — so a penguin covers less trail and gets
+     fewer swings at what crosses it, but each swing lands as it always did.
+
+     The 0.75 damage cut came out because it overshot. Measured on a scripted
+     learner: with it, battlefield 1 on Easy squeaked home with 20 lives and
+     Medium collapsed at wave 17. Without it, Easy finishes with 160 (the
+     un-nerfed game manages 190) and Medium runs the full 40 waves. That is the
+     intended shape — noticeably harder than before, still winnable. */
+  G.NERF = { damage: 1, rate: 0.85, range: 0.85, aura: 0.80 };
 
   const OBSTACLE_KINDS = {
     1: ['rock', 'rock', 'crack', 'glacier'],

@@ -68,10 +68,11 @@
        map-wide ones (the Harpoon Sniper) and stay that way. */
     const N = G.NERF;
     if (N) {
-      /* No clamping to 1 here: rounding a halved 1-damage penguin back up to 1
-         would make "+1 damage" upgrades change nothing, which is the exact dead
-         upgrade this codebase already had once. Fractional damage is fine —
-         the armour floor in damageEnemy is a separate, deliberate rule. */
+      /* N.damage is 1 today, so this is a no-op — kept as the one place a
+         damage change would go. If it ever drops below 1 again, do NOT clamp
+         the result back up to 1: that would make "+1 damage" upgrades change
+         nothing on the weakest penguins, the exact dead upgrade this codebase
+         already had once. Fractional damage is fine. */
       if (s.damage) s.damage *= N.damage;
       if (s.spikeDmg) s.spikeDmg *= N.damage;
       if (s.rate) s.rate *= N.rate;
@@ -410,13 +411,14 @@
         // Heroic Ballad and friends let nearby penguins punch through blubber
         const armor = Math.max(0, e.armor - (tower ? tower.buff.shred || 0 : 0));
         /* Armour can strip at most 90% of a shot, never all of it. This used to
-           be a flat "at least 1 damage", which quietly rescued every weak shot:
-           a half-damage penguin still dealt a full 1, so the global damage nerf
-           did nothing to the weakest penguins and their "+1 damage" upgrades
-           changed nothing either. A proportional floor keeps the original
-           intent (no shot is ever completely wasted) without inventing damage.
-           Shots with no damage at all (the Slush Thrower is a pure slow) still
-           deal nothing. */
+           be a flat "at least 1 damage", which quietly rescued every weak shot
+           and made "+1 damage" upgrades pointless against heavy armour: a
+           2-damage and a 3-damage penguin both dealt exactly 1 through 3
+           armour, so the upgrade you just paid for changed nothing. A
+           proportional floor keeps the original intent (no shot is ever
+           completely wasted) while letting the upgrade matter. Shots with no
+           damage at all (the Slush Thrower is a pure slow) still deal
+           nothing. */
         dmg = rawDmg > 0 ? Math.max(dmg * 0.1, dmg - armor) : 0;
       }
       e.hp -= dmg;
