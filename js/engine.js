@@ -357,13 +357,13 @@
       if (e.boss) this.emit('bossDown', def.name);
     }
 
-    splashAt(x, y, radius, dmg, tower, maxHit) {
+    splashAt(x, y, radius, dmg, tower, maxHit, exclude) {
       const r2 = radius * radius;
       let hits = 0;
       // sort by distance so the closest are hit when capped
       const inRange = [];
       for (const e of this.enemies) {
-        if (e.dead) continue;
+        if (e.dead || e === exclude) continue;
         const ep = samplePath(this.paths[e.pathIdx], e.dist);
         const d2 = dist2(x, y, ep.x, ep.y);
         if (d2 <= r2) inRange.push({ e, d2 });
@@ -667,7 +667,11 @@
           if (dist2(pr.x, pr.y, ep.x, ep.y) < (e.size + 6) ** 2) {
             if (pr.splash > 0) {
               pr.dead = true;
-              this.splashAt(pr.x, pr.y, pr.splash, pr.damage, owner, Math.max(pr.pierce, 6));
+              /* the sea lion the shell actually struck always takes the hit —
+                 big bodies used to shrug off blasts that burst on their rim,
+                 outside the blast's own center-measured radius */
+              this.damageEnemy(e, pr.damage, owner);
+              this.splashAt(pr.x, pr.y, pr.splash, pr.damage, owner, Math.max(pr.pierce, 6), e);
               break;
             }
             this.damageEnemy(e, pr.damage, owner);
