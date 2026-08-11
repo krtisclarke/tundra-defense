@@ -34,6 +34,18 @@
     return Math.sqrt(best);
   }
 
+  /* Does the segment a→b pass through this circle? Standard closest-point-on-
+     segment test, kept allocation-free because it runs in the targeting loop. */
+  function segHitsCircle(ax, ay, bx, by, cx, cy, r2) {
+    const dx = bx - ax, dy = by - ay;
+    const fx = ax - cx, fy = ay - cy;
+    const len2 = dx * dx + dy * dy;
+    let t = len2 > 1e-6 ? -(fx * dx + fy * dy) / len2 : 0;
+    t = t < 0 ? 0 : t > 1 ? 1 : t;
+    const px = fx + dx * t, py = fy + dy * t;
+    return px * px + py * py <= r2;
+  }
+
   /* ---------- Effective tower stats (base + upgrades) ---------- */
   function computeEffective(typeId, up) {
     const def = G.TOWERS[typeId];
@@ -50,6 +62,25 @@
       }
     }
     s.fx = fx;
+
+    /* Global nerf, applied last so it scales the finished penguin rather than
+       each of 120 upgrade tiers. Ranges of 5000+ are the deliberately
+       map-wide ones (the Harpoon Sniper) and stay that way. */
+    const N = G.NERF;
+    if (N) {
+      /* No clamping to 1 here: rounding a halved 1-damage penguin back up to 1
+         would make "+1 damage" upgrades change nothing, which is the exact dead
+         upgrade this codebase already had once. Fractional damage is fine —
+         the armour floor in damageEnemy is a separate, deliberate rule. */
+      if (s.damage) s.damage *= N.damage;
+      if (s.spikeDmg) s.spikeDmg *= N.damage;
+      if (s.rate) s.rate *= N.rate;
+      if (s.range && s.range < 5000) s.range *= N.range;
+      if (s.minRange) s.minRange *= N.range;
+      // percentage buffs scale; armour-pierce and pierce are discrete grants
+      // whose printed descriptions ("punch through 2 armor") must stay true
+      for (const k of ['auraDmg', 'auraRate', 'auraRange']) if (s[k]) s[k] *= N.aura;
+    }
     return s;
   }
   G.computeEffective = computeEffective;
@@ -74,6 +105,11 @@
       this.startLives = G.scaleLives(L.lives, this.diffId);
       this.frenzyUntil = 0;
       this.paths = L.paths.map(buildPath);
+      /* Terrain that stands up blocks shots. Precomputed once — obstacles never
+         move, so the targeting loop only ever reads this list. */
+      this.sightBlockers = L.blockers
+        .filter((b) => G.SIGHT_BLOCKS[b.kind])
+        .map((b) => ({ x: b.x, y: b.y, r: b.r * G.SIGHT_SHRINK, r2: (b.r * G.SIGHT_SHRINK) ** 2 }));
       this.cash = L.cash + G.PERK.cash;   // Deeper Stores colony upgrade
       this.lives = this.startLives;
       this.wave = 1;              // next wave to start (1-based)
@@ -259,6 +295,18 @@
         for (const v of arr) { total += v * f; f *= 0.5; }
         return total;
       };
+      /* Which obstacles could possibly stand between this tower and something
+         it can reach? Towers and terrain are both static, so this is settled
+         here rather than in the per-frame targeting loop. Most towers get an
+         empty list and skip the sight test entirely. */
+      for (const t of this.towers) {
+        if (G.arcsOverTerrain(t.calc)) { t.los = null; continue; }
+        const reach = (t.calc.range || 0) * 1.5 + 40;
+        t.los = this.sightBlockers.filter(
+          (o) => dist2(t.x, t.y, o.x, o.y) <= (reach + o.r) ** 2);
+        if (!t.los.length) t.los = null;
+      }
+
       for (const t of this.towers) {
         const k = inbox.get(t);
         t.buff = {
@@ -318,6 +366,18 @@
       return !!(tower.calc.stealth || tower.buff.stealth);
     }
 
+    /* Is the firing line clear of standing terrain? `list` is normally the
+       tower's own prefiltered obstacles (see recomputeBuffs) so this is a
+       handful of tests, not a sweep of the whole battlefield. */
+    sightClear(ax, ay, bx, by, list) {
+      const obs = list || this.sightBlockers;
+      for (let i = 0; i < obs.length; i++) {
+        const o = obs[i];
+        if (segHitsCircle(ax, ay, bx, by, o.x, o.y, o.r2)) return false;
+      }
+      return true;
+    }
+
     pickTarget(t, pos, range) {
       const r2 = range * range;
       let best = null, bestKey = -Infinity;
@@ -327,6 +387,8 @@
         const ep = samplePath(this.paths[e.pathIdx], e.dist);
         const d2 = dist2(pos.x, pos.y, ep.x, ep.y);
         if (d2 > r2 || d2 < minR2) continue;
+        // a ridge or boulder in the way means no shot (howitzers and storms arc)
+        if (t.los && !this.sightClear(pos.x, pos.y, ep.x, ep.y, t.los)) continue;
         let key;
         switch (t.target) {
           case 'last':   key = -e.dist; break;
@@ -347,11 +409,15 @@
       if (!opts.pure && !c.armorPierce) {
         // Heroic Ballad and friends let nearby penguins punch through blubber
         const armor = Math.max(0, e.armor - (tower ? tower.buff.shred || 0 : 0));
-        /* The 1-damage floor only applies to shots that HAVE damage. It used to
-           apply unconditionally, so the Slush Thrower (damage 0, a pure slow)
-           quietly dealt 1 per hit — which in turn made its "+1 damage" upgrade
-           a literal no-op, since 0 and 1 both came out as 1. */
-        dmg = rawDmg > 0 ? Math.max(1, dmg - armor) : Math.max(0, dmg - armor);
+        /* Armour can strip at most 90% of a shot, never all of it. This used to
+           be a flat "at least 1 damage", which quietly rescued every weak shot:
+           a half-damage penguin still dealt a full 1, so the global damage nerf
+           did nothing to the weakest penguins and their "+1 damage" upgrades
+           changed nothing either. A proportional floor keeps the original
+           intent (no shot is ever completely wasted) without inventing damage.
+           Shots with no damage at all (the Slush Thrower is a pure slow) still
+           deal nothing. */
+        dmg = rawDmg > 0 ? Math.max(dmg * 0.1, dmg - armor) : 0;
       }
       e.hp -= dmg;
       if (tower && c.fx) this.applyFx(e, c.fx);
@@ -605,7 +671,8 @@
               if (o.dead || o === last || !this.canSee(t, o)) continue;
               const op = samplePath(this.paths[o.pathIdx], o.dist);
               const d2 = dist2(lp.x, lp.y, op.x, op.y);
-              if (d2 < nd) { nd = d2; nxt = { o, op }; }
+              // a bounce also has to make it there — no chaining through a ridge
+              if (d2 < nd && (!t.los || this.sightClear(lp.x, lp.y, op.x, op.y, t.los))) { nd = d2; nxt = { o, op }; }
             }
             if (!nxt) break;
             this.effects.push({ kind: 'ray', x: lp.x, y: lp.y, tx: nxt.op.x, ty: nxt.op.y, life: 0.1, max: 0.1 });

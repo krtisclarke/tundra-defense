@@ -84,7 +84,10 @@
   /* Hard ceilings on what auras can do to one penguin, however many support
      towers surround it. Reached by roughly one maxed aura tower of each kind,
      so the second and third are for covering more ground, not more power. */
-  G.AURA_CAP = { dmg: 2.0, rate: 2.0, range: 1.45, shred: 4, pierce: 2 };
+  /* The ceilings drop with the buffs themselves, so the maximum a penguin can
+     ever be buffed to falls by the same third — cutting only the sources would
+     have left a big enough cluster reaching the old cap anyway. */
+  G.AURA_CAP = { dmg: 1.67, rate: 1.67, range: 1.30, shred: 4, pierce: 2 };
 
   /* Endless pacing. Piling HP on slow-moving sea lions turned late waves into
      grinds: by wave 130 every enemy had spawned inside 70 seconds and the
@@ -411,8 +414,10 @@
       cls: 'navy', name: 'Artillery Emperor', cost: 850,
       desc: 'An emperor penguin with a howitzer. Massive range, massive shells, blind up close.',
       /* 420 covered 54% of the whole battlefield from one tile — one of these
-         made placement meaningless. 320 is still by far the longest reach. */
-      stats: { range: 320, rate: 0.33, damage: 6, pierce: 16, splash: 85, kind: 'lob', minRange: 110, water: 'never' },
+         made placement meaningless. 320 is still by far the longest reach.
+         `arcs` is its whole identity now that terrain blocks shots: a howitzer
+         lobs over ridges and boulders that every other penguin has to see past. */
+      stats: { range: 320, rate: 0.33, damage: 6, pierce: 16, splash: 85, kind: 'lob', minRange: 110, water: 'never', arcs: true },
       paths: [
         { name: 'Shells', tiers: [
           { name: 'HE Shells',      cost: 500, desc: '+4 damage.',                        mods: { add: { damage: 4 } } },
@@ -1192,6 +1197,28 @@
      Generated rather than hand-placed: 30 maps × dozens of formations is a lot
      of literals to keep correct, and a seeded generator is reproducible, so a
      given battlefield looks identical on every device and every run. */
+  /* ---- line of sight ----
+     Anything that stands UP blocks shots; a hole in the ground does not. So
+     cracked ice denies you the ground but not the shot, while boulders,
+     crystals, igloos, wrecks and glacier ridges deny you both. That split is
+     what makes the three obstacle types play differently rather than just
+     look different. Sight uses 90% of the drawn radius, so grazing a corner
+     still connects and the rule feels fair rather than fussy. */
+  G.SIGHT_BLOCKS = { rock: true, crystal: true, igloo: true, wreck: true, glacier: true, crack: false };
+  G.SIGHT_SHRINK = 0.9;
+  /* Lobbed munitions arc over terrain, and weather does not care about walls.
+     Those two exemptions matter: they mean a ridge creates a problem with an
+     answer (bring the howitzer, the depth charges or the blizzard) rather than
+     a dead zone nothing can cover. */
+  G.arcsOverTerrain = (calc) => !!calc.arcs || calc.kind === 'lob' || calc.kind === 'pulse';
+
+  /* ---------------- Global penguin nerf ----------------
+     Applied to every penguin and hero after its upgrades are totalled, so it
+     covers base stats and upgrade bonuses alike without touching 120 tiers by
+     hand. Damage and fire rate compound: a penguin now deals 0.5 x 0.67 = 34%
+     of the damage per second it used to. */
+  G.NERF = { damage: 0.5, rate: 0.67, range: 0.67, aura: 0.67 };
+
   const OBSTACLE_KINDS = {
     1: ['rock', 'rock', 'crack', 'glacier'],
     2: ['rock', 'crack', 'crack', 'glacier'],
@@ -1217,12 +1244,22 @@
       for (let i = 0; i < pl.length - 1; i++) {
         const a = pl[i], b = pl[i + 1];
         const len = Math.hypot(b.x - a.x, b.y - a.y);
+        const ang = Math.atan2(b.y - a.y, b.x - a.x);   // local trail direction
         for (let d = 0; d < len; d += 24) {
-          pts.push({ x: a.x + ((b.x - a.x) * d) / len, y: a.y + ((b.y - a.y) * d) / len });
+          pts.push({ x: a.x + ((b.x - a.x) * d) / len, y: a.y + ((b.y - a.y) * d) / len, ang });
         }
       }
     }
     return pts;
+  }
+  // direction of the trail nearest a point — glacier ridges run alongside it
+  function trailAngleNear(pts, x, y) {
+    let best = Infinity, ang = 0;
+    for (const p of pts) {
+      const d2 = (x - p.x) ** 2 + (y - p.y) ** 2;
+      if (d2 < best) { best = d2; ang = p.ang; }
+    }
+    return ang;
   }
   const inWaterOf = (L, x, y) => L.water.some((w) => w.rect
     ? x >= w.rect.x - 10 && x <= w.rect.x + w.rect.w + 10 && y >= w.rect.y - 10 && y <= w.rect.y + w.rect.h + 10
@@ -1235,21 +1272,29 @@
     const kinds = OBSTACLE_KINDS[L.tier] || OBSTACLE_KINDS[1];
     const CLEAR = G.PATH_HALF + G.TOWER_R + 12;   // never crowd the trail itself
 
-    // the firing ground worth denying: buildable, and within a penguin's reach
+    /* The firing ground worth denying: buildable, within a penguin's reach.
+       Split by how close to the trail it sits — obstacles on the SHOULDER
+       (just outside the build clearance) are the ones that cast shadows down
+       the trail and actually take shots away; obstacles further out only deny
+       standing room. A field made only of the latter left line of sight worth
+       about 1%, so roughly half of every formation now hugs the trail. */
     const lattice = [];
     for (let y = 60; y < H - 30; y += 20) {
       for (let x = 30; x < W - 30; x += 20) {
         if (inWaterOf(L, x, y)) continue;
-        let near = false, tooClose = false;
+        let best = Infinity;
         for (const p of pts) {
           const d2 = (x - p.x) ** 2 + (y - p.y) ** 2;
-          if (d2 < CLEAR * CLEAR) { tooClose = true; break; }
-          if (d2 <= 150 * 150) near = true;
+          if (d2 < best) best = d2;
         }
-        if (!tooClose && near) lattice.push({ x, y });
+        const d = Math.sqrt(best);
+        if (d < CLEAR || d > 150) continue;
+        lattice.push({ x, y, shoulder: d < CLEAR + 46 });
       }
     }
     if (!lattice.length) return;
+    const shoulder = lattice.filter((p) => p.shoulder);
+    const field = lattice.filter((p) => !p.shoulder);
 
     const blocked = new Set();
     const key = (p) => p.x + ',' + p.y;
@@ -1263,12 +1308,19 @@
     const floor = Math.round(lattice.length * 0.34);
     let guard = 0;
     while (blocked.size < want && lattice.length - blocked.size > floor && guard++ < 400) {
-      const seed = lattice[(rnd() * lattice.length) | 0];
-      if (blocked.has(key(seed))) continue;
+      // 55% of formations hug the trail, where they actually block firing lines
+      const pool = (rnd() < 0.55 && shoulder.length) ? shoulder : (field.length ? field : lattice);
+      const seed = pool[(rnd() * pool.length) | 0];
+      if (!seed || blocked.has(key(seed))) continue;
       const kind = kinds[(rnd() * kinds.length) | 0];
-      // a formation is a short chain of lumps, so it reads as terrain not confetti
-      const lumps = kind === 'glacier' ? 2 + ((rnd() * 3) | 0) : 1 + ((rnd() * 2) | 0);
-      const ang = rnd() * Math.PI * 2;
+      /* Glacier ridges are long WALLS laid alongside the trail — that is what
+         casts a real shadow down it. Scattered lumps looked like terrain but
+         blocked almost nothing: they left line of sight worth about 1%. Rocks
+         and cracks stay short and scattered. */
+      const lumps = kind === 'glacier' ? 4 + ((rnd() * 5) | 0) : 1 + ((rnd() * 2) | 0);
+      const ang = kind === 'glacier'
+        ? trailAngleNear(pts, seed.x, seed.y) + (rnd() - 0.5) * 0.7
+        : rnd() * Math.PI * 2;
       let cx = seed.x, cy = seed.y;
       for (let n = 0; n < lumps; n++) {
         const r = (kind === 'glacier' ? 26 : kind === 'crack' ? 24 : 22) + rnd() * 10;
@@ -1283,8 +1335,13 @@
         for (const p of lattice) {
           if ((p.x - cx) ** 2 + (p.y - cy) ** 2 < (r + G.TOWER_R) ** 2) blocked.add(key(p));
         }
-        cx += Math.cos(ang) * (r * 1.35);
-        cy += Math.sin(ang) * (r * 1.35);
+        /* Glacier lumps OVERLAP so the ridge is a solid barrier. Stepping a
+           full 1.35 radii apart left ~13px seams between the sight circles,
+           and shots threaded straight through them — the wall looked like a
+           wall and blocked almost nothing. */
+        const step = kind === 'glacier' ? r * 0.8 : r * 1.35;
+        cx += Math.cos(ang) * step;
+        cy += Math.sin(ang) * step;
       }
     }
   });
