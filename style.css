@@ -327,11 +327,16 @@ html.touch #btn-fs { display: none; }
 .slot {
   position: relative;
   flex: 1 1 0;
-  min-width: 42px;
+  /* No floor of its own. A fixed 42px min-width meant two five-slot groups
+     could not shrink to the width the dock had spare, and the build tray
+     spilled out past the dock's edge. The price text is nowrap, so it sets a
+     natural floor (~26px) that keeps a slot readable, and the icon scales with
+     the slot (see .slot canvas). */
+  min-width: 0;
   max-width: 92px;
   border: 1px solid var(--line);
   border-radius: 9px;
-  padding: 4px 2px 4px;
+  padding: 3px 2px;
   text-align: center;
   cursor: pointer;
   /* dragging a penguin out must never become a text selection or browser gesture */
@@ -341,7 +346,11 @@ html.touch #btn-fs { display: none; }
   touch-action: none;
   transition: transform 0.1s ease, box-shadow 0.15s ease, filter 0.15s;
 }
-.slot canvas { display: block; margin: 0 auto; }
+/* 34px, not the bitmap's own 38. Two rows of icon + price have to clear the
+   dock's fixed 162px, and at 38 they came out 4px over — the tray then spilled
+   past the dock edge on wide windows. max-width lets it shrink further on
+   narrow ones; the bitmap is square, so height:auto keeps it undistorted. */
+.slot canvas { display: block; margin: 0 auto; width: 34px; max-width: 100%; height: auto; }
 .slot:hover { transform: translateY(-3px); box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4), 0 0 0 1px var(--line-strong); }
 .slot:active { transform: translateY(0) scale(0.95); }
 .slot.armed { box-shadow: 0 0 0 2px var(--good), 0 6px 16px rgba(0, 0, 0, 0.4); animation: armedPulse 1.2s ease-in-out infinite; }
@@ -356,11 +365,16 @@ html.touch #btn-fs { display: none; }
 }
 .slot-cost {
   display: block;
-  font-size: clamp(10px, 0.9vw, 12px);
+  font-size: clamp(9px, 0.82vw, 12px);
   font-weight: 800;
   color: var(--gold);
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
   font-variant-numeric: tabular-nums;
+  /* A four-figure price used to wrap onto a second line, which made that one
+     row taller than the others and pushed the whole tray past the dock's
+     fixed height. The price stays on one line and shrinks instead. */
+  white-space: nowrap;
+  letter-spacing: -0.2px;
 }
 
 /* command cluster (right) */
@@ -379,13 +393,10 @@ html.touch #btn-fs { display: none; }
   gap: 4px;
   flex-wrap: wrap;
   min-height: 18px;
-  max-height: 34px;
+  /* exactly two chip rows (21px each + the 4px gap). A value between row
+     heights is what sliced the boss chip in half on late waves. */
+  max-height: 46px;
   overflow: hidden;
-}
-.wp-label {
-  font-size: 11px; font-weight: 800; letter-spacing: 0.8px;
-  text-transform: uppercase; color: #c4d4e4;
-  margin-right: 2px;
 }
 .wp-chip {
   display: inline-flex; align-items: center; gap: 5px;
@@ -1112,10 +1123,9 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
   .dp-count { font-size: 9px; min-width: 13px; line-height: 1.4; top: -5px; right: -4px; }
 
   #command { order: 4; flex: none; width: 100%; min-width: 0; max-width: none; gap: 4px; }
-  #wave-preview { max-height: 20px; gap: 3px; }
+  #wave-preview { max-height: 19px; gap: 3px; }   /* one chip row on phones */
   .wp-chip { font-size: 10px; padding: 0 5px; gap: 3px; }
   .wp-chip i { width: 8px; height: 8px; }
-  .wp-label { display: none; }
   #send-wave { padding: 11px 6px; font-size: 13.5px; }
   #send-wave kbd, #cmd-row kbd { display: none; }
   #cmd-row { gap: 4px; justify-content: space-between; }

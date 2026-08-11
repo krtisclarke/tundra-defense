@@ -870,14 +870,32 @@
     const spec = G.generateWave(g.levelIdx, w);
     const counts = new Map();
     for (const grp of spec.groups) counts.set(grp.type, (counts.get(grp.type) || 0) + grp.count);
-    let html = `<span class="wp-label">wave ${w}</span>`;
-    for (const [type, n] of counts) {
+    /* Bosses first. The strip is two rows tall and late waves field more enemy
+       types than fit, so something has to be dropped — and the one chip you
+       must not lose is the one naming the boss. It used to sort last and got
+       sliced in half by the strip's clip. The wave number lives in the HUD at
+       the top of the screen, so it is not repeated here. */
+    const ordered = [...counts].sort((a, b) => (G.ENEMIES[b[0]].boss ? 1 : 0) - (G.ENEMIES[a[0]].boss ? 1 : 0));
+    let html = '';
+    for (const [type, n] of ordered) {
       const e = G.ENEMIES[type];
       html += e.boss
         ? `<span class="wp-chip boss" title="${e.name} — boss">☠ ${e.name}${n > 1 ? ' ×' + n : ''}</span>`
         : `<span class="wp-chip" title="${e.name}"><i style="background:${e.color}"></i>${n}</span>`;
     }
     box.innerHTML = html;
+    /* Hide any chip that fell past the visible rows rather than letting the
+       clip cut one through the middle — a half-height chip reads as a
+       rendering fault, an absent one reads as "and some others". */
+    const top = box.getBoundingClientRect().top;
+    const limit = box.clientHeight + 1;
+    let hidden = 0;
+    for (const chip of box.children) {
+      chip.style.visibility = '';
+      if (chip.getBoundingClientRect().bottom - top > limit) { chip.style.visibility = 'hidden'; hidden++; }
+    }
+    if (hidden) box.title = `${hidden} more enemy type${hidden === 1 ? '' : 's'} in this wave`;
+    else box.removeAttribute('title');
   }
 
   /* ---------- command dock: palette ---------- */
@@ -903,7 +921,11 @@
           G.drawTowerIcon(cv, id);
           slot.appendChild(el('kbd', 'slot-key', HOTKEY_ROWS[r][c]));
           slot.appendChild(cv);
-          slot.appendChild(el('span', 'slot-cost', '🐟' + G.scaleCost(def.cost, UI.game.diffId)));
+          /* No 🐟 on the tray price. A four-figure cost plus the emoji cannot
+             fit a slot at the width the dock can spare, and the gold number
+             already reads as a price — the tooltip and guide still spell it
+             out with the icon. */
+          slot.appendChild(el('span', 'slot-cost', String(G.scaleCost(def.cost, UI.game.diffId))));
           if (G.towerNeed(UI.profile, id)) {   // tower drip: not recruited yet
             slot.classList.add('locked');
             slot.appendChild(el('span', 'slot-lock', '🔒'));
