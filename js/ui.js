@@ -395,6 +395,10 @@
     $('#btn-play').onclick = () => { buildLevelSelect(); show('#screen-levels'); };
     $('#btn-shop').onclick = () => buildShop('#screen-menu');
     $('#btn-colony').onclick = () => buildColony('#screen-menu');
+    $('#btn-heroes').onclick = () => { buildHeroRow($('#hero-row-menu')); show('#screen-heroes'); };
+    $('#btn-heroes-back').onclick = () => show('#screen-menu');
+    $('#btn-guide').onclick = () => buildGuide('#screen-menu');
+    $('#btn-pause-guide').onclick = () => buildGuide('#screen-pause');
     $('#btn-howto').onclick = () => show('#screen-howto');
     $('#btn-howto-back').onclick = () => show(UI.game ? '#screen-pause' : '#screen-menu');
     $('#btn-reset').onclick = () => {
@@ -541,18 +545,22 @@
       if (!locked) card.onclick = () => startGame(levelIdx, null, dId);
       grid.appendChild(card);
     }
-    buildHeroRow();
+    buildHeroRow($('#hero-row'));
     $('#btn-diff-shop').onclick = () => buildShop('#screen-diff');
     $('#btn-diff-colony').onclick = () => buildColony('#screen-diff');
     $('#btn-diff-back').onclick = () => show('#screen-levels');
     show('#screen-diff');
   }
 
-  /* ---------- hero picker (difficulty screen) ---------- */
-  function buildHeroRow() {
-    const row = $('#hero-row');
+  /* ---------- hero picker (difficulty screen + heroes screen) ---------- */
+  function buildHeroRow(row) {
+    row = row || $('#hero-row');
     row.innerHTML = '';
     const p = UI.profile;
+    const rescreen = () => {           // refresh pebble chips on whichever screen we're on
+      const sc = row.closest('.screen');
+      if (sc && sc.classList.contains('active')) show('#' + sc.id);
+    };
     for (const id of G.HERO_ORDER) {
       const def = G.TOWERS[id];
       const H = G.HEROES[id];
@@ -571,7 +579,7 @@
         card.onclick = () => {
           p.heroSel = sel ? null : id;   // tap the chosen one again to fight heroless
           putProfile(p);
-          buildHeroRow();
+          buildHeroRow(row);
         };
       } else {
         const afford = p.pebbles >= H.pebbles;
@@ -588,8 +596,8 @@
           putProfile(p);
           sfx.win();
           toast(`⭐ ${def.name} joins the colony!`);
-          show('#screen-diff');   // refresh every pebble chip on screen
-          buildHeroRow();
+          rescreen();               // pebble chips update wherever we are
+          buildHeroRow(row);
         };
         card.appendChild(btn);
       }
@@ -1102,6 +1110,107 @@
     buzz(30);
     toast(`${G.HEROES[g.heroType].ability.icon} ${res.name}!`);
     updateDockHero();
+  }
+
+  /* ---------- Penguin Guide: the colony's field manual ---------- */
+  function buildGuide(backTo) {
+    const body = $('#guide-body');
+    body.innerHTML = '';
+    const p = UI.profile;
+
+    // one section per class, every tower with both full upgrade paths
+    for (const clsKey of Object.keys(G.CLASSES)) {
+      const cls = G.CLASSES[clsKey];
+      const sec = el('div', 'gd-sec');
+      sec.appendChild(el('div', 'gd-sec-head',
+        `<span class="gd-sec-name" style="color:${cls.color}">${cls.name}</span><span class="gd-sec-desc">${cls.desc}</span>`));
+      for (const id of G.TOWER_ORDER.filter((t) => G.TOWERS[t].cls === clsKey)) {
+        const def = G.TOWERS[id];
+        const s = def.stats;
+        const need = G.towerNeed(p, id);
+        const card = el('div', 'gd-card');
+        const cv = document.createElement('canvas');
+        cv.width = 44; cv.height = 44;
+        G.drawTowerIcon(cv, id);
+        const bits = [];
+        if (s.damage) bits.push(`⚔ ${s.damage}`);
+        if (s.rate) bits.push(`⚡ ${s.rate}/s`);
+        if (s.range) bits.push(`◎ ${s.range >= 5000 ? '∞' : s.range}`);
+        if (s.pierce > 1) bits.push(`pierce ${s.pierce}`);
+        if (s.splash) bits.push(`splash ${s.splash}`);
+        if (s.income) bits.push(`+🐟${s.income}/wave`);
+        if (s.stealth) bits.push('sees stealth');
+        if (s.water === 'only') bits.push('water only');
+        const head = el('div', 'gd-head');
+        head.appendChild(cv);
+        head.appendChild(el('div', '', `
+          <div class="gd-name" style="color:${cls.color}">${def.name}
+            <span class="gd-cost">🐟${def.cost}</span>
+            ${need ? `<span class="gd-lock">🔒 after ${need} battlefield${need === 1 ? '' : 's'}</span>` : ''}</div>
+          <div class="gd-stats">${bits.join(' · ')}</div>
+          <div class="gd-desc">${def.desc}</div>`));
+        card.appendChild(head);
+        const paths = el('div', 'gd-paths');
+        for (const path of def.paths) {
+          const col = el('div', 'gd-path');
+          col.appendChild(el('div', 'gd-path-name', path.name));
+          for (const t of path.tiers) {
+            col.appendChild(el('div', 'gd-tier', `<b>${t.name}</b> <span class="gd-cost">🐟${t.cost}</span><br><span class="gd-tier-desc">${t.desc}</span>`));
+          }
+          paths.appendChild(col);
+        }
+        card.appendChild(paths);
+        sec.appendChild(card);
+      }
+      body.appendChild(sec);
+    }
+
+    // heroes
+    const hsec = el('div', 'gd-sec');
+    hsec.appendChild(el('div', 'gd-sec-head',
+      `<span class="gd-sec-name" style="color:var(--gold)">⭐ Heroes</span><span class="gd-sec-desc">One per battle. They level up every 3 waves and hit as hard as the herd is tough.</span>`));
+    for (const id of G.HERO_ORDER) {
+      const def = G.TOWERS[id];
+      const H = G.HEROES[id];
+      const card = el('div', 'gd-card');
+      const cv = document.createElement('canvas');
+      cv.width = 44; cv.height = 44;
+      G.drawTowerIcon(cv, id);
+      const head = el('div', 'gd-head');
+      head.appendChild(cv);
+      head.appendChild(el('div', '', `
+        <div class="gd-name" style="color:var(--gold)">${def.name}
+          <span class="gd-cost">${H.pebbles ? H.pebbles.toLocaleString() + ' 🪨 to recruit' : 'free'} · 🐟${def.cost} to place</span></div>
+        <div class="gd-stats">${H.blurb}</div>
+        <div class="gd-desc">${H.ability.icon} <b>${H.ability.name}</b> (level ${H.ability.unlock}, recharges ${H.ability.cd}s) — ${H.ability.desc}</div>`));
+      card.appendChild(head);
+      hsec.appendChild(card);
+    }
+    body.appendChild(hsec);
+
+    // the enemy roster
+    const esec = el('div', 'gd-sec');
+    esec.appendChild(el('div', 'gd-sec-head',
+      `<span class="gd-sec-name">🦭 The Sea Lions</span><span class="gd-sec-desc">Bigger ones break apart into smaller ones — a wave isn't over until the last pup is down.</span>`));
+    const egrid = el('div', 'gd-enemies');
+    for (const id of G.ENEMY_ORDER) {
+      const e = G.ENEMIES[id];
+      const traits = [];
+      if (e.speed >= 120) traits.push('fast');
+      if (e.stealth) traits.push('stealth — needs detection');
+      if (e.armor) traits.push(`armor ${e.armor}`);
+      if (e.regen) traits.push(`regenerates ${e.regen}/s`);
+      if (e.boss) traits.push('BOSS');
+      egrid.appendChild(el('div', 'gd-enemy' + (e.boss ? ' boss' : ''), `
+        <span class="gd-dot" style="background:${e.color}"></span>
+        <div><div class="gd-ename">${e.name} <span class="gd-cost">${e.hp} hp · ${e.lives} ♥ if it leaks · 🐟${e.bounty}</span></div>
+        <div class="gd-etraits">${traits.length ? traits.join(' · ') + ' · ' : ''}${e.children.length ? 'splits into ' + e.children.map((c) => G.ENEMIES[c].name).join(' + ') : 'the smallest — just pops'}</div></div>`));
+    }
+    esec.appendChild(egrid);
+    body.appendChild(esec);
+
+    $('#btn-guide-back').onclick = () => show(backTo);
+    show('#screen-guide');
   }
 
   /* ---------- Colony Upgrades: permanent pebble-bought perks ---------- */

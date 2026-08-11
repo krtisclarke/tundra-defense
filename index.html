@@ -85,9 +85,15 @@
         waves depending on your nerve — and keep every last chick safe.</p>
       <div class="pebble-chip" title="Pebbles — win battles to earn them">🪨 <b class="js-pebbles">0</b> pebbles</div>
       <button class="btn big primary" id="btn-play">Play</button>
-      <button class="btn big" id="btn-shop">🪨 Boost Shop</button>
-      <button class="btn big" id="btn-colony">🏛️ Colony Upgrades</button>
-      <button class="btn big" id="btn-howto">How to Play</button>
+      <div class="menu-row">
+        <button class="btn" id="btn-heroes">⭐ Heroes</button>
+        <button class="btn" id="btn-shop">🪨 Boosts</button>
+        <button class="btn" id="btn-colony">🏛️ Colony</button>
+      </div>
+      <div class="menu-row">
+        <button class="btn" id="btn-guide">📖 Penguin Guide</button>
+        <button class="btn" id="btn-howto">❓ How to Play</button>
+      </div>
       <div class="menu-io">
         <button class="btn" id="btn-export">💾 Back Up Progress</button>
         <button class="btn" id="btn-import">📂 Load Backup</button>
@@ -142,6 +148,28 @@
       <div id="colony-grid"></div>
     </div>
 
+    <div class="screen" id="screen-heroes">
+      <div class="screen-head">
+        <button class="btn small" id="btn-heroes-back">← Back</button>
+        <h2>⭐ Heroes</h2>
+        <span class="pebble-chip" title="Pebbles — win battles to earn them">🪨 <b class="js-pebbles">0</b> pebbles</span>
+      </div>
+      <p class="blurb">One champion fights beside the colony each battle. Heroes are recruited once with
+        pebbles and are yours forever — they place like a tower, level up on their own as waves fall,
+        and unlock a signature ability at level 3. Pick who marches with you here or on the challenge
+        screen before any battle.</p>
+      <div id="hero-row-menu" class="hero-row"></div>
+    </div>
+
+    <div class="screen" id="screen-guide">
+      <div class="screen-head">
+        <button class="btn small" id="btn-guide-back">← Back</button>
+        <h2>📖 Penguin Guide</h2>
+      </div>
+      <p class="blurb">Every defender and every threat — stats, upgrade paths, and what they're for.</p>
+      <div id="guide-body"></div>
+    </div>
+
     <div class="screen" id="screen-howto">
       <div class="screen-head">
         <button class="btn small" id="btn-howto-back">← Back</button>
@@ -170,6 +198,7 @@
       <h2>⏸ Paused</h2>
       <button class="btn big primary" id="btn-resume">Resume <span class="kbd-hint"><kbd>Esc</kbd></span></button>
       <button class="btn big" id="btn-pause-save">Save Game</button>
+      <button class="btn big" id="btn-pause-guide">📖 Penguin Guide</button>
       <button class="btn big" id="btn-pause-quit">Save &amp; Quit to Menu</button>
       <div class="cheatsheet">
         <div><kbd>1</kbd>–<kbd>5</kbd> <kbd>Q</kbd>–<kbd>T</kbd> <kbd>A</kbd>–<kbd>G</kbd> <kbd>Z</kbd>–<kbd>B</kbd><span>build penguins</span></div>
