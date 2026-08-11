@@ -270,7 +270,7 @@
         hp, maxHp: hp, hpMult: hpMult || 1,
         speed: def.speed * this.level.speedMult,
         armor: def.armor, stealth: def.stealth, regen: def.regen,
-        size: def.size, rank: def.rank, boss: !!def.boss,
+        size: def.size, rank: def.rank, boss: !!def.boss, orca: !!def.orca,
         slowF: 1, slowUntil: 0, dotDps: 0, dotUntil: 0, stunUntil: 0, revealUntil: 0,
         wob: Math.random() * Math.PI * 2,
       });
@@ -358,6 +358,50 @@
       const ep = samplePath(this.paths[e.pathIdx], e.dist);
       this.effects.push({ kind: e.boss ? 'bossDeath' : 'pop', x: ep.x, y: ep.y, r: e.size, life: e.boss ? 0.8 : 0.3, max: e.boss ? 0.8 : 0.3, color: def.color });
       if (e.boss) this.emit('bossDown', def.name);
+    }
+
+    /* ----- Orcas devour the herds -----
+       Any ordinary sea lion that drifts into an orca's jaws is swallowed
+       whole. The player gets nothing for it — no bounty, no XP, no splits,
+       and no life lost either; the sea lion simply ceases. The orca heals,
+       but each meal is capped at a small slice of its own maximum, so a
+       feeding orca is a stalling problem rather than an immortal one.
+       Starving it — clearing the chaff first — is the counter-play. */
+    orcaEat() {
+      let fed = false;
+      for (const o of this.enemies) {
+        if (o.dead || !o.orca) continue;
+        const maw = o.size * 0.9;
+        const rate = G.ENEMIES[o.type].eat || 0.015;
+        /* Total healing is capped at 60% of the orca's own maximum, however
+           rich the herd is. Without it a big enough shoal could keep one
+           topped up indefinitely; with it, feeding buys time and nothing more. */
+        const budget = o.maxHp * 0.6 - (o.healed || 0);
+        if (budget <= 0) continue;
+        for (const e of this.enemies) {
+          if (e.dead || e === o || e.orca || e.boss) continue;
+          if (e.pathIdx !== o.pathIdx) continue;
+          if (e.rank > G.EDIBLE_RANK) continue;         // too big to swallow
+          if (Math.abs(e.dist - o.dist) > maw) continue;
+          e.dead = true;
+          e.devoured = true;                            // pays nothing, splits nothing
+          /* The heal is a slice of the ORCA's bulk, not the meal's — late-game
+             sea lions are crumbs beside a Great Orca, so scaling off the meal
+             made this inert exactly where it mattered. Bigger prey still feeds
+             better: a Brute is worth roughly twice a Pup. */
+          const meal = o.maxHp * rate * (0.35 + 0.65 * (e.rank / G.EDIBLE_RANK));
+          /* Only healing actually applied is charged against the budget — an
+             unhurt orca still swallows the sea lion, it just banks nothing,
+             so a healthy one can't be "fed empty" before the shooting starts. */
+          const given = Math.max(0, Math.min(meal, o.maxHp * 0.6 - (o.healed || 0), o.maxHp - o.hp));
+          o.healed = (o.healed || 0) + given;
+          o.hp += given;
+          const ep = samplePath(this.paths[e.pathIdx], e.dist);
+          this.effects.push({ kind: 'devour', x: ep.x, y: ep.y, r: e.size, life: 0.45, max: 0.45 });
+          fed = true;
+        }
+      }
+      if (fed) this.emit('devour');
     }
 
     splashAt(x, y, radius, dmg, tower, maxHit, exclude) {
@@ -614,6 +658,7 @@
           }
         }
       }
+      this.orcaEat();
       this.enemies = this.enemies.filter((e) => !e.dead);
       this.piles = this.piles.filter((p) => p.charges > 0);
 

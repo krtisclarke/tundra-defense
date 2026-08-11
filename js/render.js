@@ -81,17 +81,20 @@
     return true;
   }
 
-  function getTerrain(level, w) {
-    const key = level.id + '@' + w;
+  /* `flooded` builds the same battlefield with its trails running as water —
+     the orca tide of deep endless. It is a separate cache entry, so the swap
+     costs one re-render the first time the tide comes in and nothing after. */
+  function getTerrain(level, w, flooded) {
+    const key = level.id + '@' + w + (flooded ? '@sea' : '');
     let t = terrCache.get(key);
     if (!t) {
-      t = buildTerrain(level, w, Math.round(w * G.H / G.W));
+      t = buildTerrain(level, w, Math.round(w * G.H / G.W), flooded);
       terrCache.set(key, t);
     }
     return t;
   }
 
-  function buildTerrain(level, w, h) {
+  function buildTerrain(level, w, h, flooded) {
     const cvs = document.createElement('canvas');
     cvs.width = w; cvs.height = h;
     const c = cvs.getContext('2d');
@@ -200,7 +203,10 @@
     for (const wt of level.water) drawWaterBody(c, wt, th, rnd);
 
     // --- path(s) ---
-    for (const pts of level.paths) drawPathTextured(c, pts, th, rnd);
+    for (const pts of level.paths) {
+      if (flooded) drawPathFlooded(c, pts, th, rnd);
+      else drawPathTextured(c, pts, th, rnd);
+    }
 
     // entrance arrows
     for (const pts of level.paths) {
@@ -386,6 +392,66 @@
     c.fillStyle = 'rgba(160,195,225,0.5)';
     c.beginPath(); c.ellipse(0, r * 0.28, r * 0.7, r * 0.2, 0, 0, TAU); c.fill();
     c.restore();
+  }
+
+  /* The trail as a channel of seawater. Same palette and the same deep→shallow
+     gradient the pools use (th.deep / th.shore), so a flooded path and a pond
+     read as one body of water. Geometry is untouched: identical width, identical
+     centreline — only the paint changes, so nothing about placement moves. */
+  function drawPathFlooded(c, pts, th, rnd) {
+    const deep = th.deep || '#2e6da4';
+    const shore = th.shore || '#bfe0ea';
+    const trace = () => {
+      c.beginPath();
+      c.moveTo(pts[0].x, pts[0].y);
+      for (const p of pts.slice(1)) c.lineTo(p.x, p.y);
+    };
+    c.lineJoin = 'round'; c.lineCap = 'round';
+
+    // wet sand halo, then the crisp dark contour the pools carry
+    trace(); c.strokeStyle = shore; c.lineWidth = G.PATH_HALF * 2 + 11; c.stroke();
+    trace(); c.strokeStyle = 'rgba(20,42,72,0.38)'; c.lineWidth = G.PATH_HALF * 2 + 13; c.stroke();
+    trace(); c.strokeStyle = shore; c.lineWidth = G.PATH_HALF * 2 + 8; c.stroke();
+
+    // the water itself — vertical gradient, exactly as drawWaterBody mixes it
+    const gr = c.createLinearGradient(0, 0, 0, G.H);
+    gr.addColorStop(0, shade(deep, 55));
+    gr.addColorStop(0.5, deep);
+    gr.addColorStop(1, shade(deep, 25));
+    trace(); c.strokeStyle = gr; c.lineWidth = G.PATH_HALF * 2 + 2; c.stroke();
+
+    // recessed bank: dark inner shadow just inside the edge
+    c.save();
+    c.globalAlpha = 0.5;
+    trace(); c.strokeStyle = 'rgba(12,30,54,0.55)'; c.lineWidth = G.PATH_HALF * 2 + 2; c.stroke();
+    c.restore();
+    trace(); c.strokeStyle = gr; c.lineWidth = G.PATH_HALF * 2 - 7; c.stroke();
+
+    const total = pathLength(pts);
+
+    // current lines running with the channel, and a few drifting ice chips
+    c.strokeStyle = 'rgba(255,255,255,0.16)';
+    c.lineWidth = 1.5;
+    for (const off of [-9, 0, 9]) {
+      c.beginPath();
+      for (let d = 6; d < total; d += 15) {
+        const p = pathPoint(pts, d);
+        const nx = Math.cos(p.ang + Math.PI / 2), ny = Math.sin(p.ang + Math.PI / 2);
+        const wob = Math.sin(d * 0.055 + off) * 3;
+        const x = p.x + nx * (off + wob), y = p.y + ny * (off + wob);
+        d === 6 ? c.moveTo(x, y) : c.lineTo(x, y);
+      }
+      c.stroke();
+    }
+    for (let d = 20; d < total; d += 60 + rnd() * 90) {
+      const p = pathPoint(pts, d);
+      const nx = Math.cos(p.ang + Math.PI / 2), ny = Math.sin(p.ang + Math.PI / 2);
+      const off = (rnd() - 0.5) * (G.PATH_HALF - 6);
+      const x = p.x + nx * off, y = p.y + ny * off;
+      const r = 2.5 + rnd() * 3.5;
+      c.fillStyle = 'rgba(226,242,252,0.75)';
+      c.beginPath(); c.ellipse(x, y, r, r * 0.62, rnd() * TAU, 0, TAU); c.fill();
+    }
   }
 
   function drawPathTextured(c, pts, th, rnd) {
@@ -1605,6 +1671,15 @@
     ctx.fillStyle = 'rgba(25,42,62,0.18)';
     ctx.beginPath(); ctx.ellipse(sdx, r * 0.44 + sdy * 0.6, r * 1.08, r * 0.36, 0, 0, TAU); ctx.fill();
 
+    // orcas get their own body entirely, then fall through to the shared
+    // status pips and health bar below
+    if (e.orca) {
+      drawOrcaBody(ctx, e, r, col, t);
+      ctx.restore();
+      drawEnemyStatus(ctx, game, e, def, r, p, t);
+      return;
+    }
+
     // tail flippers
     ctx.fillStyle = shade(col, -12);
     const tailWag = Math.sin(t * 10 + e.wob) * 0.3;
@@ -1921,8 +1996,12 @@
     }
 
     ctx.restore();
+    drawEnemyStatus(ctx, game, e, def, r, p, t);
+  }
 
-    // status indicators (unrotated)
+  /* slow/stun/poison pips and the health bar — drawn upright, never rotated,
+     shared by the sea lions and the orcas */
+  function drawEnemyStatus(ctx, game, e, def, r, p, t) {
     ctx.save();
     ctx.translate(p.x, p.y);
     if (e.slowUntil > game.time) {
@@ -1955,6 +2034,150 @@
       }
     }
     ctx.restore();
+  }
+
+  /* An orca seen from above: long torpedo body, flukes at the stern, pectoral
+     fins swept back, the dorsal blade standing proud of the water, and the
+     markings that make the animal unmistakable — white eye ovals at the bow
+     and the grey saddle behind the fin. Drawn nose-right, like every other
+     creature here, so the caller's rotation carries it down the track. */
+  function drawOrcaBody(ctx, e, r, col, t) {
+    const swim = Math.sin(t * 3.4 + e.wob);
+    const ink = '#0b1119';
+    const belly = '#f4f9ff';
+
+    // wake: a bow spray and a churned trail, so it reads as swimming
+    ctx.save();
+    ctx.globalAlpha = 0.5;
+    ctx.fillStyle = 'rgba(232,246,255,0.55)';
+    ctx.beginPath();
+    ctx.ellipse(-r * 1.5, 0, r * 0.72, r * 0.5, 0, 0, TAU);
+    ctx.fill();
+    ctx.globalAlpha = 0.32;
+    ctx.beginPath();
+    ctx.ellipse(-r * 2.15, swim * r * 0.16, r * 0.5, r * 0.3, 0, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+
+    // tail stock + flukes
+    const wag = swim * 0.34;
+    ctx.save();
+    ctx.translate(-r * 0.92, 0);
+    ctx.rotate(wag);
+    ctx.fillStyle = shade(col, -6);
+    ctx.strokeStyle = ink; ctx.lineWidth = Math.max(1.4, r * 0.055); ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(r * 0.12, 0);
+    ctx.quadraticCurveTo(-r * 0.28, -r * 0.1, -r * 0.66, -r * 0.5);
+    ctx.quadraticCurveTo(-r * 0.3, -r * 0.14, -r * 0.24, 0);
+    ctx.quadraticCurveTo(-r * 0.3, r * 0.14, -r * 0.66, r * 0.5);
+    ctx.quadraticCurveTo(-r * 0.28, r * 0.1, r * 0.12, 0);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.restore();
+
+    // pectoral fins, swept back and paddling gently
+    for (const side of [-1, 1]) {
+      ctx.save();
+      ctx.translate(r * 0.18, side * r * 0.42);
+      ctx.rotate(side * (0.5 + swim * 0.12));
+      ctx.fillStyle = shade(col, -10);
+      ctx.strokeStyle = ink; ctx.lineWidth = Math.max(1.2, r * 0.045);
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.quadraticCurveTo(-r * 0.1, side * r * 0.42, -r * 0.5, side * r * 0.56);
+      ctx.quadraticCurveTo(-r * 0.28, side * r * 0.16, -r * 0.16, 0);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.restore();
+    }
+
+    // body — dark above, gradient to a lit crown along the back
+    const bodyGrad = ctx.createLinearGradient(0, -r * 0.6, 0, r * 0.6);
+    bodyGrad.addColorStop(0, shade(col, 46));
+    bodyGrad.addColorStop(0.45, col);
+    bodyGrad.addColorStop(1, shade(col, -18));
+    ctx.fillStyle = bodyGrad;
+    ctx.strokeStyle = ink;
+    ctx.lineWidth = Math.max(1.6, r * 0.07);
+    ctx.beginPath();
+    ctx.moveTo(r * 1.06, 0);                                    // snout
+    ctx.quadraticCurveTo(r * 0.86, -r * 0.46, r * 0.2, -r * 0.54);
+    ctx.quadraticCurveTo(-r * 0.44, -r * 0.56, -r * 0.94, -r * 0.2);
+    ctx.quadraticCurveTo(-r * 1.0, 0, -r * 0.94, r * 0.2);
+    ctx.quadraticCurveTo(-r * 0.44, r * 0.56, r * 0.2, r * 0.54);
+    ctx.quadraticCurveTo(r * 0.86, r * 0.46, r * 1.06, 0);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+
+    // grey saddle patch behind the dorsal
+    ctx.save();
+    ctx.globalAlpha = 0.5;
+    ctx.fillStyle = '#93a7bd';
+    ctx.beginPath();
+    ctx.ellipse(-r * 0.44, 0, r * 0.3, r * 0.34, 0, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+
+    // white eye ovals — the marking that says "orca" instantly
+    for (const side of [-1, 1]) {
+      ctx.fillStyle = belly;
+      ctx.strokeStyle = 'rgba(11,17,25,0.55)';
+      ctx.lineWidth = Math.max(0.8, r * 0.025);
+      ctx.beginPath();
+      ctx.ellipse(r * 0.56, side * r * 0.3, r * 0.2, r * 0.12, side * -0.24, 0, TAU);
+      ctx.fill(); ctx.stroke();
+    }
+    // eyes
+    for (const side of [-1, 1]) {
+      ctx.fillStyle = ink;
+      ctx.beginPath();
+      ctx.arc(r * 0.66, side * r * 0.26, Math.max(1.1, r * 0.05), 0, TAU);
+      ctx.fill();
+    }
+    // gloss along the back
+    ctx.save();
+    ctx.globalAlpha = 0.22;
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.ellipse(r * 0.2, -r * 0.3, r * 0.5, r * 0.11, -0.1, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+
+    // dorsal fin — tall blade, upright on the bulls and kings
+    const finH = e.type === 'orca_king' ? 1.15 : e.type === 'orca_great' ? 0.95 : 0.78;
+    ctx.save();
+    ctx.translate(-r * 0.06, 0);
+    ctx.rotate(swim * 0.05);
+    ctx.fillStyle = shade(col, 16);
+    ctx.strokeStyle = ink; ctx.lineWidth = Math.max(1.4, r * 0.06); ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(r * 0.26, 0);
+    ctx.quadraticCurveTo(r * 0.1, -r * finH * 0.62, -r * 0.3, -r * finH);
+    ctx.quadraticCurveTo(-r * 0.22, -r * finH * 0.34, -r * 0.3, 0);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    // lit edge down the blade
+    ctx.globalAlpha = 0.3;
+    ctx.strokeStyle = '#dfe9f5'; ctx.lineWidth = Math.max(1, r * 0.035);
+    ctx.beginPath();
+    ctx.moveTo(r * 0.2, -r * 0.06);
+    ctx.quadraticCurveTo(r * 0.06, -r * finH * 0.6, -r * 0.28, -r * finH * 0.94);
+    ctx.stroke();
+    ctx.restore();
+
+    // the KILLER WHALE bares its teeth
+    if (e.type === 'orca_king') {
+      ctx.fillStyle = belly;
+      ctx.strokeStyle = 'rgba(11,17,25,0.6)';
+      ctx.lineWidth = Math.max(0.8, r * 0.02);
+      for (let i = 0; i < 7; i++) {
+        const f = i / 6;
+        const x = r * (1.02 - f * 0.34);
+        const y = (-r * 0.16 + f * r * 0.32) * 0.9;
+        ctx.beginPath();
+        ctx.moveTo(x, y - r * 0.035);
+        ctx.lineTo(x + r * 0.075, y);
+        ctx.lineTo(x, y + r * 0.035);
+        ctx.closePath(); ctx.fill(); ctx.stroke();
+      }
+    }
   }
 
   function drawTusks(ctx, r, s) {
@@ -2087,6 +2310,16 @@
           const a = (i / 7) * TAU;
           const d = (1 - f) * 26;
           ctx.beginPath(); ctx.arc(fx.x + Math.cos(a) * d, fx.y + Math.sin(a) * d, 3.6 * f, 0, TAU); ctx.fill();
+        }
+      } else if (fx.kind === 'devour') {
+        // a red bloom in the water and a ring of spray where the sea lion was
+        ctx.fillStyle = `rgba(168,32,38,${f * 0.5})`;
+        ctx.beginPath(); ctx.arc(fx.x, fx.y, (1 - f) * (fx.r + 16) + 6, 0, TAU); ctx.fill();
+        ctx.fillStyle = `rgba(240,250,255,${f * 0.85})`;
+        for (let i = 0; i < 8; i++) {
+          const a = (i / 8) * TAU + fx.r;
+          const d = (1 - f) * 22 + 4;
+          ctx.beginPath(); ctx.arc(fx.x + Math.cos(a) * d, fx.y + Math.sin(a) * d, 2.6 * f, 0, TAU); ctx.fill();
         }
       } else if (fx.kind === 'bossDeath') {
         ctx.fillStyle = `rgba(255,190,90,${f * 0.6})`;
@@ -2222,7 +2455,7 @@
   let clock = 0;
   G.render = function (ctx, game, dt) {
     clock += dt;
-    const terr = getTerrain(game.level, G.W);
+    const terr = getTerrain(game.level, G.W, game.endless && game.wave >= G.ORCA_WAVE);
     ctx.drawImage(terr.canvas, 0, 0, G.W, G.H);
     drawSceneryFX(ctx, game.level, terr.meta, clock);
     drawSpikes(ctx, game);

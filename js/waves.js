@@ -108,6 +108,36 @@
         const bossHp = Math.pow(1.07, depth);    // bosses ramp harder still
         const sp = Math.max(0.45, 1 - depth * 0.008); // spawns pack tighter with depth
         const n = (base) => Math.min(60, R(base * d));
+
+        /* ---- the tide turns at wave 71: orcas join the hunt ----
+           They arrive alongside the herds, never instead of them — the sea
+           lions still carry the stealth/armour/regen problems the roster is
+           built to answer, while the orca is the slab you must actually break.
+           Their own scaling is gentler (1.035) because their base HP is already
+           enormous and they heal by eating; the sea lions around them still
+           ramp at the usual rate. */
+        if (w >= G.ORCA_WAVE) {
+          const oDepth = w - G.ORCA_WAVE + 1;
+          const oHp = Math.pow(1.035, oDepth);
+          const century = w % 100 === 0;
+          if (century) {
+            // the leviathan of the deep: one KILLER WHALE, with an escort
+            g('orca_king', 1, 10, { hpMult: Math.pow(1.05, w - 100) || 1 });
+            g('orca_great', 2, 7, { hpMult: oHp * 0.6, delay: 6 });
+          } else if (w >= 91) {
+            g('orca_great', Math.min(5, 1 + Math.floor((w - 91) / 3)), 6, { hpMult: oHp });
+          } else if (w >= 81) {
+            g('orca_bull', Math.min(6, 2 + Math.floor((w - 81) / 3)), 5, { hpMult: oHp });
+          } else {
+            g('orca_young', Math.min(8, 2 + Math.floor((w - 71) / 2)), 4, { hpMult: oHp });
+          }
+          // chum: the herd the orcas swim through (and feed on)
+          g('bull', n(14), 0.35 * sp, { hpMult: hp, delay: 2 });
+          g('armored', n(10), 0.4 * sp, { hpMult: hp, delay: 1.5 });
+          if (w % 5 === 0) g('beachmaster', 2 + Math.floor(depth / 15), 3, { hpMult: bossHp, delay: 3 });
+          break;
+        }
+
         if (w % 10 === 0) {
           // boss court every 10th wave — colossi first, leviathans from wave 80
           if (w >= 80) {

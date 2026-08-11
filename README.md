@@ -58,6 +58,33 @@ wave survived pays a bonus (25 / 50 / 100 🪨 by difficulty), every 100th pays 
 that** (250 / 500 / 1,000 🪨), and each battlefield remembers your record wave on the
 level select.
 
+#### 🐋 The Tide Comes In — orcas from wave 71
+
+At Endless wave 71 the trails **flood**: every track on the battlefield turns to open
+water and the apex predators arrive. Orcas never split — one patient slab of muscle
+instead of a bag of smaller problems — and they carry heavy armour. They also hunt the
+herds: **any ordinary sea lion that swims into an orca is swallowed whole**, which heals
+it. You get nothing for a devoured sea lion — no fish, no XP — so a fat herd in front of
+an orca is a meal you're serving. Clear the chaff fast, or feed them.
+
+Healing is capped at 60% of an orca's own maximum however rich the water, so feeding
+buys them time and never immortality.
+
+| Waves | Hunter | HP | Armour |
+|---|---|---|---|
+| 71–80 | Young Orca | 1,200 | 3 |
+| 81–90 | Bull Orca | 3,600 | 4 |
+| 91–99 | Great Orca | 9,000 | 5 |
+| **100** | **KILLER WHALE** | **95,000** | **8** |
+
+The KILLER WHALE is the largest creature in the game and it guards the century jackpot.
+It is sized against a measured board — eighteen maxed towers sustain about 895 damage a
+second through armour 8, roughly 118,000 across the whale's 132-second swim — so a solid
+defence falls just short, and landing the century takes your hero, your boosts and better
+placement. Waves 101+ keep the Great Orcas coming, with another KILLER WHALE every
+century. Flooding is cosmetic: build spots, path geometry and water-only penguins are
+completely unchanged.
+
 ### Two currencies: fish & pebbles
 
 **🐟 Fish** is match money: pops and wave clears pay it, and it recruits and upgrades

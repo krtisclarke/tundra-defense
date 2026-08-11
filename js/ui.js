@@ -666,7 +666,13 @@
     if (kind === 'waveStart') {
       sfx.wave();
       G.music.setTempoScale(Math.pow(1.01, payload - 1)); // +1% tempo per wave (capped in music.js)
-      banner(g.endless ? `🌊 Wave ${payload} — the tide rises` : `Wave ${payload} / ${g.totalWaves}`);
+      if (g.endless && payload === G.ORCA_WAVE) {
+        sfx.boss();
+        banner('🌊 THE TIDE COMES IN — the orcas have found you');
+        toast('The trails have flooded. Orcas hunt the herds and the colony alike — and every sea lion they swallow heals them.', 'bad');
+      } else {
+        banner(g.endless ? `🌊 Wave ${payload} — the tide rises` : `Wave ${payload} / ${g.totalWaves}`);
+      }
       const spec = G.generateWave(g.levelIdx, payload);
       if (spec.groups.some((gr) => G.ENEMIES[gr.type].boss)) { sfx.boss(); banner(`⚠ Wave ${payload} — something huge is coming…`); }
       updateWavePreview();
@@ -1249,7 +1255,7 @@
     esec.appendChild(el('div', 'gd-sec-head',
       `<span class="gd-sec-name">🦭 The Sea Lions</span><span class="gd-sec-desc">Bigger ones break apart into smaller ones — a wave isn't over until the last pup is down.</span>`));
     const egrid = el('div', 'gd-enemies');
-    for (const id of G.ENEMY_ORDER) {
+    for (const id of G.ENEMY_ORDER.filter((x) => !G.ENEMIES[x].orca)) {
       const e = G.ENEMIES[id];
       const traits = [];
       if (e.speed >= 120) traits.push('fast');
@@ -1264,6 +1270,24 @@
     }
     esec.appendChild(egrid);
     body.appendChild(esec);
+
+    // the orcas — deep endless only
+    const osec = el('div', 'gd-sec');
+    osec.appendChild(el('div', 'gd-sec-head',
+      `<span class="gd-sec-name" style="color:#7fd4f0">🐋 The Orcas</span>` +
+      `<span class="gd-sec-desc">From Endless wave ${G.ORCA_WAVE} the trails flood and the hunters arrive. They never split — and any ordinary sea lion that swims into one is swallowed, healing it. Clear the herd fast or you are feeding them.</span>`));
+    const ogrid = el('div', 'gd-enemies');
+    for (const id of G.ORCA_ORDER) {
+      const e = G.ENEMIES[id];
+      const traits = [`armor ${e.armor}`, `heals ${Math.round(e.eat * 100)}% per sea lion eaten`];
+      if (e.boss) traits.push('SUPER BOSS — Endless wave 100');
+      ogrid.appendChild(el('div', 'gd-enemy' + (e.boss ? ' boss' : ''), `
+        <span class="gd-dot" style="background:${e.color}"></span>
+        <div><div class="gd-ename">${e.name} <span class="gd-cost">${e.hp.toLocaleString()} hp · ${e.lives} ♥ if it leaks · 🐟${e.bounty.toLocaleString()}</span></div>
+        <div class="gd-etraits">${traits.join(' · ')}</div></div>`));
+    }
+    osec.appendChild(ogrid);
+    body.appendChild(osec);
 
     $('#btn-guide-back').onclick = () => show(backTo);
     show('#screen-guide');

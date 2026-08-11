@@ -707,6 +707,22 @@
     colossus:   { name: 'Colossus',         hp: 1000, speed: 26,  size: 38, armor: 3, stealth: false, regen: 0,   bounty: 400, lives: 60,  children: ['beachmaster', 'beachmaster', 'beachmaster'], rank: 11, color: '#5d3a5e', boss: true },
     emperor:    { name: 'Emperor Sea Lion', hp: 3400, speed: 19,  size: 46, armor: 4, stealth: false, regen: 0,   bounty: 1000, lives: 120, children: ['colossus', 'colossus'],       rank: 12, color: '#2f4858', boss: true },
     leviathan:  { name: 'Ancient Leviathan', hp: 9500, speed: 15, size: 54, armor: 5, stealth: false, regen: 5,   bounty: 2600, lives: 250, children: ['emperor', 'colossus'],        rank: 13, color: '#1d2d44', boss: true },
+
+    /* ---- Orcas: the deep-endless predators (waves 71+) ----
+       The food chain arrives. Orcas hunt the herds as well as the colony —
+       any ordinary sea lion that swims into one is devoured, healing it (see
+       `orcaEat` in the engine). They never split: a single, patient slab of
+       muscle rather than a bag of smaller problems. No regeneration of their
+       own — eating is how they heal, so starving them is the counter-play. */
+    orca_young: { name: 'Young Orca',       hp: 1200, speed: 44, size: 34, armor: 3, stealth: false, regen: 0,   bounty: 260,  lives: 40,  children: [],                              rank: 14, color: '#16202e', orca: true, eat: 0.020 },
+    orca_bull:  { name: 'Bull Orca',        hp: 3600, speed: 38, size: 42, armor: 4, stealth: false, regen: 0,   bounty: 700,  lives: 70,  children: [],                              rank: 15, color: '#121a26', orca: true, eat: 0.018 },
+    orca_great: { name: 'Great Orca',       hp: 9000, speed: 32, size: 50, armor: 5, stealth: false, regen: 0,   bounty: 1700, lives: 110, children: [],                              rank: 16, color: '#0e151f', orca: true, eat: 0.015 },
+    /* The century wall. Sized against a measured board: eighteen maxed towers
+       sustain ~895 dps through armour 8, which is ~118k damage across the
+       whale's 132-second swim. At 95k plus escort and calves the total is
+       ~143k — a solid defence falls just short and needs its hero, its boosts
+       and better placement to land the century jackpot. */
+    orca_king:  { name: 'KILLER WHALE',     hp: 95000, speed: 17, size: 74, armor: 8, stealth: false, regen: 0,  bounty: 12000, lives: 400, children: ['orca_great', 'orca_great'],   rank: 17, color: '#080d15', orca: true, eat: 0.012, boss: true },
   };
   // fix accidental bad color string above
   G.ENEMIES.brute.color = '#4a3620';
@@ -720,7 +736,14 @@
   };
   for (const id in SEAL_COLORS) G.ENEMIES[id].color = SEAL_COLORS[id];
 
-  G.ENEMY_ORDER = ['pup', 'juvenile', 'adult', 'speedster', 'bull', 'stealth', 'armored', 'regen', 'brute', 'beachmaster', 'colossus', 'emperor', 'leviathan'];
+  G.ENEMY_ORDER = ['pup', 'juvenile', 'adult', 'speedster', 'bull', 'stealth', 'armored', 'regen', 'brute', 'beachmaster', 'colossus', 'emperor', 'leviathan',
+    'orca_young', 'orca_bull', 'orca_great', 'orca_king'];
+  G.ORCA_ORDER = ['orca_young', 'orca_bull', 'orca_great', 'orca_king'];
+  // the wave the tide turns: paths run blue from here on
+  G.ORCA_WAVE = 71;
+  /* Orcas swallow ordinary sea lions only — anything Beachmaster-sized or
+     above is too much mouthful, and other orcas are kin. */
+  G.EDIBLE_RANK = 9;
 
   /* ---------------- Levels ----------------
      paths: one or more waypoint lists (enemies are assigned a path).
