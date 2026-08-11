@@ -48,6 +48,7 @@
     if (p.pebbles == null) p.pebbles = 0;
     if (!p.completed) p.completed = {};
     if (!p.bestWave) p.bestWave = {};
+    if (!p.endlessBest) p.endlessBest = {};   // per-level record wave in Endless Tide
     if (!p.diffDone) p.diffDone = {};
     if (!p.powerInv) p.powerInv = {};
     // legacy profiles: a completed level was a 50-wave campaign → credit it as Hard
@@ -474,6 +475,7 @@
         <div class="lvl-meta">
           ${diffBadges}
           ${best && !p.completed[L.id] ? `<span class="badge">Best: wave ${best}</span>` : ''}
+          ${p.endlessBest[L.id] ? `<span class="badge" title="Endless Tide record — keep going after a victory to beat it">🌊 Endless: wave ${p.endlessBest[L.id]}</span>` : ''}
           ${save ? '<span class="badge save">💾 Saved game</span>' : ''}
         </div>`;
       card.appendChild(body);
@@ -581,15 +583,29 @@
     const g = UI.game;
     if (kind === 'waveStart') {
       sfx.wave();
-      G.music.setTempoScale(Math.pow(1.01, payload - 1)); // +1% tempo per wave
-      banner(`Wave ${payload} / ${g.totalWaves}`);
+      G.music.setTempoScale(Math.pow(1.01, payload - 1)); // +1% tempo per wave (capped in music.js)
+      banner(g.endless ? `🌊 Wave ${payload} — the tide rises` : `Wave ${payload} / ${g.totalWaves}`);
       const spec = G.generateWave(g.levelIdx, payload);
       if (spec.groups.some((gr) => G.ENEMIES[gr.type].boss)) { sfx.boss(); banner(`⚠ Wave ${payload} — something huge is coming…`); }
       updateWavePreview();
       updateHud();
     } else if (kind === 'waveEnd') {
       doSave(true);
-      toast(`Wave ${payload.wave} cleared! +${fmt(payload.earned)}`);
+      if (g.endless && payload.wave > g.totalWaves) {
+        const p = UI.profile;
+        p.endlessBest[g.level.id] = Math.max(p.endlessBest[g.level.id] || 0, payload.wave);
+        // every 10th endless wave pays a pebble bonus (one Second Chance's worth)
+        if (payload.wave % 10 === 0) {
+          const D = G.DIFFICULTIES[g.diffId];
+          p.pebbles += D.retryCost;
+          toast(`🌊 Wave ${payload.wave} survived! +${D.retryCost} 🪨 pebbles`);
+        } else {
+          toast(`Wave ${payload.wave} cleared! +${fmt(payload.earned)}`);
+        }
+        putProfile(p);
+      } else {
+        toast(`Wave ${payload.wave} cleared! +${fmt(payload.earned)}`);
+      }
       updateWavePreview();
       updateHud();
     } else if (kind === 'leak') {
@@ -620,6 +636,12 @@
       }
 
       $('#btn-retry').style.display = 'none';
+      const eb = $('#btn-endless');
+      eb.style.display = 'block';
+      const rec = p.endlessBest[g.level.id] || 0;
+      eb.innerHTML = `🌊 Keep Going — Endless Tide${rec ? ` · record: wave ${rec}` : ''}`;
+      eb.title = 'The waves keep coming, tougher every time, until the colony falls. Your victory is already banked.';
+      eb.onclick = keepGoing;
       $('#end-title').textContent = '🏆 Colony Defended!';
       $('#end-sub').textContent = `${g.level.name} (${D.name}) is safe. All ${g.totalWaves} waves repelled with ${g.lives} lives to spare. ` +
         `Reward: +${D.pebbles} 🪨 pebbles — you now have ${p.pebbles.toLocaleString()}.` + opened;
@@ -629,6 +651,7 @@
       sfx.lose();
       const p = UI.profile;
       p.bestWave[g.level.id] = Math.max(p.bestWave[g.level.id] || 0, g.wave - 1);
+      if (g.endless) p.endlessBest[g.level.id] = Math.max(p.endlessBest[g.level.id] || 0, g.wave - 1);
       putProfile(p);
       store.del(saveKey(g.levelIdx));
       const D = G.DIFFICULTIES[g.diffId];
@@ -641,9 +664,19 @@
         ? `Restore all ${g.startLives} lives and replay wave ${g.wave}. Towers and cash are kept.`
         : `You need ${D.retryCost} 🪨 — win battles to earn more.`;
       rb.onclick = retryBattle;
-      $('#end-title').textContent = '💔 The Colony Has Fallen';
-      $('#end-sub').textContent = `The sea lions broke through on wave ${g.wave}. You survived ${g.wave - 1} full waves` +
-        (afford ? ' — but the colony can rally, for a price…' : ' — regroup and try again!');
+      $('#btn-endless').style.display = 'none';
+      if (g.endless) {
+        const rec = p.endlessBest[g.level.id];
+        $('#end-title').textContent = '🌊 The Endless Tide Recedes';
+        $('#end-sub').textContent = `The colony held for ${g.wave - 1} waves — ` +
+          `${g.wave - 1 - g.totalWaves} beyond the campaign's ${g.totalWaves}. ` +
+          (g.wave - 1 >= rec ? 'A new record for this battlefield!' : `Record here: wave ${rec}.`) +
+          (afford ? ' The colony can rally, for a price…' : '');
+      } else {
+        $('#end-title').textContent = '💔 The Colony Has Fallen';
+        $('#end-sub').textContent = `The sea lions broke through on wave ${g.wave}. You survived ${g.wave - 1} full waves` +
+          (afford ? ' — but the colony can rally, for a price…' : ' — regroup and try again!');
+      }
       show('#screen-end');
     }
   }
@@ -654,7 +687,7 @@
     if (!g) return;
     $('#hud-lives').textContent = g.lives;
     $('#hud-cash').textContent = Math.round(g.cash).toLocaleString(); // fish icon sits beside it
-    $('#hud-wave').textContent = `Wave ${Math.min(g.wave, g.totalWaves)} / ${g.totalWaves}`;
+    $('#hud-wave').textContent = g.endless ? `Wave ${g.wave} · ∞` : `Wave ${Math.min(g.wave, g.totalWaves)} / ${g.totalWaves}`;
     $('#wave-bar i').style.width = Math.min(100, ((g.wave - 1) / g.totalWaves) * 100) + '%';
     $('#hud-level').textContent = `${g.level.name} · ${G.DIFFICULTIES[g.diffId].name}`;
 
@@ -711,7 +744,7 @@
   function updateWavePreview() {
     const g = UI.game;
     if (!g) return;
-    const w = Math.min(g.wave, g.totalWaves);
+    const w = g.endless ? g.wave : Math.min(g.wave, g.totalWaves);
     const box = $('#wave-preview');
     const spec = G.generateWave(g.levelIdx, w);
     const counts = new Map();
@@ -887,6 +920,22 @@
     G.music.setTempoScale(Math.pow(1.01, g.wave - 1));
     banner(`Second chance — Wave ${g.wave}`);
     toast(`🪨 −${D.retryCost} pebbles. Lives restored to ${g.lives} — regroup and hold the line!`);
+    updateWavePreview();
+    renderDockSel();
+    updateHud();
+  }
+
+  /* ---------- Endless Tide (keep playing after victory) ---------- */
+  function keepGoing() {
+    const g = UI.game;
+    if (!g || !g.goEndless()) return;
+    $('#auto-start').checked = false;
+    show(null);
+    sfx.wave();
+    G.music.play(G.music.trackForLevel(g.levelIdx));
+    G.music.setTempoScale(Math.pow(1.01, g.wave - 1));
+    banner(`🌊 The Endless Tide — Wave ${g.wave}`);
+    toast('Victory is banked — now hold as long as you can. Every 10th wave pays 🪨 pebbles.');
     updateWavePreview();
     renderDockSel();
     updateHud();

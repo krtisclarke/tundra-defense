@@ -86,6 +86,7 @@
       this.autoStart = false;
       this.nextWaveIn = null;   // auto-start countdown (ticks only while unpaused)
       this.over = null;           // 'win' | 'lose'
+      this.endless = false;       // set after victory if the player keeps going
       this.selected = null;
       this.placingType = null;
       this.mouse = { x: -999, y: -999 };
@@ -338,6 +339,17 @@
       this.waveTime = 0;
       this.nextWaveIn = null;
       this.autoStart = false; // no instant re-send — let the player regroup
+      return true;
+    }
+
+    /* ----- Endless Tide: keep playing past the final scripted wave.
+       The victory is already banked; from here waves scale without end. ----- */
+    goEndless() {
+      if (this.over !== 'win') return false;
+      this.over = null;
+      this.endless = true;
+      this.autoStart = false; // let the player take a breath first
+      this.nextWaveIn = null;
       return true;
     }
 
@@ -646,7 +658,7 @@
         }
         const finished = this.wave;
         this.wave++;
-        if (finished >= this.totalWaves) {
+        if (finished >= this.totalWaves && !this.endless) {
           this.over = 'win';
           this.emit('victory');
         } else {
@@ -669,7 +681,7 @@
         v: 2, levelIdx: this.levelIdx, diff: this.diffId, cash: this.cash, lives: this.lives,
         wave: this.wave, waveInProgress: this.waveInProgress, waveTime: this.waveTime,
         waveReward: this.waveReward || 0, autoStart: this.autoStart, time: this.time,
-        frenzyUntil: this.frenzyUntil || 0,
+        frenzyUntil: this.frenzyUntil || 0, endless: this.endless,
         towers: this.towers.map((t) => ({ type: t.type, x: t.x, y: t.y, up: [...t.up], target: t.target, invested: t.invested })),
         spawnQueue: this.spawnQueue.map((s) => ({ ...s })),
         enemies: this.enemies.map((e) => ({
@@ -687,7 +699,7 @@
       g.cash = data.cash; g.lives = data.lives; g.wave = data.wave;
       g.waveInProgress = data.waveInProgress; g.waveTime = data.waveTime;
       g.waveReward = data.waveReward; g.autoStart = !!data.autoStart; g.time = data.time || 0;
-      g.frenzyUntil = data.frenzyUntil || 0;
+      g.frenzyUntil = data.frenzyUntil || 0; g.endless = !!data.endless;
       for (const td of data.towers) {
         const t = {
           id: nextId++, type: td.type, x: td.x, y: td.y, up: [...td.up], target: td.target,

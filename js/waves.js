@@ -98,7 +98,39 @@
         g('stealth', 12 * d, 0.4, { delay: 3 });
         break;
 
-      default: g('adult', 10 * d, 0.6); // unreachable, safety net
+      default: {
+        /* ---- ENDLESS — wave 51 and beyond ----
+           The scripted campaign is over; the sea sends everything it has left.
+           Toughness compounds every wave (so every endless run ends someday),
+           while herd sizes stay capped so the field never floods. */
+        const depth = Math.max(1, w - 50);
+        const hp = Math.pow(1.05, depth);        // regulars: +5% compounding per wave
+        const bossHp = Math.pow(1.07, depth);    // bosses ramp harder still
+        const sp = Math.max(0.45, 1 - depth * 0.008); // spawns pack tighter with depth
+        const n = (base) => Math.min(60, R(base * d));
+        if (w % 10 === 0) {
+          // boss court every 10th wave — colossi first, leviathans from wave 80
+          if (w >= 80) {
+            g('leviathan', Math.min(3, 1 + Math.floor((w - 80) / 30)), 8, { hpMult: bossHp * 0.5 });
+            g('colossus', 2, 6, { hpMult: bossHp * 0.4, delay: 5 });
+          } else {
+            g('colossus', 1 + Math.floor(depth / 10), 7, { hpMult: bossHp * 0.6 });
+            g('beachmaster', 3, 3, { hpMult: bossHp, delay: 3 });
+          }
+          g('stealth', n(10), 0.4 * sp, { hpMult: hp, delay: 2 });
+        } else if (w % 5 === 0) {
+          // mini-court every 5th
+          g('beachmaster', 2 + Math.floor(depth / 15), 3, { hpMult: bossHp });
+          g('brute', n(8), 0.8 * sp, { hpMult: hp, delay: 2 });
+        } else {
+          switch (w % 4) { // rotating themed hordes
+            case 1: g('speedster', n(16), 0.3 * sp, { hpMult: hp }); g('stealth', n(12), 0.35 * sp, { hpMult: hp }); break;
+            case 2: g('armored', n(16), 0.4 * sp, { hpMult: hp }); g('regen', n(12), 0.5 * sp, { hpMult: hp }); break;
+            case 3: g('brute', n(9), 0.9 * sp, { hpMult: hp }); g('bull', n(20), 0.3 * sp, { hpMult: hp }); break;
+            default: g('stealth', n(14), 0.35 * sp, { hpMult: hp }); g('regen', n(12), 0.45 * sp, { hpMult: hp }); g('speedster', n(10), 0.3 * sp, { hpMult: hp });
+          }
+        }
+      }
     }
 
     // later tiers pay richer purses to match their far tougher herds

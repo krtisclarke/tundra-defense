@@ -51,6 +51,12 @@ Emperor / Leviathan (50). Beating a level on any difficulty unlocks the next bat
 **Second Chance:** if the colony falls, spend pebbles to retry — lives fully restored, the
 field cleared, and the wave that beat you replays with your towers and fish intact.
 
+**🌊 The Endless Tide:** beat the final boss and the victory screen offers **Keep Going** —
+the waves continue past the campaign, tougher every wave, with a boss court every 10th,
+until the colony falls. Your win and its pebbles are already banked; every 10th endless
+wave survived pays a bonus (one Second Chance's worth), and each battlefield remembers
+your record wave on the level select.
+
 ### Two currencies: fish & pebbles
 
 **🐟 Fish** is match money: pops and wave clears pay it, and it recruits and upgrades

@@ -240,7 +240,8 @@
       M.track = null; M.trackName = null;
     },
     setTempoScale(x) {
-      M.tempoScale = Math.max(0.5, Math.min(2.5, x));
+      // capped at 1.8× so endless runs (100+ waves) don't turn into a chipmunk march
+      M.tempoScale = Math.max(0.5, Math.min(1.8, x));
     },
     setMuted(muted) {
       M.muted = muted;
