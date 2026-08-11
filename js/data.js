@@ -452,7 +452,10 @@
       paths: [
         { name: 'Hex', tiers: [
           { name: 'Deeper Curse',   cost: 300, desc: 'Rot deals 4 dmg/s.',                mods: { fx: { dot: { dps: 4, d: 3 } } } },
-          { name: 'Armor Rust',     cost: 550, desc: 'Strips 2 armor per hit.',           mods: { fx: { shred: 2 } } },
+          /* Was "strips 2 armor per hit" — but shred is permanent, so going
+             from 1 to 2 only ever saved a single hit. It now strips armour
+             outright, which is a real capability rather than a rounding error. */
+          { name: 'Armor Rust',     cost: 550, desc: 'The curse eats armor away entirely.', mods: { fx: { shred: 99 } } },
           { name: 'Plague of Brine', cost: 1600, desc: 'Rot deals 8 dmg/s for 4s and spreads on death.', mods: { fx: { dot: { dps: 8, d: 4 } }, set: { plague: true } } },
         ]},
         { name: 'Coven', tiers: [
@@ -541,52 +544,55 @@
     },
     igloo: {
       cls: 'support', name: 'Igloo Fortress', cost: 1000,
-      desc: 'HQ that inspires nearby penguins: +20% damage.',
-      stats: { kind: 'aura', range: 170, auraDmg: 0.2, water: 'never' },
+      desc: 'HQ that inspires helpers inside its circle: +20% damage.',
+      stats: { kind: 'aura', range: 125, auraDmg: 0.2, water: 'never' },
       paths: [
         { name: 'Command', tiers: [
-          { name: 'War Room',       cost: 600, desc: 'Damage aura +35%.',                 mods: { add: { auraDmg: 0.15 } } },
-          { name: 'Elite Training', cost: 1300, desc: '+20% aura range, and nearby penguins pierce 1 more.', mods: { mul: { range: 1.2 }, set: { auraPierce: 1 } } },
-          { name: 'High Command',   cost: 3200, desc: 'Damage aura +65% total, and nearby penguins punch through 2 armor.', mods: { add: { auraDmg: 0.3 }, set: { auraShred: 2 } } },
+          { name: 'War Room',       cost: 600, desc: 'Helpers hit 35% harder.',                 mods: { add: { auraDmg: 0.15 } } },
+          { name: 'Elite Training', cost: 1300, desc: 'Wider circle; helpers pierce 1 more.', mods: { mul: { range: 1.15 }, set: { auraPierce: 1 } } },
+          { name: 'High Command',   cost: 3200, desc: 'Helpers hit 65% harder and punch through 2 armor.', mods: { add: { auraDmg: 0.3 }, set: { auraShred: 2 } } },
         ]},
         { name: 'Garrison', tiers: [
-          { name: 'Watchtower',     cost: 500, desc: 'Nearby penguins see stealth.',      mods: { set: { auraStealth: true } } },
-          { name: 'Drill Sergeant', cost: 1100, desc: 'Nearby penguins attack 15% faster.', mods: { add: { auraRate: 0.15 } } },
-          { name: 'Fortress Walls', cost: 2600, desc: '+30% aura range, +15% more attack speed.', mods: { mul: { range: 1.3 }, add: { auraRate: 0.15 } } },
+          { name: 'Watchtower',     cost: 500, desc: 'Helpers see stealth sea lions.',      mods: { set: { auraStealth: true } } },
+          { name: 'Drill Sergeant', cost: 1100, desc: 'Helpers attack 15% faster.', mods: { add: { auraRate: 0.15 } } },
+          { name: 'Fortress Walls', cost: 2600, desc: 'Wider circle; helpers +15% more speed.', mods: { mul: { range: 1.2 }, add: { auraRate: 0.15 } } },
         ]},
       ],
     },
     sonar: {
       cls: 'support', name: 'Sonar Station', cost: 550,
-      desc: 'Pings the ice: nearby penguins gain +15% range and stealth vision.',
-      stats: { kind: 'aura', range: 190, auraRange: 0.10, auraStealth: true, water: 'never' },
+      /* Wording rule for every aura tower: "helpers see further" = the buff it
+         gives OTHER penguins; "covers more ground" = how far the circle itself
+         reaches. "Range aura" next to "aura radius" read as the same thing. */
+      desc: 'Pings the ice: helpers in its circle shoot further and see stealth.',
+      stats: { kind: 'aura', range: 130, auraRange: 0.10, auraStealth: true, water: 'never' },
       paths: [
         { name: 'Amplify', tiers: [
-          { name: 'Big Dish',       cost: 350, desc: 'Range aura +16% total.',            mods: { add: { auraRange: 0.06 } } },
-          { name: 'Deep Ping',      cost: 700, desc: '+30% aura radius.',                 mods: { mul: { range: 1.3 } } },
-          { name: 'Grand Array',    cost: 1800, desc: 'Nearby penguins’ shots pierce 1 extra sea lion.', mods: { set: { auraPierce: 1 } } },
+          { name: 'Big Dish',       cost: 350, desc: 'Helpers shoot 16% further.', mods: { add: { auraRange: 0.06 } } },
+          { name: 'Deep Ping',      cost: 700, desc: 'Circle covers 20% more ground.', mods: { mul: { range: 1.2 } } },
+          { name: 'Grand Array',    cost: 1800, desc: 'Helpers’ shots pierce 1 extra sea lion.', mods: { set: { auraPierce: 1 } } },
         ]},
         { name: 'Decrypt', tiers: [
-          { name: 'Signal Boost',   cost: 300, desc: 'Nearby penguins attack 10% faster.', mods: { add: { auraRate: 0.1 } } },
-          { name: 'Echo Location',  cost: 650, desc: '+25% aura radius.',                 mods: { mul: { range: 1.25 } } },
-          { name: 'Full Decloak',   cost: 1600, desc: 'Stealth sea lions in radius are revealed to ALL penguins.', mods: { set: { decloak: true } } },
+          { name: 'Signal Boost',   cost: 300, desc: 'Helpers attack 10% faster.',        mods: { add: { auraRate: 0.1 } } },
+          { name: 'Echo Location',  cost: 650, desc: 'Circle covers 20% more ground.', mods: { mul: { range: 1.2 } } },
+          { name: 'Full Decloak',   cost: 1600, desc: 'Stealth in the circle is revealed to EVERY penguin.', mods: { set: { decloak: true } } },
         ]},
       ],
     },
     drummer: {
       cls: 'support', name: 'War Drummer', cost: 700,
-      desc: 'Pounds a walrus-hide drum: nearby penguins attack 20% faster.',
-      stats: { kind: 'aura', range: 160, auraRate: 0.2, water: 'never' },
+      desc: 'Pounds a walrus-hide drum: helpers inside its circle attack 20% faster.',
+      stats: { kind: 'aura', range: 120, auraRate: 0.2, water: 'never' },
       paths: [
         { name: 'Rhythm', tiers: [
-          { name: 'Double Time',    cost: 450, desc: 'Speed aura +35% total.',            mods: { add: { auraRate: 0.15 } } },
-          { name: 'Battle Anthem',  cost: 950, desc: 'Speed aura +55% total.',            mods: { add: { auraRate: 0.2 } } },
-          { name: 'Thunder Drums',  cost: 2400, desc: 'Speed aura +80% total, +20% radius.', mods: { add: { auraRate: 0.25 }, mul: { range: 1.2 } } },
+          { name: 'Double Time',    cost: 450, desc: 'Helpers attack 35% faster.',            mods: { add: { auraRate: 0.15 } } },
+          { name: 'Battle Anthem',  cost: 950, desc: 'Helpers attack 55% faster.',            mods: { add: { auraRate: 0.2 } } },
+          { name: 'Thunder Drums',  cost: 2400, desc: 'Helpers attack 80% faster; wider circle.', mods: { add: { auraRate: 0.25 }, mul: { range: 1.15 } } },
         ]},
         { name: 'Morale', tiers: [
-          { name: 'Rallying Beat',  cost: 400, desc: 'Nearby penguins +10% damage.',      mods: { add: { auraDmg: 0.1 } } },
-          { name: 'Marching Orders', cost: 850, desc: '+25% aura radius.',                mods: { mul: { range: 1.25 } } },
-          { name: 'Heroic Ballad',  cost: 2000, desc: 'Nearby penguins punch through 2 armor.', mods: { set: { auraShred: 2 } } },
+          { name: 'Rallying Beat',  cost: 400, desc: 'Helpers hit 10% harder.',      mods: { add: { auraDmg: 0.1 } } },
+          { name: 'Marching Orders', cost: 850, desc: 'Circle covers 20% more ground.', mods: { mul: { range: 1.2 } } },
+          { name: 'Heroic Ballad',  cost: 2000, desc: 'Helpers punch through 2 armor.', mods: { set: { auraShred: 2 } } },
         ]},
       ],
     },
