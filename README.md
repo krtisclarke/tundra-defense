@@ -70,21 +70,26 @@ an orca is a meal you're serving. Clear the chaff fast, or feed them.
 Healing is capped at 60% of an orca's own maximum however rich the water, so feeding
 buys them time and never immortality.
 
-| Waves | Hunter | HP | Armour |
-|---|---|---|---|
-| 71–80 | Young Orca | 1,200 | 3 |
-| 81–90 | Bull Orca | 3,600 | 4 |
-| 91–99 | Great Orca | 9,000 | 5 |
-| **100** | **KILLER WHALE** | **190,000** | **8** |
+**Letting one reach the igloo is the loss condition**, not a setback — an orca through
+the door costs more lives than any sea lion in the game:
+
+| Waves | Hunter | HP | Armour | Lives if it leaks |
+|---|---|---|---|---|
+| 71–80 | Young Orca | 1,200 | 3 | **100** |
+| 81–90 | Bull Orca | 3,600 | 4 | **180** |
+| 91–99 | Great Orca | 9,000 | 5 | **300** |
+| **100** | **KILLER WHALE** | **190,000** | **8** | **1,000** |
+
+For scale, an Ancient Leviathan costs 250 and Easy starts you with 190 lives — two Young
+Orcas through the door and the run is over.
 
 The KILLER WHALE is the largest creature in the game and it guards the century jackpot.
 It is a genuine wall, sized against a **moving** target — a whale swims through the whole
 kill zone, so an eighteen-tower maxed board lands about 1,283 damage a second on it, not
 the ~895 a dummy pinned in one spot suggests. That is roughly 169,000 across its
-132-second swim. Measured: an eighteen-tower board **loses** — the whale reaches the
-colony and takes 400 lives with it — while a twenty-five-tower board kills it at the
-halfway mark. Landing the century takes a real late-game defence, your hero and your
-boosts.
+132-second swim. Measured: an eighteen-tower board **loses** the whale through the door,
+while a twenty-five-tower board kills it at the halfway mark. Landing the century takes a
+real late-game defence, your hero and your boosts.
 
 Waves 101+ keep the Great Orcas coming, with another KILLER WHALE every century.
 Flooding is cosmetic: build spots, path geometry and water-only penguins are completely
@@ -293,7 +298,10 @@ The interface is a bottom command dock built for keyboard + mouse: build palette
 ### Tips
 
 - Slush Throwers and Snowball Rollers make everything else hit more often — slow is damage.
-- Build a Fish Vendor or two before wave 10; the economy snowballs.
+- Build a Fish Vendor or two before wave 10 — but only a couple. Each extra vendor earns
+  30% less than the one before it, so a third and fourth barely pay for themselves. Their
+  two paths are a real choice: **Market** is flat reliable income, **Finance** pays off
+  your kills, your board and your savings instead.
 - Have stealth detection online before wave 14, and armor-shred before wave 16.
 - Save a Harpoon Sniper with the **Leviathan Lance** upgrade for boss waves.
 - Ice Walls placed near the exit catch whatever slips through.
