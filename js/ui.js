@@ -594,8 +594,15 @@
       if (g.endless && payload.wave > g.totalWaves) {
         const p = UI.profile;
         p.endlessBest[g.level.id] = Math.max(p.endlessBest[g.level.id] || 0, payload.wave);
-        // every 10th endless wave pays a pebble bonus (one Second Chance's worth)
-        if (payload.wave % 10 === 0) {
+        // every 10th endless wave pays a pebble bonus (one Second Chance's worth);
+        // every 100th is the century jackpot — ten times the drip
+        if (payload.wave % 100 === 0) {
+          const D = G.DIFFICULTIES[g.diffId];
+          const bonus = D.retryCost * 10;
+          p.pebbles += bonus;
+          banner(`🌊 Wave ${payload.wave} — the tide bows to you`);
+          toast(`🏆 Century! Wave ${payload.wave} survived: +${bonus} 🪨 pebbles`);
+        } else if (payload.wave % 10 === 0) {
           const D = G.DIFFICULTIES[g.diffId];
           p.pebbles += D.retryCost;
           toast(`🌊 Wave ${payload.wave} survived! +${D.retryCost} 🪨 pebbles`);

@@ -54,8 +54,9 @@ field cleared, and the wave that beat you replays with your towers and fish inta
 **🌊 The Endless Tide:** beat the final boss and the victory screen offers **Keep Going** —
 the waves continue past the campaign, tougher every wave, with a boss court every 10th,
 until the colony falls. Your win and its pebbles are already banked; every 10th endless
-wave survived pays a bonus (one Second Chance's worth), and each battlefield remembers
-your record wave on the level select.
+wave survived pays a bonus (one Second Chance's worth), every 100th pays **ten times
+that** (250 / 500 / 1,000 🪨 by difficulty), and each battlefield remembers your record
+wave on the level select.
 
 ### Two currencies: fish & pebbles
 
