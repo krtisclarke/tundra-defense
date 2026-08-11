@@ -11,6 +11,17 @@
   // in-match currency is fish 🐟 (recruiting); pebbles 🪨 are the meta-currency
   const fmt = (n) => '🐟' + Math.round(n).toLocaleString();
   const num = (n) => Math.round(n).toLocaleString();   // a count, not a fish price
+  /* Compact form for the selection card's stat line, which is one line by
+     decree and has no room to grow. Deep endless drives hero damage into five
+     and six figures and a long run's kill count with it — spelled out, those
+     pushed the line past the card and the tail was silently ellipsed away.
+     "36.2k" is both shorter and easier to read at a glance than "36,191". */
+  const short = (n) => {
+    n = Math.round(n);
+    if (Math.abs(n) < 10000) return n.toLocaleString();
+    if (Math.abs(n) < 1e6) return (n / 1000).toFixed(n < 1e5 ? 1 : 0).replace(/\.0$/, '') + 'k';
+    return (n / 1e6).toFixed(1).replace(/\.0$/, '') + 'M';
+  };
 
   /* Hotkey rows mirror the physical keyboard; each row is one class. */
   const HOTKEY_ROWS = [
@@ -874,9 +885,11 @@
       btn.disabled = !!g.over;
     }
 
-    // kill counter on the open card ticks live while the wave runs
+    // kill counter on the open card ticks live while the wave runs — same
+    // compact form the card was built with, or a long run would widen the
+    // stat line out from under itself mid-wave
     const kEl = document.querySelector('.ds-kills');
-    if (kEl && g.selected) kEl.textContent = g.selected.kills || 0;
+    if (kEl && g.selected) kEl.textContent = short(g.selected.kills || 0);
 
     updateDockHero();
   }
@@ -1510,28 +1523,44 @@
     G.drawTowerIcon(cv, t.type, t.up);
     head.appendChild(cv);
     const stats = [];
-    if (c.damage) stats.push(`⚔ ${Math.round(c.damage * t.buff.dmg * 10) / 10}`);
+    if (c.damage) {
+      const d = c.damage * t.buff.dmg;
+      stats.push(`⚔ ${d < 10000 ? Math.round(d * 10) / 10 : short(d)}`);
+    }
     if (c.rate) stats.push(`⚡ ${Math.round(c.rate * t.buff.rate * 100) / 100}/s`);
     if (c.range && c.range < 5000) stats.push(`◎ ${Math.round(c.range * t.buff.range)}`);
     /* A vendor's headline number is what it will ACTUALLY pay next wave, not
        its sticker income — with other vendors on the map those differ, and the
        gap is the whole thing a player needs to see before buying another. */
     const vpay = c.income ? g.vendorPayouts().find((p) => p.tower === t) : null;
-    if (vpay) stats.push(`+${fmt(vpay.got)}/w`);
-    stats.push(`<span title="Sea lions destroyed by this penguin">☠ <b class="ds-kills">${t.kills || 0}</b></span>`);
+    if (vpay) {
+      const all = g.vendorPayouts();
+      stats.push(`+${fmt(vpay.got)}/w`);
+      /* The falloff rides on the stat line, right beside the number it
+         explains, rather than as a row of its own. The card's height is fixed
+         and a vendor already spends it on a head, two upgrade buttons and an
+         action row — a fourth row pushed the sell button out of the card. */
+      if (all.length > 1) stats.push(`<span class="ds-rank">stall ${vpay.rank}/${all.length} · ${Math.round(vpay.share * 100)}%</span>`);
+    }
+    // ☠ only where it can ever be non-zero — vendors and aura towers never shoot
+    if (!['income', 'aura'].includes(c.kind))
+      stats.push(`<span title="Sea lions destroyed by this penguin">☠ <b class="ds-kills">${short(t.kills || 0)}</b></span>`);
     head.appendChild(el('div', '', `<div class="ds-name" style="color:${color}">${def.name}${def.hero ? ` · <span class="hero-tag">★ Lv ${g.heroLevel}</span>` : ''}</div><div class="ds-stats">${stats.join(' · ')}</div>`));
     box.appendChild(head);
 
-    /* Say out loud why a vendor is paying less than it advertises. Without
-       this the falloff is invisible: you buy a second stall, the wave payout
-       barely moves, and nothing on screen connects the two. */
+    /* The falloff has to be explained somewhere, and the stat line has room
+       only for the headline. The long version hangs off the whole stat line as
+       a tooltip — you buy a second stall, the wave payout barely moves, and
+       this is what connects the two. */
     if (vpay) {
       const all = g.vendorPayouts();
+      const statsEl = head.querySelector('.ds-stats');
       if (all.length > 1) {
-        const pct = Math.round(vpay.share * 100);
-        box.appendChild(el('div', 'ds-vendor-note', vpay.rank === 1
-          ? `Best stall of ${all.length} — sells at full price. Each further vendor earns ${Math.round((1 - G.VENDOR_FALLOFF) * 100)}% less than the one above it.`
-          : `Stall ${vpay.rank} of ${all.length} — the market is crowded, so it earns <b>${pct}%</b> of full price: ${fmt(vpay.full)} → <b>${fmt(vpay.got)}</b>.`));
+        statsEl.title = vpay.rank === 1
+          ? `The richest stall sells at full price. Every further vendor earns ${Math.round((1 - G.VENDOR_FALLOFF) * 100)}% less than the one above it — a second is worth 70% of this one, a third 49%.`
+          : `Vendors undercut each other. This is stall ${vpay.rank} of ${all.length}, so it earns ${Math.round(vpay.share * 100)}% of full price: ${fmt(vpay.full)} becomes ${fmt(vpay.got)} each wave.`;
+      } else {
+        statsEl.title = `Pays ${fmt(vpay.got)} at the end of every wave. Build a second vendor and it earns only ${Math.round(G.VENDOR_FALLOFF * 100)}% of what this one does — the market only bears so many stalls.`;
       }
     }
 
@@ -1539,15 +1568,29 @@
       const H = G.HEROES[t.type];
       /* Show the actual count and what it is counting toward. A level that
          arrives on a hidden threshold feels arbitrary; a number you watch
-         climb is the whole appeal of levelling on kills. */
+         climb is the whole appeal of levelling on kills.
+
+         Two single lines and a bar, and no more: the card is a fixed height
+         and the action row still has to fit beneath this. Written long, this
+         note ran to 89px in the ~50px it actually has and pushed the sell
+         button out through the bottom of the card. The wordy version lives in
+         the tooltip. */
       const prog = G.heroProgress(g.heroKills);
       const xpLine = prog
-        ? `<b>${num(prog.into)}</b> / ${num(prog.need)} sea lions to Level ${prog.next}` +
+        ? `<b>${num(prog.into)}</b> / ${num(prog.need)} sea lions to Lv ${prog.next}` +
           `<span class="hero-xp"><i style="width:${Math.round((prog.into / prog.need) * 100)}%"></i></span>`
-        : `<b>Level ${G.HERO_MAX_LEVEL}</b> — fully grown. Damage still rises with the herd’s strength.`;
-      box.appendChild(el('div', 'ds-hero-note',
-        `${xpLine}<br>` +
-        `${H.ability.icon} <b>${H.ability.name}</b>${g.heroLevel < H.ability.unlock ? ` unlocks at level ${H.ability.unlock}` : ' — fire it from the hero panel or press <kbd>H</kbd>'}`));
+        : `<b>Level ${G.HERO_MAX_LEVEL}</b> — fully grown`;
+      const abil = g.heroLevel < H.ability.unlock
+        ? `${H.ability.icon} ${H.ability.name} · <b>Lv ${H.ability.unlock}</b>`
+        : `${H.ability.icon} <b>${H.ability.name}</b> · <kbd>H</kbd>`;
+      const note = el('div', 'ds-hero-note', `<span class="hn-line">${xpLine}</span><span class="hn-line">${abil}</span>`);
+      note.title = (prog
+        ? `${num(prog.into)} of ${num(prog.need)} sea lions toward Level ${prog.next}. Heroes level on sea lions felled while they stand on the field, and each level costs more than the last.`
+        : `Level ${G.HERO_MAX_LEVEL} is the ceiling. Damage still rises with the herd's strength on deeper waves.`) +
+        (g.heroLevel < H.ability.unlock
+          ? ` ${H.ability.name} unlocks at level ${H.ability.unlock}.`
+          : ` ${H.ability.name}: fire it from the hero panel or press H.`);
+      box.appendChild(note);
       const act0 = el('div', 'ds-actions');
       const tgt0 = el('button', 'btn tiny', `<kbd>T</kbd> ${t.target}`);
       tgt0.title = 'Cycle targeting: first / last / strong / close';
