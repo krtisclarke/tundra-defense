@@ -84,10 +84,10 @@
   /* Hard ceilings on what auras can do to one penguin, however many support
      towers surround it. Reached by roughly one maxed aura tower of each kind,
      so the second and third are for covering more ground, not more power. */
-  /* The ceilings drop with the buffs themselves, so the maximum a penguin can
-     ever be buffed to falls by the same third — cutting only the sources would
-     have left a big enough cluster reaching the old cap anyway. */
-  G.AURA_CAP = { dmg: 1.67, rate: 1.67, range: 1.30, shred: 4, pierce: 2 };
+  /* The ceilings drop with the buffs themselves (G.NERF.aura), so the most a
+     penguin can ever be buffed to falls by the same amount — cutting only the
+     sources would have left a big enough cluster reaching the old cap anyway. */
+  G.AURA_CAP = { dmg: 1.80, rate: 1.80, range: 1.36, shred: 4, pierce: 2 };
 
   /* Endless pacing. Piling HP on slow-moving sea lions turned late waves into
      grinds: by wave 130 every enemy had spawned inside 70 seconds and the
@@ -1215,9 +1215,17 @@
   /* ---------------- Global penguin nerf ----------------
      Applied to every penguin and hero after its upgrades are totalled, so it
      covers base stats and upgrade bonuses alike without touching 120 tiers by
-     hand. Damage and fire rate compound: a penguin now deals 0.5 x 0.67 = 34%
-     of the damage per second it used to. */
-  G.NERF = { damage: 0.5, rate: 0.67, range: 0.67, aura: 0.67 };
+     hand. Damage and fire rate compound: these leave a penguin at 0.75 x 0.85
+     = 64% of its old damage per second, with 15% less reach and 20% weaker
+     buffs.
+
+     Set by measurement against two yardsticks. A scripted learner still clears
+     battlefield 1 on Easy with 124 lives and now genuinely loses on Medium,
+     where before it strolled through with 144. A mature 84-tower board gives
+     up about 13 waves of endless depth. The originally requested
+     0.50/0.67/0.67 left the learner at 34% DPS and lost battlefield 1 on Easy
+     at wave 13, which would have made the game unlearnable. */
+  G.NERF = { damage: 0.75, rate: 0.85, range: 0.85, aura: 0.80 };
 
   const OBSTACLE_KINDS = {
     1: ['rock', 'rock', 'crack', 'glacier'],
