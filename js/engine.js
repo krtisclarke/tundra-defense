@@ -58,12 +58,18 @@
   let nextId = 1;
 
   class Game {
-    constructor(levelIdx, diffId) {
+    constructor(levelIdx, diffId, heroType) {
       const L = G.LEVELS[levelIdx];
       G.setDims(L);   // world size varies by tier; everything reads G.W/G.H
       this.levelIdx = levelIdx;
       this.level = L;
       this.diffId = G.DIFFICULTIES[diffId] ? diffId : 'medium';
+      /* hero: chosen before battle, placed like a tower, one per battle */
+      this.heroType = G.TOWERS[heroType] && G.TOWERS[heroType].hero ? heroType : null;
+      this.heroTower = null;      // the placed hero (a towers[] entry) or null
+      this.heroWaves = 0;         // waves cleared while placed -> level
+      this.heroLevel = 1;
+      this.heroReadyAt = 0;       // game time when the ability recharges
       this.totalWaves = G.DIFFICULTIES[this.diffId].waves;
       this.startLives = G.scaleLives(L.lives, this.diffId);
       this.frenzyUntil = 0;
@@ -120,6 +126,7 @@
 
     placeTower(typeId, x, y) {
       const def = G.TOWERS[typeId];
+      if (def.hero && (this.heroTower || typeId !== this.heroType)) return null; // one hero, the chosen one
       const cost = G.scaleCost(def.cost, this.diffId);
       if (this.cash < cost || !this.canPlace(typeId, x, y)) return null;
       this.cash -= cost;
@@ -128,13 +135,55 @@
         invested: cost, cooldown: 0, orbitAngle: Math.random() * Math.PI * 2,
         calc: computeEffective(typeId, [0, 0]), buff: { dmg: 1, rate: 1, range: 1, stealth: false },
       };
+      if (def.hero) { t.hero = true; this.heroTower = t; this.refreshHero(); }
       this.towers.push(t);
       this.recomputeBuffs();
       return t;
     }
 
+    /* re-derive the hero's level and battle stats (called when either input
+       moves: a wave cleared, the endless curve deepened, a save loaded) */
+    refreshHero() {
+      this.heroLevel = G.heroLevelFor(this.heroWaves);
+      const t = this.heroTower;
+      if (!t) return;
+      t.calc = G.applyHeroScale(
+        computeEffective(t.type, t.up), t.type, this.heroLevel,
+        G.heroStrength(this.level, this.wave));
+      this.recomputeBuffs();
+    }
+
+    /* the hero's signature ability: free, gated by level, recharges on game time */
+    useHeroAbility() {
+      const t = this.heroTower;
+      if (this.over) return { ok: false, msg: 'The battle is over.' };
+      if (!t) return { ok: false, msg: 'Place your hero first.' };
+      const A = G.HEROES[t.type].ability;
+      if (this.heroLevel < A.unlock) return { ok: false, msg: `${A.name} unlocks at level ${A.unlock}.` };
+      if (this.time < this.heroReadyAt) return { ok: false, msg: `${A.name} is recharging.` };
+      if (t.type === 'hero_frost') {
+        const dmg = Math.round(30 * G.heroStrength(this.level, this.wave));
+        for (const e of [...this.enemies]) {
+          if (!e.dead) this.damageEnemy(e, dmg, null, { pure: true });
+        }
+        this.effects.push({ kind: 'boom', x: G.W / 2, y: G.H / 2, r: 420, life: 0.4, max: 0.4 });
+      } else if (t.type === 'hero_beak') {
+        this.frenzyUntil = Math.max(this.frenzyUntil, this.time + 8);
+        this.effects.push({ kind: 'storm', x: t.x, y: t.y, r: 320, life: 0.6, max: 0.6 });
+      } else if (t.type === 'hero_shiver') {
+        for (const e of this.enemies) {
+          if (e.dead) continue;
+          e.stunUntil = Math.max(e.stunUntil, this.time + (e.boss ? 1 : 2.5));
+        }
+        this.effects.push({ kind: 'storm', x: G.W / 2, y: G.H / 2, r: 620, life: 0.6, max: 0.6 });
+      }
+      this.heroReadyAt = this.time + A.cd;
+      return { ok: true, name: A.name };
+    }
+
     buyUpgrade(tower, pathIdx) {
       const def = G.TOWERS[tower.type];
+      if (def.hero) return { ok: false, msg: 'Heroes level up on their own as waves fall.' };
       const tier = tower.up[pathIdx];
       if (tier >= 3) return { ok: false, msg: 'Path maxed out.' };
       if (tier === 2 && tower.up[1 - pathIdx] >= 3) return { ok: false, msg: 'Only one path can reach Tier 3.' };
@@ -154,6 +203,7 @@
       this.cash += refund;
       this.towers = this.towers.filter((t) => t !== tower);
       this.piles = this.piles.filter((p) => p.owner !== tower.id);
+      if (tower.hero) this.heroTower = null; // level is kept — re-place to resume
       if (this.selected === tower) this.selected = null;
       this.recomputeBuffs();
       return refund;
@@ -170,7 +220,8 @@
       for (const t of this.towers) t.buff = { dmg: 1, rate: 1, range: 1, stealth: false };
       for (const s of this.towers) {
         const c = s.calc;
-        if (c.kind !== 'aura') continue;
+        // aura sources: dedicated aura towers, plus any unit carrying aura stats (heroes)
+        if (c.kind !== 'aura' && !c.auraDmg && !c.auraRate && !c.auraRange && !c.auraStealth) continue;
         const r2 = c.range * c.range;
         for (const t of this.towers) {
           if (t === s || t.calc.kind === 'aura' || t.calc.kind === 'income') continue;
@@ -205,6 +256,7 @@
       }
       this.waveInProgress = true;
       this.waveTime = 0;
+      this.refreshHero();   // endless strength moves with the wave number
       this.emit('waveStart', this.wave);
     }
 
@@ -656,6 +708,13 @@
             }
           }
         }
+        // the hero grows with every wave it stood through
+        if (this.heroTower) {
+          this.heroWaves++;
+          const was = this.heroLevel;
+          this.refreshHero();
+          if (this.heroLevel > was) this.emit('heroLevel', this.heroLevel);
+        }
         const finished = this.wave;
         this.wave++;
         if (finished >= this.totalWaves && !this.endless) {
@@ -682,6 +741,8 @@
         wave: this.wave, waveInProgress: this.waveInProgress, waveTime: this.waveTime,
         waveReward: this.waveReward || 0, autoStart: this.autoStart, time: this.time,
         frenzyUntil: this.frenzyUntil || 0, endless: this.endless,
+        heroType: this.heroType, heroWaves: this.heroWaves,
+        heroReadyIn: Math.max(0, this.heroReadyAt - this.time),
         towers: this.towers.map((t) => ({ type: t.type, x: t.x, y: t.y, up: [...t.up], target: t.target, invested: t.invested })),
         spawnQueue: this.spawnQueue.map((s) => ({ ...s })),
         enemies: this.enemies.map((e) => ({
@@ -695,19 +756,23 @@
 
     static deserialize(data) {
       // pre-difficulty saves were 50-wave campaigns at standard prices → closest is 'hard'
-      const g = new Game(data.levelIdx, data.diff || 'hard');
+      const g = new Game(data.levelIdx, data.diff || 'hard', data.heroType);
       g.cash = data.cash; g.lives = data.lives; g.wave = data.wave;
       g.waveInProgress = data.waveInProgress; g.waveTime = data.waveTime;
       g.waveReward = data.waveReward; g.autoStart = !!data.autoStart; g.time = data.time || 0;
       g.frenzyUntil = data.frenzyUntil || 0; g.endless = !!data.endless;
+      g.heroWaves = data.heroWaves || 0;
+      g.heroReadyAt = g.time + (data.heroReadyIn || 0);
       for (const td of data.towers) {
         const t = {
           id: nextId++, type: td.type, x: td.x, y: td.y, up: [...td.up], target: td.target,
           invested: td.invested, cooldown: 0, orbitAngle: Math.random() * Math.PI * 2,
           calc: computeEffective(td.type, td.up), buff: { dmg: 1, rate: 1, range: 1, stealth: false },
         };
+        if ((G.TOWERS[td.type] || {}).hero) { t.hero = true; g.heroTower = t; }
         g.towers.push(t);
       }
+      g.refreshHero();
       g.recomputeBuffs();
       g.spawnQueue = (data.spawnQueue || []).map((s) => ({ ...s }));
       for (const ed of data.enemies || []) {

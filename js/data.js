@@ -483,6 +483,80 @@
     'vendor', 'igloo', 'sonar', 'drummer', 'icewall',
   ];
 
+  /* ---------------- Heroes ----------------
+     One per battle, placed like a tower (cost = fish). They level up on their
+     own — +1 level every 3 waves cleared while placed, to level 10 — and their
+     damage scales with the herd's toughness (the battlefield's hpMult, plus the
+     endless curve past wave 50), so a hero hits as hard as the sea lions are
+     tough, on every map. At level `ability.unlock` a signature ability opens:
+     free to fire, recharges on the battle clock.
+     Registered in G.TOWERS (hero: true, paths: []) so placement, targeting,
+     drawing and saves all reuse the tower pipeline; G.HEROES holds what makes
+     them heroes: the pebble price to own one, per-level growth, the ability. */
+  G.TOWERS.hero_frost = {
+    cls: 'frost', hero: true, name: 'Captain Frost', cost: 450,
+    desc: 'The colony’s champion. Fights harder on every battlefield, and grows with every wave.',
+    stats: { range: 165, rate: 1.3, damage: 5, pierce: 2, projSpeed: 540, kind: 'bullet', stealth: true, water: 'never' },
+    paths: [],
+  };
+  G.TOWERS.hero_beak = {
+    cls: 'support', hero: true, name: 'Commander Beak', cost: 500,
+    desc: 'A living rallying cry: every penguin near him fights harder and faster.',
+    stats: { range: 155, rate: 1.0, damage: 2, pierce: 2, projSpeed: 480, kind: 'bullet', auraDmg: 0.15, auraRate: 0.1, water: 'never' },
+    paths: [],
+  };
+  G.TOWERS.hero_shiver = {
+    cls: 'mystic', hero: true, name: 'Elder Shiver', cost: 500,
+    desc: 'The oldest penguin on the ice. Everything she touches slows, then stops.',
+    stats: { range: 150, rate: 0.9, damage: 3, pierce: 3, projSpeed: 420, splash: 30, kind: 'bullet', stealth: true, water: 'never', fx: { slow: { f: 0.65, d: 1.8 } } },
+    paths: [],
+  };
+
+  G.HEROES = {
+    hero_frost: {
+      pebbles: 0,
+      blurb: 'Heavy single-target damage. Grows into a boss-killer.',
+      perLevel: { damage: 0.20, rate: 0.04 },       // per level above 1
+      ability: { name: 'Avalanche Charge', icon: '🏔️', cd: 45, unlock: 3,
+                 desc: 'Smashes every sea lion on the field, ignoring armor. Scales with the herd.' },
+    },
+    hero_beak: {
+      pebbles: 5000,
+      blurb: 'Weak alone, mighty together — his aura grows with every level.',
+      perLevel: { damage: 0.12, auraDmg: 0.02, auraRate: 0.015, range: 0.02 },
+      ability: { name: 'War Cry', icon: '📯', cd: 60, unlock: 3,
+                 desc: 'The whole colony attacks 50% faster for 8 seconds.' },
+    },
+    hero_shiver: {
+      pebbles: 7500,
+      blurb: 'Chills whole packs; her slow deepens as she levels.',
+      perLevel: { damage: 0.15, slow: 0.025, range: 0.015 },
+      ability: { name: 'Cold Snap', icon: '❄️', cd: 50, unlock: 3,
+                 desc: 'Freezes every sea lion solid for 2.5s (bosses 1s).' },
+    },
+  };
+  G.HERO_ORDER = ['hero_frost', 'hero_beak', 'hero_shiver'];
+
+  // level from waves cleared while placed; strength from the herd itself
+  G.heroLevelFor = (heroWaves) => Math.min(10, 1 + Math.floor((heroWaves || 0) / 3));
+  G.heroStrength = (L, wave) =>
+    ((L && L.hpMult) || 1) * (wave > 50 ? Math.pow(1.05, wave - 50) : 1);
+  G.applyHeroScale = function (calc, heroId, level, strength) {
+    const pl = (G.HEROES[heroId] || {}).perLevel || {};
+    const lv = Math.max(0, level - 1);
+    if (calc.damage) calc.damage = Math.max(1, Math.round(calc.damage * (1 + (pl.damage || 0) * lv) * strength));
+    if (pl.rate) calc.rate *= 1 + pl.rate * lv;
+    if (pl.range) calc.range = Math.round(calc.range * (1 + pl.range * lv));
+    if (pl.auraDmg) calc.auraDmg = (calc.auraDmg || 0) + pl.auraDmg * lv;
+    if (pl.auraRate) calc.auraRate = (calc.auraRate || 0) + pl.auraRate * lv;
+    if (pl.slow && calc.fx && calc.fx.slow) {
+      calc.fx = Object.assign({}, calc.fx, {
+        slow: { f: Math.max(0.35, calc.fx.slow.f - pl.slow * lv), d: calc.fx.slow.d + 0.06 * lv },
+      });
+    }
+    return calc;
+  };
+
   /* Per-tower visual identity: body tint, hat, hand prop, scale.
      hat:  scarf captain helmet goggles earmuffs souwester aviator officer wizard
            hood crown headband halo straw beanie headset hardhat mohawk
@@ -509,6 +583,10 @@
     sonar:     { hat: 'headset',  hatColor: '#3fae6a' },
     drummer:   { hat: 'mohawk',   hatColor: '#e0653f', prop: 'drumsticks', propColor: '#8a5a33' },
     icewall:   { hat: 'hardhat',  hatColor: '#f2c14e', prop: 'pickaxe',   propColor: '#8a5a33' },
+    /* heroes — bigger, bolder, unmistakable */
+    hero_frost:  { hat: 'captain',  hatColor: '#d4af37', prop: 'harpoongun', propColor: '#5a6a7a', scale: 1.28, cheeks: '#f2b04e' },
+    hero_beak:   { hat: 'officer',  hatColor: '#d4af37', prop: 'flag',       propColor: '#d4af37', scale: 1.24 },
+    hero_shiver: { hat: 'hood',     hatColor: '#9fd8ef', prop: 'orb',        propColor: '#bfeaff', tint: '#2e4a66', scale: 1.24 },
   };
 
   /* ---------------- Sea lions ----------------

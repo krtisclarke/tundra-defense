@@ -51,6 +51,8 @@
     if (!p.endlessBest) p.endlessBest = {};   // per-level record wave in Endless Tide
     if (!p.diffDone) p.diffDone = {};
     if (!p.powerInv) p.powerInv = {};
+    if (!p.heroes) p.heroes = { hero_frost: true };  // the Captain serves for free
+    if (p.heroSel === undefined) p.heroSel = 'hero_frost'; // null = fight heroless
     // legacy profiles: a completed level was a 50-wave campaign → credit it as Hard
     for (const id in p.completed) {
       if (p.completed[id] && !p.diffDone[id]) p.diffDone[id] = { hard: true };
@@ -529,14 +531,65 @@
       if (!locked) card.onclick = () => startGame(levelIdx, null, dId);
       grid.appendChild(card);
     }
+    buildHeroRow();
     $('#btn-diff-shop').onclick = () => buildShop('#screen-diff');
     $('#btn-diff-back').onclick = () => show('#screen-levels');
     show('#screen-diff');
   }
 
+  /* ---------- hero picker (difficulty screen) ---------- */
+  function buildHeroRow() {
+    const row = $('#hero-row');
+    row.innerHTML = '';
+    const p = UI.profile;
+    for (const id of G.HERO_ORDER) {
+      const def = G.TOWERS[id];
+      const H = G.HEROES[id];
+      const owned = !!p.heroes[id];
+      const sel = p.heroSel === id;
+      const card = el('div', 'hero-card' + (sel ? ' sel' : '') + (owned ? '' : ' locked'));
+      const cv = document.createElement('canvas');
+      cv.width = 52; cv.height = 52;
+      G.drawTowerIcon(cv, id);
+      card.appendChild(cv);
+      card.appendChild(el('div', 'hc-name', def.name));
+      card.appendChild(el('div', 'hc-blurb', H.blurb));
+      card.appendChild(el('div', 'hc-abil', `${H.ability.icon} ${H.ability.name} <span class="dim">· lvl ${H.ability.unlock}</span>`));
+      if (owned) {
+        card.appendChild(el('div', 'hc-state', sel ? '✔ fighting with you' : 'tap to choose'));
+        card.onclick = () => {
+          p.heroSel = sel ? null : id;   // tap the chosen one again to fight heroless
+          putProfile(p);
+          buildHeroRow();
+        };
+      } else {
+        const afford = p.pebbles >= H.pebbles;
+        const btn = el('button', 'btn small' + (afford ? ' primary' : ''), `Recruit · ${H.pebbles.toLocaleString()} 🪨`);
+        btn.disabled = !afford;
+        if (!afford) card.appendChild(el('div', 'hc-state', 'win battles to afford them'));
+        btn.onclick = (ev) => {
+          ev.stopPropagation();
+          if (p.pebbles < H.pebbles) return;
+          if (!confirm(`Recruit ${def.name} for ${H.pebbles.toLocaleString()} 🪨 pebbles? Heroes are yours forever.`)) return;
+          p.pebbles -= H.pebbles;
+          p.heroes[id] = true;
+          p.heroSel = id;
+          putProfile(p);
+          sfx.win();
+          toast(`⭐ ${def.name} joins the colony!`);
+          show('#screen-diff');   // refresh every pebble chip on screen
+          buildHeroRow();
+        };
+        card.appendChild(btn);
+      }
+      row.appendChild(card);
+    }
+  }
+
   /* ---------- game lifecycle ---------- */
   function startGame(levelIdx, save, diffId) {
-    const game = save ? G.Game.deserialize(save) : new G.Game(levelIdx, diffId);
+    const heroSel = UI.profile.heroes[UI.profile.heroSel] ? UI.profile.heroSel : null;
+    const game = save ? G.Game.deserialize(save) : new G.Game(levelIdx, diffId, heroSel);
     UI.game = game;
     game.onEvent = onGameEvent;
     sizeCanvas();   // the Game constructor set G.W/G.H for this battlefield
@@ -549,6 +602,7 @@
     syncCancelBtn();
     buildPalette();
     buildDockPowers();
+    buildDockHero();
     renderDockSel();
     updateWavePreview();
     updateHud();
@@ -615,6 +669,14 @@
       }
       updateWavePreview();
       updateHud();
+    } else if (kind === 'heroLevel') {
+      sfx.upgrade();
+      const def = G.TOWERS[g.heroType];
+      const H = G.HEROES[g.heroType];
+      toast(`⭐ ${def.name} reached Level ${payload}!` +
+        (payload === H.ability.unlock ? ` ${H.ability.icon} ${H.ability.name} is ready.` : ''));
+      if (g.selected === g.heroTower) renderDockSel();
+      updateDockHero();
     } else if (kind === 'leak') {
       sfx.leak();
     } else if (kind === 'bossDown') {
@@ -745,6 +807,8 @@
       btn.classList.toggle('empty', owned <= 0);
       btn.disabled = !!g.over;
     }
+
+    updateDockHero();
   }
 
   /* ---------- wave preview ---------- */
@@ -837,7 +901,7 @@
       ${bits.length ? `<div class="tt-stats">${bits.map(([k, v]) => `<span>${k}<b>${v}</b></span>`).join('')}</div>` : ''}
       <div class="tt-key">${IS_TOUCH
         ? 'Tap to pick up, then drag onto the map to place'
-        : `Press <kbd>${TOWER_KEY[typeId]}</kbd> or click, then click the map`}</div>`;
+        : `Press <kbd>${def.hero ? 'H' : TOWER_KEY[typeId]}</kbd> or click, then click the map`}</div>`;
     tip.style.display = 'block';
     const r = anchor.getBoundingClientRect();
     const tr = tip.getBoundingClientRect();
@@ -932,6 +996,71 @@
     updateHud();
   }
 
+  /* ---------- hero panel in the dock ---------- */
+  function buildDockHero() {
+    const box = $('#dock-hero');
+    const g = UI.game;
+    if (!g || !g.heroType) { box.style.display = 'none'; box.innerHTML = ''; return; }
+    box.style.display = 'flex';
+    box.innerHTML = '<div class="dp-label">hero</div>';
+    const chip = el('button', 'hero-chip');
+    chip.id = 'hero-chip';
+    const cv = document.createElement('canvas');
+    cv.width = 40; cv.height = 40;
+    G.drawTowerIcon(cv, g.heroType);
+    chip.appendChild(cv);
+    chip.appendChild(el('span', 'hero-lv', ''));
+    chip.onclick = () => {
+      const gg = UI.game;
+      if (!gg || gg.over) return;
+      if (gg.heroTower) { gg.selected = gg.heroTower; gg.placingType = null; syncCancelBtn(); renderDockSel(); }
+      else armTower(gg.heroType);
+    };
+    chip.addEventListener('mouseenter', () => showTooltip(chip, g.heroType));
+    chip.addEventListener('mouseleave', hideTooltip);
+    attachLongPress(chip, () => showTooltip(chip, g.heroType));
+    attachTrayDrag(chip, g.heroType);
+    box.appendChild(chip);
+    const ab = el('button', 'btn tiny hero-abil');
+    ab.id = 'hero-abil';
+    const H = G.HEROES[g.heroType];
+    ab.title = `${H.ability.name} — ${H.ability.desc}`;
+    ab.onclick = fireHeroAbility;
+    box.appendChild(ab);
+    updateDockHero();
+  }
+
+  function updateDockHero() {
+    const g = UI.game;
+    const chip = $('#hero-chip'), ab = $('#hero-abil');
+    if (!g || !g.heroType || !chip) return;
+    const H = G.HEROES[g.heroType];
+    const placed = !!g.heroTower;
+    const cost = G.scaleCost(G.TOWERS[g.heroType].cost, g.diffId);
+    chip.classList.toggle('placed', placed);
+    chip.classList.toggle('armed', g.placingType === g.heroType);
+    chip.classList.toggle('poor', !placed && g.cash < cost);
+    chip.querySelector('.hero-lv').textContent = placed ? 'Lv ' + g.heroLevel : '🐟' + cost;
+    const ready = placed && g.heroLevel >= H.ability.unlock && g.time >= g.heroReadyAt && !g.over;
+    if (!placed) ab.innerHTML = `${H.ability.icon} place your hero`;
+    else if (g.heroLevel < H.ability.unlock) ab.innerHTML = `${H.ability.icon} unlocks at lvl ${H.ability.unlock}`;
+    else if (g.time < g.heroReadyAt) ab.innerHTML = `${H.ability.icon} ${Math.ceil(g.heroReadyAt - g.time)}s`;
+    else ab.innerHTML = `${H.ability.icon} <b>${H.ability.name}</b> <kbd>H</kbd>`;
+    ab.disabled = !ready;
+    ab.classList.toggle('ready', ready);
+  }
+
+  function fireHeroAbility() {
+    const g = UI.game;
+    if (!g || g.over) return;
+    const res = g.useHeroAbility();
+    if (!res.ok) { sfx.error(); toast(res.msg, 'bad'); return; }
+    sfx.boss();
+    buzz(30);
+    toast(`${G.HEROES[g.heroType].ability.icon} ${res.name}!`);
+    updateDockHero();
+  }
+
   /* ---------- Endless Tide (keep playing after victory) ---------- */
   function keepGoing() {
     const g = UI.game;
@@ -1011,7 +1140,7 @@
     }
 
     const def = G.TOWERS[t.type];
-    const color = G.CLASSES[def.cls].color;
+    const color = def.hero ? '#ffd166' : G.CLASSES[def.cls].color;
     const c = t.calc;
     box.innerHTML = '';
 
@@ -1025,8 +1154,25 @@
     if (c.rate) stats.push(`⚡ ${Math.round(c.rate * t.buff.rate * 100) / 100}/s`);
     if (c.range && c.range < 5000) stats.push(`◎ ${Math.round(c.range * t.buff.range)}`);
     if (c.income) stats.push(`+${fmt(c.income)}/w`);
-    head.appendChild(el('div', '', `<div class="ds-name" style="color:${color}">${def.name}</div><div class="ds-stats">${stats.join(' · ')}</div>`));
+    head.appendChild(el('div', '', `<div class="ds-name" style="color:${color}">${def.name}${def.hero ? ` · <span class="hero-tag">★ Lv ${g.heroLevel}</span>` : ''}</div><div class="ds-stats">${stats.join(' · ')}</div>`));
     box.appendChild(head);
+
+    if (def.hero) {
+      const H = G.HEROES[t.type];
+      box.appendChild(el('div', 'ds-hero-note',
+        `Levels up every 3 waves — damage grows with the herd’s strength.<br>` +
+        `${H.ability.icon} <b>${H.ability.name}</b>${g.heroLevel < H.ability.unlock ? ` unlocks at level ${H.ability.unlock}` : ' — fire it from the hero panel or press <kbd>H</kbd>'}`));
+      const act0 = el('div', 'ds-actions');
+      const tgt0 = el('button', 'btn tiny', `<kbd>T</kbd> ${t.target}`);
+      tgt0.title = 'Cycle targeting: first / last / strong / close';
+      tgt0.onclick = () => cycleTarget();
+      act0.appendChild(tgt0);
+      const sell0 = el('button', 'btn tiny danger', `<kbd>X</kbd> sell ${fmt(t.invested * G.SELL_RATE)}`);
+      sell0.onclick = () => sellSelected();
+      act0.appendChild(sell0);
+      box.appendChild(act0);
+      return;
+    }
 
     const upgRow = el('div', 'ds-upgs');
     for (let p = 0; p < 2; p++) {
@@ -1236,6 +1382,12 @@
       if (k === 'Tab') { ev.preventDefault(); cycleSpeed(); return; }
       if (k === 'p' || k === 'P') { togglePause(); return; }
       if (k === 'm' || k === 'M') { toggleMute(); return; }
+      if (k === 'h' || k === 'H') {   // hero: place if benched, otherwise fire the ability
+        if (!g.heroType) return;
+        if (g.heroTower) fireHeroAbility();
+        else armTower(g.heroType);
+        return;
+      }
 
       // context keys for the selected penguin
       if (g.selected) {

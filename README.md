@@ -76,6 +76,23 @@ Boosts you own appear in the command dock during battle — one click fires them
 | 💖 Second Wind | 40 | +25 lives |
 | 🏔️ Avalanche | 50 | 60 damage to everything on the field, ignoring armor |
 
+### Heroes — one champion fights beside you
+
+Pick a hero on the challenge screen before a battle. In battle they place like a tower
+(a fish price, one per battle), then **level up on their own** — one level every 3 waves
+held, to level 10 — and their damage **scales with the herd itself**: as tough as the sea
+lions are, the hero hits proportionally, from the home shores to the Frozen Abyss to the
+deep Endless Tide. At level 3 the signature ability unlocks — free to fire (press **H**),
+recharging over time.
+
+| Hero | Recruited | Style | Ability |
+|---|---|---|---|
+| ⚔️ **Captain Frost** | free | heavy single-target damage | 🏔️ Avalanche Charge — smashes the whole field |
+| 📯 **Commander Beak** | 5,000 🪨 | nearby penguins fight harder & faster | 📯 War Cry — everyone attacks 50% faster for 8s |
+| ❄️ **Elder Shiver** | 7,500 🪨 | slows whole packs, deeper each level | ❄️ Cold Snap — freezes every sea lion for 2.5s |
+
+Heroes are permanent once recruited — the two elders are the colony's long-term pebble goals.
+
 ### Your penguins — 20 towers, 4 classes, each with 2 upgrade paths × 3 tiers
 
 | Class | Towers |

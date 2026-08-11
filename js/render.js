@@ -1479,6 +1479,21 @@
       ctx.restore();
     }
 
+    // heroes stand on a softly pulsing gold ring
+    if (tw.hero) {
+      const pulse = 0.5 + Math.sin(t * 2.2) * 0.15;
+      ctx.save();
+      ctx.globalAlpha = 0.35 * pulse + 0.2;
+      const grd = ctx.createRadialGradient(tw.x, tw.y + 8, 4, tw.x, tw.y + 8, 26);
+      grd.addColorStop(0, 'rgba(255,209,102,0.55)');
+      grd.addColorStop(1, 'rgba(255,209,102,0)');
+      ctx.fillStyle = grd;
+      ctx.beginPath(); ctx.ellipse(tw.x, tw.y + 8, 26, 14, 0, 0, TAU); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,209,102,0.8)'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.ellipse(tw.x, tw.y + 10, 20, 10, 0, 0, TAU); ctx.stroke();
+      ctx.restore();
+    }
+
     const small = tw.type === 'igloo' || tw.type === 'vendor';
     const pr = small ? 11 : 15;
     let px = small ? pos.x + 20 : pos.x;
@@ -1516,6 +1531,21 @@
       for (let i = 0; i < tA; i++) { drawPip(ctx, ppx, ppy, '#ffd166'); ppx += 8; }
       ppx += gap;
       for (let i = 0; i < tB; i++) { drawPip(ctx, ppx, ppy, '#6fd7f5'); ppx += 8; }
+    }
+
+    // hero level badge: a gold star shield above the champion
+    if (tw.hero) {
+      const lvl = game.heroLevel || 1;
+      const bx = tw.x, by = tw.y - 40;
+      ctx.save();
+      ctx.fillStyle = '#1d2733';
+      ctx.strokeStyle = '#ffd166'; ctx.lineWidth = 1.6;
+      ctx.beginPath(); ctx.roundRect(bx - 13, by - 8, 26, 16, 8); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#ffd166';
+      ctx.font = 'bold 10px system-ui, sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('★' + lvl, bx, by + 0.5);
+      ctx.restore();
     }
   }
 
