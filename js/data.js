@@ -487,22 +487,26 @@
     },
 
     /* ---- SUPPORT ---- */
-    /* Income halved Aug 2026: a measured audit had the maxed vendor printing
-       1010 🐟/wave against wave rewards of ~150-220, paying itself back in
-       ~5 waves — building vendors was simply the correct opening. */
+    /* Reworked Aug 2026. Two problems at once: every upgrade was "+N fish per
+       wave" with only the number changing, and stacking vendors printed money
+       without limit. Market keeps the plain reliable income; Finance now pays
+       three *different* ways — off your kills, off your board, off your
+       savings — so the two paths are a real choice. Vendor payouts also suffer
+       diminishing returns per extra vendor (see the wave-end payout in
+       engine.js), which is what actually caps the runaway. */
     vendor: {
       cls: 'support', name: 'Fish Vendor', cost: 900,
       desc: 'Sells premium herring. Nets extra fish at the end of every wave.',
-      stats: { kind: 'income', income: 65, range: 0, water: 'never' },
+      stats: { kind: 'income', income: 65, range: 150, water: 'never' },
       paths: [
-        { name: 'Business', tiers: [
-          { name: 'Bigger Stall',   cost: 500, desc: '+55 🐟 per wave.',                  mods: { add: { income: 55 } } },
-          { name: 'Fish Market',    cost: 1100, desc: '+110 🐟 per wave.',                mods: { add: { income: 110 } } },
-          { name: 'Krill Konglomerate', cost: 2800, desc: '+275 🐟 per wave.',            mods: { add: { income: 275 } } },
+        { name: 'Market', tiers: [
+          { name: 'Bigger Stall',   cost: 500, desc: '+60 🐟 per wave.',                  mods: { add: { income: 60 } } },
+          { name: 'Fish Market',    cost: 1100, desc: '+130 🐟 per wave.',                mods: { add: { income: 130 } } },
+          { name: 'Krill Konglomerate', cost: 2800, desc: '+300 🐟 per wave.',            mods: { add: { income: 300 } } },
         ]},
         { name: 'Finance', tiers: [
-          { name: 'Loyal Customers', cost: 400, desc: '+40 🐟 per wave.',                 mods: { add: { income: 40 } } },
-          { name: 'Pop-up Stands',  cost: 900, desc: '+85 🐟 per wave.',                  mods: { add: { income: 85 } } },
+          { name: 'Fresh Catch',    cost: 450, desc: 'Buys the catch: every sea lion the colony destroys pays +1 🐟.', mods: { set: { bountyBonus: 1 } } },
+          { name: 'Trade Hub',      cost: 1000, desc: '+20 🐟 per wave for each penguin in range.', mods: { set: { tradeHub: 20 } } },
           { name: 'Penguin Bank',   cost: 2400, desc: 'Also pays 5% interest on saved fish each wave (max 200 🐟).', mods: { set: { interest: 0.05 } } },
         ]},
       ],
@@ -714,9 +718,12 @@
        `orcaEat` in the engine). They never split: a single, patient slab of
        muscle rather than a bag of smaller problems. No regeneration of their
        own — eating is how they heal, so starving them is the counter-play. */
-    orca_young: { name: 'Young Orca',       hp: 1200, speed: 44, size: 34, armor: 3, stealth: false, regen: 0,   bounty: 260,  lives: 40,  children: [],                              rank: 14, color: '#16202e', orca: true, eat: 0.020 },
-    orca_bull:  { name: 'Bull Orca',        hp: 3600, speed: 38, size: 42, armor: 4, stealth: false, regen: 0,   bounty: 700,  lives: 70,  children: [],                              rank: 15, color: '#121a26', orca: true, eat: 0.018 },
-    orca_great: { name: 'Great Orca',       hp: 9000, speed: 32, size: 50, armor: 5, stealth: false, regen: 0,   bounty: 1700, lives: 110, children: [],                              rank: 16, color: '#0e151f', orca: true, eat: 0.015 },
+    /* An orca reaching the igloo is a catastrophe, not a setback: a single
+       Young Orca costs 100 lives where an Ancient Leviathan costs 250. Two
+       of them end almost any run. Letting one through is the loss condition. */
+    orca_young: { name: 'Young Orca',       hp: 1200, speed: 44, size: 34, armor: 3, stealth: false, regen: 0,   bounty: 260,  lives: 100, children: [],                              rank: 14, color: '#16202e', orca: true, eat: 0.020 },
+    orca_bull:  { name: 'Bull Orca',        hp: 3600, speed: 38, size: 42, armor: 4, stealth: false, regen: 0,   bounty: 700,  lives: 180, children: [],                              rank: 15, color: '#121a26', orca: true, eat: 0.018 },
+    orca_great: { name: 'Great Orca',       hp: 9000, speed: 32, size: 50, armor: 5, stealth: false, regen: 0,   bounty: 1700, lives: 300, children: [],                              rank: 16, color: '#0e151f', orca: true, eat: 0.015 },
     /* The century wall. Sized against a MOVING target, which is the only
        honest way to measure it: a whale swims through the whole kill zone, so
        an eighteen-tower maxed board lands ~1,283 dps on it — not the ~895 a
@@ -724,7 +731,7 @@
        ~169k of damage available, so 190k means a strong board runs out of
        track and needs its hero, its boosts and better placement to take the
        century. Re-measure against a moving whale if this is ever retuned. */
-    orca_king:  { name: 'KILLER WHALE',     hp: 190000, speed: 17, size: 74, armor: 8, stealth: false, regen: 0, bounty: 12000, lives: 400, children: ['orca_great', 'orca_great'],   rank: 17, color: '#080d15', orca: true, eat: 0.012, boss: true },
+    orca_king:  { name: 'KILLER WHALE',     hp: 190000, speed: 17, size: 74, armor: 8, stealth: false, regen: 0, bounty: 12000, lives: 1000, children: ['orca_great', 'orca_great'],  rank: 17, color: '#080d15', orca: true, eat: 0.012, boss: true },
   };
   // fix accidental bad color string above
   G.ENEMIES.brute.color = '#4a3620';

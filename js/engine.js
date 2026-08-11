@@ -219,6 +219,12 @@
     }
 
     recomputeBuffs() {
+      /* Fresh Catch takes the BEST vendor's rate rather than the sum — a
+         per-kill bounty that stacked would just be vendor spam by another name. */
+      this.bountyBonus = 0;
+      for (const t of this.towers) {
+        if (t.calc.bountyBonus) this.bountyBonus = Math.max(this.bountyBonus, t.calc.bountyBonus);
+      }
       for (const t of this.towers) t.buff = { dmg: 1, rate: 1, range: 1, stealth: false };
       for (const s of this.towers) {
         const c = s.calc;
@@ -340,7 +346,8 @@
       this.kills++;                                     // leaks never reach here
       if (tower) tower.kills = (tower.kills || 0) + 1;
       const def = G.ENEMIES[e.type];
-      const bounty = Math.max(1, Math.round(def.bounty * (this.level.bountyMult || 1) * G.PERK.bounty));
+      const bounty = Math.max(1, Math.round(def.bounty * (this.level.bountyMult || 1) * G.PERK.bounty)
+        + (this.bountyBonus || 0));   // Fresh Catch
       this.cash += bounty;
       this.texts.push({ x: 0, y: 0, e, txt: '+' + bounty + '🐟', life: 0.9, kind: 'cash' });
       // plague spread (Frost Witch T3)
@@ -752,15 +759,31 @@
         const wr = Math.round(this.waveReward * G.PERK.reward);   // Keen Scouts
         this.cash += wr;
         let earned = wr;
-        for (const t of this.towers) {
-          if (t.calc.kind === 'income') {
-            this.cash += t.calc.income;
-            earned += t.calc.income;
-            if (t.calc.interest) {
-              const bonus = Math.min(200, Math.round(this.cash * t.calc.interest));
-              this.cash += bonus; earned += bonus;
+        /* Vendor payouts, richest first, each extra vendor earning 70% of the
+           one before it. Stacking vendors used to be a money printer with no
+           ceiling; now a second is worth 0.7 of the first, a third 0.49, and
+           the total converges — building more of them stops being the answer. */
+        const vendors = this.towers
+          .filter((t) => t.calc.kind === 'income')
+          .sort((a, b) => (b.calc.income || 0) - (a.calc.income || 0));
+        let share = 1;
+        for (const t of vendors) {
+          const c = t.calc;
+          let pay = c.income || 0;
+          // Trade Hub: pays per penguin standing in this vendor's circle
+          if (c.tradeHub) {
+            const r2 = (c.range || 0) ** 2;
+            let near = 0;
+            for (const o of this.towers) {
+              if (o !== t && o.calc.kind !== 'income' && dist2(t.x, t.y, o.x, o.y) <= r2) near++;
             }
+            pay += c.tradeHub * near;
           }
+          if (c.interest) pay += Math.min(200, Math.round(this.cash * c.interest));
+          const got = Math.round(pay * share);
+          this.cash += got;
+          earned += got;
+          share *= 0.7;
         }
         // the hero grows with every wave it stood through
         if (this.heroTower) {
