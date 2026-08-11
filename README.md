@@ -75,15 +75,20 @@ buys them time and never immortality.
 | 71–80 | Young Orca | 1,200 | 3 |
 | 81–90 | Bull Orca | 3,600 | 4 |
 | 91–99 | Great Orca | 9,000 | 5 |
-| **100** | **KILLER WHALE** | **95,000** | **8** |
+| **100** | **KILLER WHALE** | **190,000** | **8** |
 
 The KILLER WHALE is the largest creature in the game and it guards the century jackpot.
-It is sized against a measured board — eighteen maxed towers sustain about 895 damage a
-second through armour 8, roughly 118,000 across the whale's 132-second swim — so a solid
-defence falls just short, and landing the century takes your hero, your boosts and better
-placement. Waves 101+ keep the Great Orcas coming, with another KILLER WHALE every
-century. Flooding is cosmetic: build spots, path geometry and water-only penguins are
-completely unchanged.
+It is a genuine wall, sized against a **moving** target — a whale swims through the whole
+kill zone, so an eighteen-tower maxed board lands about 1,283 damage a second on it, not
+the ~895 a dummy pinned in one spot suggests. That is roughly 169,000 across its
+132-second swim. Measured: an eighteen-tower board **loses** — the whale reaches the
+colony and takes 400 lives with it — while a twenty-five-tower board kills it at the
+halfway mark. Landing the century takes a real late-game defence, your hero and your
+boosts.
+
+Waves 101+ keep the Great Orcas coming, with another KILLER WHALE every century.
+Flooding is cosmetic: build spots, path geometry and water-only penguins are completely
+unchanged.
 
 ### Two currencies: fish & pebbles
 
