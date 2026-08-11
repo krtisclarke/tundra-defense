@@ -2487,6 +2487,44 @@
     }
   }
 
+  /* Everything this penguin CANNOT shoot: the wedge of ground each standing
+     obstacle hides from it, clipped to its range. Without this the sight rule
+     is invisible — you build, the penguin refuses to fire, and nothing on
+     screen tells you why. Drawn for the selected penguin and for the
+     placement ghost, so you can see the dead ground before you spend fish. */
+  function drawSightShadow(ctx, game, x, y, range, tone) {
+    if (!game.sightBlockers || !game.sightBlockers.length || !(range > 0) || range >= 5000) return;
+    let drew = false;
+    ctx.save();
+    for (const o of game.sightBlockers) {
+      const dx = o.x - x, dy = o.y - y;
+      const d = Math.hypot(dx, dy);
+      if (d <= o.r || d - o.r > range) continue;      // inside it, or too far to matter
+      const half = Math.asin(Math.min(1, o.r / d));
+      const th = Math.atan2(dy, dx);
+      const tan = Math.sqrt(Math.max(1, d * d - o.r * o.r));   // where the shadow starts
+      const a0 = th - half, a1 = th + half;
+      if (!drew) {
+        ctx.fillStyle = tone || 'rgba(214,72,72,0.30)';
+        drew = true;
+      }
+      ctx.beginPath();
+      ctx.moveTo(x + Math.cos(a0) * tan, y + Math.sin(a0) * tan);
+      ctx.lineTo(x + Math.cos(a0) * range, y + Math.sin(a0) * range);
+      ctx.arc(x, y, range, a0, a1);
+      ctx.lineTo(x + Math.cos(a1) * tan, y + Math.sin(a1) * tan);
+      ctx.closePath();
+      ctx.fill();
+      // outline the culprit so it is obvious which lump is in the way
+      ctx.save();
+      ctx.strokeStyle = 'rgba(240,120,120,0.75)';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(o.x, o.y, o.r, 0, TAU); ctx.stroke();
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+
   /* ---------- range circles & placement ghost ---------- */
   function drawOverlays(ctx, game) {
     const sel = game.selected;
@@ -2514,6 +2552,8 @@
         ctx.strokeStyle = 'rgba(120,170,220,0.5)';
         ctx.lineWidth = 2;
         ctx.beginPath(); ctx.arc(sel.x, sel.y, range, 0, TAU); ctx.fill(); ctx.stroke();
+        // howitzers and storms arc over terrain, so they cast no shadow
+        if (!G.arcsOverTerrain(sel.calc)) drawSightShadow(ctx, game, sel.x, sel.y, range);
       }
       if (sel.calc.minRange) {
         ctx.fillStyle = 'rgba(220,120,120,0.12)';
@@ -2525,12 +2565,16 @@
       const { x, y } = game.mouse;
       if (x > -100) {
         const ok = game.canPlace(game.placingType, x, y);
-        const range = (def.stats.range || 60);
+        /* Effective range, not the raw stat — the ghost was drawing the
+           pre-nerf circle and promising reach the placed penguin wouldn't have. */
+        const range = (G.computeEffective(game.placingType, [0, 0]).range || 60);
         ctx.fillStyle = ok ? 'rgba(110,200,130,0.15)' : 'rgba(220,110,110,0.18)';
         ctx.strokeStyle = ok ? 'rgba(110,200,130,0.6)' : 'rgba(220,110,110,0.6)';
         ctx.lineWidth = 2;
         if (range > 0 && range < 5000) {
           ctx.beginPath(); ctx.arc(x, y, range, 0, TAU); ctx.fill(); ctx.stroke();
+          // show the dead ground BEFORE the fish is spent
+          if (!G.arcsOverTerrain(def.stats)) drawSightShadow(ctx, game, x, y, range);
         }
         ctx.globalAlpha = 0.75;
         drawPenguin(ctx, x, y, 15, game.placingType, null, 0);
