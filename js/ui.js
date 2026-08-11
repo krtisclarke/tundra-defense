@@ -1080,6 +1080,37 @@
     tip.style.top = (r.top - tr.height - 10) + 'px';
   }
 
+  /* Floating card for an upgrade — the whole path laid out, with the tier you
+     are about to buy highlighted, so the compact buttons lose no information. */
+  function showUpgradeTip(anchor, typeId, pathIdx, tier) {
+    const g = UI.game;
+    const def = G.TOWERS[typeId];
+    const path = def.paths[pathIdx];
+    const u = path.tiers[tier];
+    const cost = G.scaleCost(u.cost, g ? g.diffId : 'medium');
+    const afford = g && g.cash >= cost;
+    const rows = path.tiers.map((x, i) => {
+      const state = i < tier ? 'own' : i === tier ? 'next' : 'later';
+      return `<div class="tt-tier ${state}">
+        <span class="tt-tier-dot">${i < tier ? '●' : i === tier ? '▸' : '○'}</span>
+        <span><b>${x.name}</b> <span class="tt-cost">${fmt(G.scaleCost(x.cost, g ? g.diffId : 'medium'))}</span><br>
+        <span class="tt-tier-desc">${x.desc}</span></span></div>`;
+    }).join('');
+    const tip = $('#tooltip');
+    tip.innerHTML = `
+      <div class="tt-head"><b>${path.name}</b><span class="tt-cost">${fmt(cost)}</span></div>
+      <div class="tt-cls" style="color:${def.hero ? 'var(--gold)' : G.CLASSES[def.cls].color}">${def.name} — upgrade path ${pathIdx + 1}</div>
+      <div class="tt-tiers">${rows}</div>
+      <div class="tt-key">${afford ? `Press <kbd>${pathIdx === 0 ? 'Q' : 'W'}</kbd> or click to buy <b>${u.name}</b>` : `Need ${fmt(cost - (g ? g.cash : 0))} more`}</div>`;
+    tip.style.display = 'block';
+    const r = anchor.getBoundingClientRect();
+    const tr = tip.getBoundingClientRect();
+    let x = r.left + r.width / 2 - tr.width / 2;
+    x = Math.max(8, Math.min(window.innerWidth - tr.width - 8, x));
+    tip.style.left = x + 'px';
+    tip.style.top = Math.max(8, r.top - tr.height - 10) + 'px';
+  }
+
   /* ---------- Second Chance (paid retry after defeat) ---------- */
   function retryBattle() {
     const g = UI.game;
@@ -1463,11 +1494,17 @@
       } else {
         const u = path.tiers[tier];
         const uCost = G.scaleCost(u.cost, g.diffId);
+        /* No description inside the button — it lives in a floating card on
+           hover, exactly like the build tray. That keeps every selection card
+           the same height, which is what stops the dock (and the map with it)
+           from jumping when you click a penguin. */
         btn = el('button', 'btn upg-mini' + (g.cash < uCost ? ' poor' : ' can'),
-          `<kbd>${key}</kbd><span class="um-name">${u.name}</span><span class="um-desc">${u.desc}</span><span class="um-sub">${'●'.repeat(tier)}${'○'.repeat(3 - tier)} · <b>${fmt(uCost)}</b></span>`);
+          `<kbd>${key}</kbd><span class="um-name">${u.name}</span><span class="um-sub">${'●'.repeat(tier)}${'○'.repeat(3 - tier)} · <b>${fmt(uCost)}</b></span>`);
         btn.dataset.cost = uCost;   // updateHud re-checks this as fish come in
-        btn.title = u.desc;
         btn.onclick = () => buyUpgrade(t, p);
+        btn.addEventListener('mouseenter', () => showUpgradeTip(btn, t.type, p, tier));
+        btn.addEventListener('mouseleave', hideTooltip);
+        attachLongPress(btn, () => showUpgradeTip(btn, t.type, p, tier));
       }
       upgRow.appendChild(btn);
     }
