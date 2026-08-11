@@ -22,11 +22,75 @@
   G.DIFF_ORDER = ['easy', 'medium', 'hard'];
   G.scaleCost = (raw, diffId) => {
     const D = G.DIFFICULTIES[diffId] || G.DIFFICULTIES.medium;
-    return Math.max(5, Math.round((raw * D.costMult) / 5) * 5);
+    return Math.max(5, Math.round((raw * D.costMult * G.PERK.cost) / 5) * 5);
   };
   G.scaleLives = (raw, diffId) => {
     const D = G.DIFFICULTIES[diffId] || G.DIFFICULTIES.medium;
-    return Math.max(10, Math.round((raw * D.livesMult) / 5) * 5);
+    return Math.max(10, Math.round((raw * D.livesMult) / 5) * 5) + G.PERK.lives;
+  };
+  G.scaleRetry = (raw) => Math.max(5, Math.round((raw * G.PERK.retry) / 5) * 5);
+
+  /* ---------------- Colony Upgrades ----------------
+     Small forever-bonuses bought with pebbles — the permanent half of the
+     meta-economy (boosts are the consumable half, heroes the trophies).
+     Three tiers each; `v` is the value the perk system reads. */
+  G.COLONY = {
+    stores:    { name: 'Deeper Stores',   icon: '🐟', desc: 'The colony stockpiles herring: start every battle with extra fish.',
+                 fmt: (v) => `+${v} starting 🐟`,            tiers: [{ cost: 150, v: 75 }, { cost: 400, v: 150 }, { cost: 900, v: 250 }] },
+    walls:     { name: 'Thicker Walls',   icon: '💖', desc: 'Reinforced nests: start every battle with extra lives.',
+                 fmt: (v) => `+${v} starting lives`,         tiers: [{ cost: 150, v: 10 }, { cost: 400, v: 20 }, { cost: 900, v: 35 }] },
+    hooks:     { name: 'Sharper Hooks',   icon: '🪝', desc: 'Every sea lion popped pays more fish.',
+                 fmt: (v) => `+${v}% bounties`,              tiers: [{ cost: 200, v: 4 }, { cost: 500, v: 8 }, { cost: 1100, v: 12 }] },
+    contracts: { name: 'Cheap Contracts', icon: '📜', desc: 'Penguins enlist for less: towers and upgrades cost less fish.',
+                 fmt: (v) => `−${v}% tower prices`,          tiers: [{ cost: 250, v: 3 }, { cost: 600, v: 6 }, { cost: 1300, v: 9 }] },
+    flags:     { name: 'Rally Flags',     icon: '🚩', desc: 'The colony rallies for less: Second Chance costs fewer pebbles.',
+                 fmt: (v) => `−${v}% retry price`,           tiers: [{ cost: 200, v: 20 }, { cost: 450, v: 35 }, { cost: 1000, v: 50 }] },
+    scouts:    { name: 'Keen Scouts',     icon: '🔭', desc: 'Scouts salvage the beach: bigger fish rewards for every wave cleared.',
+                 fmt: (v) => `+${v}% wave rewards`,          tiers: [{ cost: 200, v: 5 }, { cost: 500, v: 10 }, { cost: 1100, v: 15 }] },
+  };
+  G.COLONY_ORDER = ['stores', 'walls', 'hooks', 'contracts', 'flags', 'scouts'];
+
+  /* live perk values — neutral until a profile is applied (headless stays neutral) */
+  G.PERK = { cash: 0, lives: 0, bounty: 1, cost: 1, retry: 1, reward: 1 };
+  G.applyColony = function (colony) {
+    colony = colony || {};
+    const v = (id) => {
+      const C = G.COLONY[id];
+      const t = Math.min(colony[id] || 0, C.tiers.length);
+      return t ? C.tiers[t - 1].v : 0;
+    };
+    G.PERK = {
+      cash: v('stores'), lives: v('walls'),
+      bounty: 1 + v('hooks') / 100, cost: 1 - v('contracts') / 100,
+      retry: 1 - v('flags') / 100, reward: 1 + v('scouts') / 100,
+    };
+  };
+
+  /* ---------------- Tower drip ----------------
+     A brand-new player starts with a five-penguin starter kit; the rest join
+     two at a time as battlefields are defended (any difficulty). Numbers are
+     "battlefields defended, anywhere" — an existing profile with wins keeps
+     everything it could already use. */
+  G.TOWER_UNLOCKS = {
+    pebble: 0, snowball: 0, slush: 0, harpoon: 0, vendor: 0,
+    shards: 1, torpedo: 1,
+    glacier: 2, depth: 2,      // the water pair arrives before Frozen River
+    aurora: 3, sonar: 3,
+    witch: 4, drummer: 4,
+    jetpack: 5, icewall: 5,
+    shadow: 6, igloo: 6,
+    blizzard: 7, artillery: 7,
+    sunpriest: 8,
+  };
+  G.defendedCount = (profile) =>
+    G.LEVELS.filter((L) => {
+      const d = ((profile || {}).diffDone || {})[L.id];
+      return d && (d.easy || d.medium || d.hard);
+    }).length;
+  // 0 = usable now; otherwise the battlefields-defended count still needed
+  G.towerNeed = function (profile, typeId) {
+    const need = G.TOWER_UNLOCKS[typeId] || 0;
+    return G.defendedCount(profile) >= need ? 0 : need;
   };
 
   /* ---------------- Campaign tiers ----------------

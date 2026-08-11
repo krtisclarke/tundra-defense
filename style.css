@@ -678,6 +678,35 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
 .diff-facts b { color: var(--text); }
 .diff-reward { color: var(--gold); font-weight: 750; }
 
+/* tower drip: penguins not yet recruited — ghost the penguin, keep the padlock crisp */
+#palette .slot.locked { cursor: default; }
+#palette .slot.locked canvas,
+#palette .slot.locked .slot-cost,
+#palette .slot.locked .slot-key {
+  opacity: 0.3;
+  filter: saturate(0.1);
+}
+#palette .slot.locked:hover { transform: none; }
+.slot-lock {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -58%);
+  font-size: 15px;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.7));
+  pointer-events: none;
+}
+
+/* Colony Upgrades */
+.cu-pips { display: inline-flex; gap: 4px; margin-left: 6px; vertical-align: middle; }
+.cu-pip {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 217, 126, 0.5);
+  background: transparent;
+}
+.cu-pip.on { background: var(--gold); box-shadow: 0 0 6px rgba(255, 209, 102, 0.5); }
+.cu-now { font-size: 12px; color: var(--good); font-weight: 700; min-height: 18px; margin: 2px 0 4px; }
+
 /* hero picker (difficulty screen) */
 #hero-head {
   font-size: 11px; font-weight: 800;

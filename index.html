@@ -86,6 +86,7 @@
       <div class="pebble-chip" title="Pebbles — win battles to earn them">🪨 <b class="js-pebbles">0</b> pebbles</div>
       <button class="btn big primary" id="btn-play">Play</button>
       <button class="btn big" id="btn-shop">🪨 Boost Shop</button>
+      <button class="btn big" id="btn-colony">🏛️ Colony Upgrades</button>
       <button class="btn big" id="btn-howto">How to Play</button>
       <div class="menu-io">
         <button class="btn" id="btn-export">💾 Back Up Progress</button>
@@ -116,6 +117,7 @@
       <div id="hero-head">Your champion — one fights beside the colony each battle</div>
       <div id="hero-row"></div>
       <button class="btn" id="btn-diff-shop">🪨 Boost Shop</button>
+      <button class="btn" id="btn-diff-colony">🏛️ Colony Upgrades</button>
     </div>
 
     <div class="screen" id="screen-shop">
@@ -127,6 +129,17 @@
       <p class="blurb">Stock up before battle. Boosts you own appear in the command dock during a match —
         one click fires them. Win battles to earn more pebbles.</p>
       <div id="shop-grid"></div>
+    </div>
+
+    <div class="screen" id="screen-colony">
+      <div class="screen-head">
+        <button class="btn small" id="btn-colony-back">← Back</button>
+        <h2>🏛️ Colony Upgrades</h2>
+        <span class="pebble-chip" title="Pebbles — win battles to earn them">🪨 <b class="js-pebbles">0</b> pebbles</span>
+      </div>
+      <p class="blurb">Permanent improvements for the whole colony — bought once with pebbles,
+        working in every battle from then on. Three tiers each.</p>
+      <div id="colony-grid"></div>
     </div>
 
     <div class="screen" id="screen-howto">

@@ -74,7 +74,7 @@
       this.startLives = G.scaleLives(L.lives, this.diffId);
       this.frenzyUntil = 0;
       this.paths = L.paths.map(buildPath);
-      this.cash = L.cash;
+      this.cash = L.cash + G.PERK.cash;   // Deeper Stores colony upgrade
       this.lives = this.startLives;
       this.wave = 1;              // next wave to start (1-based)
       this.waveInProgress = false;
@@ -335,8 +335,9 @@
     killEnemy(e, tower) {
       if (e.dead) return;
       e.dead = true;
+      if (tower) tower.kills = (tower.kills || 0) + 1;
       const def = G.ENEMIES[e.type];
-      const bounty = Math.max(1, Math.round(def.bounty * (this.level.bountyMult || 1)));
+      const bounty = Math.max(1, Math.round(def.bounty * (this.level.bountyMult || 1) * G.PERK.bounty));
       this.cash += bounty;
       this.texts.push({ x: 0, y: 0, e, txt: '+' + bounty + '🐟', life: 0.9, kind: 'cash' });
       // plague spread (Frost Witch T3)
@@ -696,8 +697,9 @@
       // wave end
       if (this.waveInProgress && !this.spawnQueue.length && !this.enemies.length) {
         this.waveInProgress = false;
-        this.cash += this.waveReward;
-        let earned = this.waveReward;
+        const wr = Math.round(this.waveReward * G.PERK.reward);   // Keen Scouts
+        this.cash += wr;
+        let earned = wr;
         for (const t of this.towers) {
           if (t.calc.kind === 'income') {
             this.cash += t.calc.income;
@@ -743,7 +745,7 @@
         frenzyUntil: this.frenzyUntil || 0, endless: this.endless,
         heroType: this.heroType, heroWaves: this.heroWaves,
         heroReadyIn: Math.max(0, this.heroReadyAt - this.time),
-        towers: this.towers.map((t) => ({ type: t.type, x: t.x, y: t.y, up: [...t.up], target: t.target, invested: t.invested })),
+        towers: this.towers.map((t) => ({ type: t.type, x: t.x, y: t.y, up: [...t.up], target: t.target, invested: t.invested, kills: t.kills || 0 })),
         spawnQueue: this.spawnQueue.map((s) => ({ ...s })),
         enemies: this.enemies.map((e) => ({
           type: e.type, pathIdx: e.pathIdx, dist: e.dist, hp: e.hp, maxHp: e.maxHp,
@@ -767,6 +769,7 @@
         const t = {
           id: nextId++, type: td.type, x: td.x, y: td.y, up: [...td.up], target: td.target,
           invested: td.invested, cooldown: 0, orbitAngle: Math.random() * Math.PI * 2,
+          kills: td.kills || 0,
           calc: computeEffective(td.type, td.up), buff: { dmg: 1, rate: 1, range: 1, stealth: false },
         };
         if ((G.TOWERS[td.type] || {}).hero) { t.hero = true; g.heroTower = t; }

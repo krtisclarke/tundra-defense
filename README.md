@@ -93,7 +93,20 @@ recharging over time.
 
 Heroes are permanent once recruited — the two elders are the colony's long-term pebble goals.
 
+### 🏛️ Colony Upgrades — pebbles that work forever
+
+The permanent half of the pebble economy (main menu or challenge screen). Six upgrades,
+three tiers each — starting fish, starting lives, bigger bounties, cheaper towers,
+discounted Second Chances, richer wave rewards. Bought once, active in every battle
+from then on.
+
 ### Your penguins — 20 towers, 4 classes, each with 2 upgrade paths × 3 tiers
+
+A brand-new colony starts with a five-penguin starter kit (Pebble Flinger, Snowball
+Roller, Slush Thrower, Harpoon Sniper, Fish Vendor); the rest join **two at a time as
+battlefields are defended**, on any difficulty — the full roster is in hand by eight
+battlefields. Existing profiles keep everything they've earned. Every penguin's card
+shows its **☠ kill count**, and the victory screen names the battle's top defender.
 
 | Class | Towers |
 |---|---|

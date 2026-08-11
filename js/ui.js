@@ -53,6 +53,8 @@
     if (!p.powerInv) p.powerInv = {};
     if (!p.heroes) p.heroes = { hero_frost: true };  // the Captain serves for free
     if (p.heroSel === undefined) p.heroSel = 'hero_frost'; // null = fight heroless
+    if (!p.colony) p.colony = {};                    // permanent Colony Upgrades tiers
+    G.applyColony(p.colony);                         // perks live in G.PERK from here on
     // legacy profiles: a completed level was a 50-wave campaign → credit it as Hard
     for (const id in p.completed) {
       if (p.completed[id] && !p.diffDone[id]) p.diffDone[id] = { hard: true };
@@ -175,6 +177,13 @@
         // finger left the pane: the description goes away and the penguin comes along
         clear();
         if (showing) { hideTooltip(); showing = false; }
+        const lock = towerLockMsg(id);
+        if (lock) {
+          sfx.error(); buzz(30);
+          toast('🔒 ' + lock, 'bad');
+          swallow = true;
+          return;
+        }
         const cost = G.scaleCost(G.TOWERS[id].cost, g.diffId);
         if (g.cash < cost) {
           sfx.error(); buzz(30);
@@ -385,6 +394,7 @@
   function buildMainMenu() {
     $('#btn-play').onclick = () => { buildLevelSelect(); show('#screen-levels'); };
     $('#btn-shop').onclick = () => buildShop('#screen-menu');
+    $('#btn-colony').onclick = () => buildColony('#screen-menu');
     $('#btn-howto').onclick = () => show('#screen-howto');
     $('#btn-howto-back').onclick = () => show(UI.game ? '#screen-pause' : '#screen-menu');
     $('#btn-reset').onclick = () => {
@@ -526,13 +536,14 @@
           <li><b>${D.waves}</b> waves</li>
           <li><b>${G.scaleLives(L.lives, dId)}</b> lives</li>
           <li>${priceLine}</li>
-          <li class="diff-reward">win: +${D.pebbles} 🪨 · retry: ${D.retryCost} 🪨</li>
+          <li class="diff-reward">win: +${D.pebbles} 🪨 · retry: ${G.scaleRetry(D.retryCost)} 🪨</li>
         </ul>`}`;
       if (!locked) card.onclick = () => startGame(levelIdx, null, dId);
       grid.appendChild(card);
     }
     buildHeroRow();
     $('#btn-diff-shop').onclick = () => buildShop('#screen-diff');
+    $('#btn-diff-colony').onclick = () => buildColony('#screen-diff');
     $('#btn-diff-back').onclick = () => show('#screen-levels');
     show('#screen-diff');
   }
@@ -686,12 +697,21 @@
       sfx.win();
       const p = UI.profile;
       const D = G.DIFFICULTIES[g.diffId];
+      const lockedBefore = G.TOWER_ORDER.filter((id) => G.towerNeed(p, id));
       p.completed[g.level.id] = true;
       p.diffDone[g.level.id] = Object.assign({}, p.diffDone[g.level.id], { [g.diffId]: true });
       p.bestWave[g.level.id] = Math.max(p.bestWave[g.level.id] || 0, g.totalWaves);
       p.pebbles += D.pebbles;
       putProfile(p);
       store.del(saveKey(g.levelIdx));
+
+      // did this win drip new penguins into the palette?
+      const joined = lockedBefore.filter((id) => !G.towerNeed(p, id)).map((id) => G.TOWERS[id].name);
+      if (joined.length) toast(`🐧 New penguins have joined the colony: ${joined.join(' & ')}!`);
+
+      // who earned their fish this battle?
+      const top = [...g.towers].sort((a, b) => (b.kills || 0) - (a.kills || 0))[0];
+      const topLine = top && top.kills ? ` Top defender: ${G.TOWERS[top.type].name} — ${top.kills.toLocaleString()} sea lions.` : '';
 
       // say what this win actually opened up on this difficulty
       const nextTier = G.TIERS.find((T) => T.id === g.level.tier + 1);
@@ -712,8 +732,8 @@
       eb.title = 'The waves keep coming, tougher every time, until the colony falls. Your victory is already banked.';
       eb.onclick = keepGoing;
       $('#end-title').textContent = '🏆 Colony Defended!';
-      $('#end-sub').textContent = `${g.level.name} (${D.name}) is safe. All ${g.totalWaves} waves repelled with ${g.lives} lives to spare. ` +
-        `Reward: +${D.pebbles} 🪨 pebbles — you now have ${p.pebbles.toLocaleString()}.` + opened;
+      $('#end-sub').textContent = `${g.level.name} (${D.name}) is safe. All ${g.totalWaves} waves repelled with ${g.lives} lives to spare.` + topLine +
+        ` Reward: +${D.pebbles} 🪨 pebbles — you now have ${p.pebbles.toLocaleString()}.` + opened;
       show('#screen-end');
     } else if (kind === 'defeat') {
       G.music.stop();
@@ -724,14 +744,15 @@
       putProfile(p);
       store.del(saveKey(g.levelIdx));
       const D = G.DIFFICULTIES[g.diffId];
-      const afford = p.pebbles >= D.retryCost;
+      const price = G.scaleRetry(D.retryCost);
+      const afford = p.pebbles >= price;
       const rb = $('#btn-retry');
       rb.style.display = 'block';
       rb.disabled = !afford;
-      rb.innerHTML = `🪨 Second Chance — retry wave ${g.wave} · ${D.retryCost} pebbles`;
+      rb.innerHTML = `🪨 Second Chance — retry wave ${g.wave} · ${price} pebbles`;
       rb.title = afford
         ? `Restore all ${g.startLives} lives and replay wave ${g.wave}. Towers and cash are kept.`
-        : `You need ${D.retryCost} 🪨 — win battles to earn more.`;
+        : `You need ${price} 🪨 — win battles to earn more.`;
       rb.onclick = retryBattle;
       $('#btn-endless').style.display = 'none';
       if (g.endless) {
@@ -780,8 +801,9 @@
     $('#btn-pause').classList.toggle('attention', g.paused);
     $('#btn-mute').innerHTML = UI.profile.muted ? ICON_SOUND_OFF : ICON_SOUND_ON;
 
-    // palette affordability + armed state
+    // palette affordability + armed state (locked slots keep their look)
     for (const slot of document.querySelectorAll('#palette .slot')) {
+      if (slot.classList.contains('locked')) continue;
       const def = G.TOWERS[slot.dataset.type];
       slot.classList.toggle('poor', g.cash < G.scaleCost(def.cost, g.diffId));
       slot.classList.toggle('armed', g.placingType === slot.dataset.type);
@@ -807,6 +829,10 @@
       btn.classList.toggle('empty', owned <= 0);
       btn.disabled = !!g.over;
     }
+
+    // kill counter on the open card ticks live while the wave runs
+    const kEl = document.querySelector('.ds-kills');
+    if (kEl && g.selected) kEl.textContent = g.selected.kills || 0;
 
     updateDockHero();
   }
@@ -854,6 +880,10 @@
           slot.appendChild(el('kbd', 'slot-key', HOTKEY_ROWS[r][c]));
           slot.appendChild(cv);
           slot.appendChild(el('span', 'slot-cost', '🐟' + G.scaleCost(def.cost, UI.game.diffId)));
+          if (G.towerNeed(UI.profile, id)) {   // tower drip: not recruited yet
+            slot.classList.add('locked');
+            slot.appendChild(el('span', 'slot-lock', '🔒'));
+          }
           slot.addEventListener('mouseenter', () => showTooltip(slot, id));
           slot.addEventListener('mouseleave', hideTooltip);
           slot.addEventListener('click', () => armTower(id));
@@ -866,9 +896,19 @@
     }
   }
 
+  // why this penguin can't be built yet (tower drip) — null when usable
+  function towerLockMsg(id) {
+    const need = G.towerNeed(UI.profile, id);
+    if (!need) return null;
+    const toGo = need - G.defendedCount(UI.profile);
+    return `${G.TOWERS[id].name} joins after ${need} battlefield${need === 1 ? ' is' : 's are'} defended — ${toGo} to go.`;
+  }
+
   function armTower(id) {
     const g = UI.game;
     if (!g || g.over) return;
+    const lock = towerLockMsg(id);
+    if (lock) { sfx.error(); toast('🔒 ' + lock, 'bad'); return; }
     const def = G.TOWERS[id];
     const cost = G.scaleCost(def.cost, g.diffId);
     if (g.placingType === id) { g.placingType = null; syncCancelBtn(); renderDockSel(); updateHud(); return; }
@@ -899,9 +939,11 @@
       <div class="tt-cls" style="color:${cls.color}">${cls.name}${s.water === 'only' ? ' · <span style="color:#67d4f5">water only</span>' : ''}</div>
       <div class="tt-desc">${def.desc}</div>
       ${bits.length ? `<div class="tt-stats">${bits.map(([k, v]) => `<span>${k}<b>${v}</b></span>`).join('')}</div>` : ''}
-      <div class="tt-key">${IS_TOUCH
-        ? 'Tap to pick up, then drag onto the map to place'
-        : `Press <kbd>${def.hero ? 'H' : TOWER_KEY[typeId]}</kbd> or click, then click the map`}</div>`;
+      <div class="tt-key">${towerLockMsg(typeId)
+        ? `🔒 ${towerLockMsg(typeId)}`
+        : IS_TOUCH
+          ? 'Tap to pick up, then drag onto the map to place'
+          : `Press <kbd>${def.hero ? 'H' : TOWER_KEY[typeId]}</kbd> or click, then click the map`}</div>`;
     tip.style.display = 'block';
     const r = anchor.getBoundingClientRect();
     const tr = tip.getBoundingClientRect();
@@ -980,9 +1022,10 @@
     const g = UI.game;
     if (!g || g.over !== 'lose') return;
     const D = G.DIFFICULTIES[g.diffId];
-    if (UI.profile.pebbles < D.retryCost) { sfx.error(); return; }
+    const price = G.scaleRetry(D.retryCost);   // Rally Flags discount
+    if (UI.profile.pebbles < price) { sfx.error(); return; }
     if (!g.retry()) return;
-    UI.profile.pebbles -= D.retryCost;
+    UI.profile.pebbles -= price;
     putProfile(UI.profile);
     $('#auto-start').checked = false;
     show(null);
@@ -990,7 +1033,7 @@
     G.music.play(G.music.trackForLevel(g.levelIdx));
     G.music.setTempoScale(Math.pow(1.01, g.wave - 1));
     banner(`Second chance — Wave ${g.wave}`);
-    toast(`🪨 −${D.retryCost} pebbles. Lives restored to ${g.lives} — regroup and hold the line!`);
+    toast(`🪨 −${price} pebbles. Lives restored to ${g.lives} — regroup and hold the line!`);
     updateWavePreview();
     renderDockSel();
     updateHud();
@@ -1059,6 +1102,46 @@
     buzz(30);
     toast(`${G.HEROES[g.heroType].ability.icon} ${res.name}!`);
     updateDockHero();
+  }
+
+  /* ---------- Colony Upgrades: permanent pebble-bought perks ---------- */
+  function buildColony(backTo) {
+    const grid = $('#colony-grid');
+    grid.innerHTML = '';
+    for (const id of G.COLONY_ORDER) {
+      const C = G.COLONY[id];
+      const tier = UI.profile.colony[id] || 0;
+      const maxed = tier >= C.tiers.length;
+      const next = maxed ? null : C.tiers[tier];
+      const afford = next && UI.profile.pebbles >= next.cost;
+      const pips = C.tiers.map((t, i) =>
+        `<span class="cu-pip${i < tier ? ' on' : ''}" title="Tier ${i + 1}: ${C.fmt(t.v)}"></span>`).join('');
+      const card = el('div', 'shop-card');
+      card.innerHTML = `
+        <div class="shop-icon">${C.icon}</div>
+        <div class="shop-name">${C.name} <span class="cu-pips">${pips}</span></div>
+        <div class="shop-desc">${C.desc}</div>
+        <div class="cu-now">${tier ? '✓ now: ' + C.fmt(C.tiers[tier - 1].v) : ' '}</div>
+        <div class="shop-row">
+          <span class="shop-owned">${maxed ? '★ fully upgraded' : 'next: ' + C.fmt(next.v)}</span>
+          ${maxed ? '' : `<button class="btn small${afford ? ' primary' : ''}" ${afford ? '' : 'disabled'}>Buy · ${next.cost.toLocaleString()} 🪨</button>`}
+        </div>`;
+      if (!maxed) {
+        card.querySelector('button').onclick = () => {
+          if (UI.profile.pebbles < next.cost) { sfx.error(); return; }
+          UI.profile.pebbles -= next.cost;
+          UI.profile.colony[id] = tier + 1;
+          G.applyColony(UI.profile.colony);
+          putProfile(UI.profile);
+          sfx.upgrade();
+          toast(`${C.icon} ${C.name} — ${C.fmt(next.v)}, in every battle from now on.`);
+          buildColony(backTo);
+        };
+      }
+      grid.appendChild(card);
+    }
+    $('#btn-colony-back').onclick = () => show(backTo);
+    show('#screen-colony');
   }
 
   /* ---------- Endless Tide (keep playing after victory) ---------- */
@@ -1154,6 +1237,7 @@
     if (c.rate) stats.push(`⚡ ${Math.round(c.rate * t.buff.rate * 100) / 100}/s`);
     if (c.range && c.range < 5000) stats.push(`◎ ${Math.round(c.range * t.buff.range)}`);
     if (c.income) stats.push(`+${fmt(c.income)}/w`);
+    stats.push(`<span title="Sea lions destroyed by this penguin">☠ <b class="ds-kills">${t.kills || 0}</b></span>`);
     head.appendChild(el('div', '', `<div class="ds-name" style="color:${color}">${def.name}${def.hero ? ` · <span class="hero-tag">★ Lv ${g.heroLevel}</span>` : ''}</div><div class="ds-stats">${stats.join(' · ')}</div>`));
     box.appendChild(head);
 
