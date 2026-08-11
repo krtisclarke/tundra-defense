@@ -709,7 +709,7 @@
             this.cash += t.calc.income;
             earned += t.calc.income;
             if (t.calc.interest) {
-              const bonus = Math.min(400, Math.round(this.cash * t.calc.interest));
+              const bonus = Math.min(200, Math.round(this.cash * t.calc.interest));
               this.cash += bonus; earned += bonus;
             }
           }

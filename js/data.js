@@ -455,20 +455,23 @@
     },
 
     /* ---- SUPPORT ---- */
+    /* Income halved Aug 2026: a measured audit had the maxed vendor printing
+       1010 🐟/wave against wave rewards of ~150-220, paying itself back in
+       ~5 waves — building vendors was simply the correct opening. */
     vendor: {
       cls: 'support', name: 'Fish Vendor', cost: 900,
       desc: 'Sells premium herring. Nets extra fish at the end of every wave.',
-      stats: { kind: 'income', income: 130, range: 0, water: 'never' },
+      stats: { kind: 'income', income: 65, range: 0, water: 'never' },
       paths: [
         { name: 'Business', tiers: [
-          { name: 'Bigger Stall',   cost: 500, desc: '+110 🐟 per wave.',                 mods: { add: { income: 110 } } },
-          { name: 'Fish Market',    cost: 1100, desc: '+220 🐟 per wave.',                mods: { add: { income: 220 } } },
-          { name: 'Krill Konglomerate', cost: 2800, desc: '+550 🐟 per wave.',            mods: { add: { income: 550 } } },
+          { name: 'Bigger Stall',   cost: 500, desc: '+55 🐟 per wave.',                  mods: { add: { income: 55 } } },
+          { name: 'Fish Market',    cost: 1100, desc: '+110 🐟 per wave.',                mods: { add: { income: 110 } } },
+          { name: 'Krill Konglomerate', cost: 2800, desc: '+275 🐟 per wave.',            mods: { add: { income: 275 } } },
         ]},
         { name: 'Finance', tiers: [
-          { name: 'Loyal Customers', cost: 400, desc: '+80 🐟 per wave.',                 mods: { add: { income: 80 } } },
-          { name: 'Pop-up Stands',  cost: 900, desc: '+170 🐟 per wave.',                 mods: { add: { income: 170 } } },
-          { name: 'Penguin Bank',   cost: 2400, desc: 'Also pays 5% interest on saved fish each wave (max 400 🐟).', mods: { set: { interest: 0.05 } } },
+          { name: 'Loyal Customers', cost: 400, desc: '+40 🐟 per wave.',                 mods: { add: { income: 40 } } },
+          { name: 'Pop-up Stands',  cost: 900, desc: '+85 🐟 per wave.',                  mods: { add: { income: 85 } } },
+          { name: 'Penguin Bank',   cost: 2400, desc: 'Also pays 5% interest on saved fish each wave (max 200 🐟).', mods: { set: { interest: 0.05 } } },
         ]},
       ],
     },
