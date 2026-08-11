@@ -78,9 +78,11 @@
       if (s.rate) s.rate *= N.rate;
       if (s.range && s.range < 5000) s.range *= N.range;
       if (s.minRange) s.minRange *= N.range;
-      // percentage buffs scale; armour-pierce and pierce are discrete grants
-      // whose printed descriptions ("punch through 2 armor") must stay true
-      for (const k of ['auraDmg', 'auraRate', 'auraRange']) if (s[k]) s[k] *= N.aura;
+      /* Auras are NOT scaled here. Their nerf is baked into the values in
+         data.js so that "Helpers hit 28% harder" is literally what the tower
+         grants — a multiplier at this point silently falsified every printed
+         percentage. Armour-pierce and pierce are likewise untouched, so
+         "punch through 2 armor" stays true. */
     }
     return s;
   }
@@ -400,6 +402,43 @@
         if (key > bestKey) { bestKey = key; best = { e, ep, d2 }; }
       }
       return best;
+    }
+
+    /* ----- what each Fish Vendor actually pays at the end of a wave -----
+       Richest stall first, and every vendor after it earns G.VENDOR_FALLOFF of
+       the one before — a second is worth 0.7 of the first, a third 0.49. Left
+       uncapped, stacking vendors was a money printer.
+
+       This is a method rather than a loop inside update() because the dock
+       panel has to quote the same figure the wave will actually pay. When the
+       two were separate, the panel advertised the vendor's full income and the
+       player was quietly handed less, with nothing on screen to explain it. */
+    vendorPayouts() {
+      const vendors = this.towers
+        .filter((t) => t.calc.kind === 'income')
+        .sort((a, b) => (b.calc.income || 0) - (a.calc.income || 0));
+      const out = [];
+      let share = 1;
+      let cash = this.cash;   // interest compounds down the list, as it pays out
+      for (const t of vendors) {
+        const c = t.calc;
+        let pay = c.income || 0;
+        // Trade Hub: pays per penguin standing in this vendor's circle
+        if (c.tradeHub) {
+          const r2 = (c.range || 0) ** 2;
+          let near = 0;
+          for (const o of this.towers) {
+            if (o !== t && o.calc.kind !== 'income' && dist2(t.x, t.y, o.x, o.y) <= r2) near++;
+          }
+          pay += c.tradeHub * near;
+        }
+        if (c.interest) pay += Math.min(200, Math.round(cash * c.interest));
+        const got = Math.round(pay * share);
+        out.push({ tower: t, rank: out.length + 1, share, full: pay, got });
+        cash += got;
+        share *= G.VENDOR_FALLOFF;
+      }
+      return out;
     }
 
     damageEnemy(e, rawDmg, tower, opts) {
@@ -871,31 +910,9 @@
         const wr = Math.round(this.waveReward * G.PERK.reward);   // Keen Scouts
         this.cash += wr;
         let earned = wr;
-        /* Vendor payouts, richest first, each extra vendor earning 70% of the
-           one before it. Stacking vendors used to be a money printer with no
-           ceiling; now a second is worth 0.7 of the first, a third 0.49, and
-           the total converges — building more of them stops being the answer. */
-        const vendors = this.towers
-          .filter((t) => t.calc.kind === 'income')
-          .sort((a, b) => (b.calc.income || 0) - (a.calc.income || 0));
-        let share = 1;
-        for (const t of vendors) {
-          const c = t.calc;
-          let pay = c.income || 0;
-          // Trade Hub: pays per penguin standing in this vendor's circle
-          if (c.tradeHub) {
-            const r2 = (c.range || 0) ** 2;
-            let near = 0;
-            for (const o of this.towers) {
-              if (o !== t && o.calc.kind !== 'income' && dist2(t.x, t.y, o.x, o.y) <= r2) near++;
-            }
-            pay += c.tradeHub * near;
-          }
-          if (c.interest) pay += Math.min(200, Math.round(this.cash * c.interest));
-          const got = Math.round(pay * share);
-          this.cash += got;
-          earned += got;
-          share *= 0.7;
+        for (const p of this.vendorPayouts()) {
+          this.cash += p.got;
+          earned += p.got;
         }
         // the hero grows with every wave it stood through
         if (this.heroTower) {

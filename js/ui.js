@@ -984,10 +984,24 @@
   }
 
   /* ---------- tooltip ---------- */
+  /* The numbers a player is shown BEFORE building anything.
+     G.TOWERS[id].stats holds the design-time figures; the global nerf is
+     applied inside computeEffective, so any surface quoting stats has to go
+     through it or it advertises a penguin that does not exist. This bit the
+     guide and this tooltip once already — both were promising 1.2/s and 150
+     range for a penguin that builds at 1.02/s and 128. */
+  function shopStats(typeId) {
+    const s = G.computeEffective(typeId, [0, 0]);
+    if (s.damage) s.damage = Math.round(s.damage * 100) / 100;
+    if (s.rate) s.rate = Math.round(s.rate * 100) / 100;
+    if (s.range && s.range < 5000) s.range = Math.round(s.range);
+    return s;
+  }
+
   function showTooltip(anchor, typeId) {
     const def = G.TOWERS[typeId];
     const cls = G.CLASSES[def.cls];
-    const s = def.stats;
+    const s = shopStats(typeId);
     const bits = [];
     if (s.damage) bits.push(['Damage', s.damage]);
     if (s.rate) bits.push(['Speed', s.rate + '/s']);
@@ -1220,7 +1234,7 @@
         `<span class="gd-sec-name" style="color:${cls.color}">${cls.name}</span><span class="gd-sec-desc">${cls.desc}</span>`));
       for (const id of G.TOWER_ORDER.filter((t) => G.TOWERS[t].cls === clsKey)) {
         const def = G.TOWERS[id];
-        const s = def.stats;
+        const s = shopStats(id);
         const need = G.towerNeed(p, id);
         const card = el('div', 'gd-card');
         const cv = document.createElement('canvas');
@@ -1457,10 +1471,27 @@
     if (c.damage) stats.push(`⚔ ${Math.round(c.damage * t.buff.dmg * 10) / 10}`);
     if (c.rate) stats.push(`⚡ ${Math.round(c.rate * t.buff.rate * 100) / 100}/s`);
     if (c.range && c.range < 5000) stats.push(`◎ ${Math.round(c.range * t.buff.range)}`);
-    if (c.income) stats.push(`+${fmt(c.income)}/w`);
+    /* A vendor's headline number is what it will ACTUALLY pay next wave, not
+       its sticker income — with other vendors on the map those differ, and the
+       gap is the whole thing a player needs to see before buying another. */
+    const vpay = c.income ? g.vendorPayouts().find((p) => p.tower === t) : null;
+    if (vpay) stats.push(`+${fmt(vpay.got)}/w`);
     stats.push(`<span title="Sea lions destroyed by this penguin">☠ <b class="ds-kills">${t.kills || 0}</b></span>`);
     head.appendChild(el('div', '', `<div class="ds-name" style="color:${color}">${def.name}${def.hero ? ` · <span class="hero-tag">★ Lv ${g.heroLevel}</span>` : ''}</div><div class="ds-stats">${stats.join(' · ')}</div>`));
     box.appendChild(head);
+
+    /* Say out loud why a vendor is paying less than it advertises. Without
+       this the falloff is invisible: you buy a second stall, the wave payout
+       barely moves, and nothing on screen connects the two. */
+    if (vpay) {
+      const all = g.vendorPayouts();
+      if (all.length > 1) {
+        const pct = Math.round(vpay.share * 100);
+        box.appendChild(el('div', 'ds-vendor-note', vpay.rank === 1
+          ? `Best stall of ${all.length} — sells at full price. Each further vendor earns ${Math.round((1 - G.VENDOR_FALLOFF) * 100)}% less than the one above it.`
+          : `Stall ${vpay.rank} of ${all.length} — the market is crowded, so it earns <b>${pct}%</b> of full price: ${fmt(vpay.full)} → <b>${fmt(vpay.got)}</b>.`));
+      }
+    }
 
     if (def.hero) {
       const H = G.HEROES[t.type];

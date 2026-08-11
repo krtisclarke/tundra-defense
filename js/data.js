@@ -84,9 +84,9 @@
   /* Hard ceilings on what auras can do to one penguin, however many support
      towers surround it. Reached by roughly one maxed aura tower of each kind,
      so the second and third are for covering more ground, not more power. */
-  /* The ceilings drop with the buffs themselves (G.NERF.aura), so the most a
-     penguin can ever be buffed to falls by the same amount — cutting only the
-     sources would have left a big enough cluster reaching the old cap anyway. */
+  /* These ceilings were lowered alongside the aura nerf, so the most a penguin
+     can ever be buffed to fell by the same amount — cutting only the sources
+     would have left a big enough cluster reaching the old cap anyway. */
   G.AURA_CAP = { dmg: 1.80, rate: 1.80, range: 1.36, shred: 4, pierce: 2 };
 
   /* Endless pacing. Piling HP on slow-moving sea lions turned late waves into
@@ -532,7 +532,7 @@
        engine.js), which is what actually caps the runaway. */
     vendor: {
       cls: 'support', name: 'Fish Vendor', cost: 900,
-      desc: 'Sells premium herring. Nets extra fish at the end of every wave.',
+      desc: 'Sells premium herring. Nets extra fish at the end of every wave — but the market only bears so many stalls: each extra vendor earns 30% less than the one before it.',
       stats: { kind: 'income', income: 65, range: 150, water: 'never' },
       paths: [
         { name: 'Market', tiers: [
@@ -549,18 +549,18 @@
     },
     igloo: {
       cls: 'support', name: 'Igloo Fortress', cost: 1000,
-      desc: 'HQ that inspires helpers inside its circle: +20% damage.',
-      stats: { kind: 'aura', range: 125, auraDmg: 0.2, water: 'never' },
+      desc: 'HQ that inspires helpers inside its circle: +16% damage.',
+      stats: { kind: 'aura', range: 125, auraDmg: 0.16, water: 'never' },
       paths: [
         { name: 'Command', tiers: [
-          { name: 'War Room',       cost: 600, desc: 'Helpers hit 35% harder.',                 mods: { add: { auraDmg: 0.15 } } },
+          { name: 'War Room',       cost: 600, desc: 'Helpers hit 28% harder.',                 mods: { add: { auraDmg: 0.12 } } },
           { name: 'Elite Training', cost: 1300, desc: 'Wider circle; helpers pierce 1 more.', mods: { mul: { range: 1.15 }, set: { auraPierce: 1 } } },
-          { name: 'High Command',   cost: 3200, desc: 'Helpers hit 65% harder and punch through 2 armor.', mods: { add: { auraDmg: 0.3 }, set: { auraShred: 2 } } },
+          { name: 'High Command',   cost: 3200, desc: 'Helpers hit 52% harder and punch through 2 armor.', mods: { add: { auraDmg: 0.24 }, set: { auraShred: 2 } } },
         ]},
         { name: 'Garrison', tiers: [
           { name: 'Watchtower',     cost: 500, desc: 'Helpers see stealth sea lions.',      mods: { set: { auraStealth: true } } },
-          { name: 'Drill Sergeant', cost: 1100, desc: 'Helpers attack 15% faster.', mods: { add: { auraRate: 0.15 } } },
-          { name: 'Fortress Walls', cost: 2600, desc: 'Wider circle; helpers +15% more speed.', mods: { mul: { range: 1.2 }, add: { auraRate: 0.15 } } },
+          { name: 'Drill Sergeant', cost: 1100, desc: 'Helpers attack 12% faster.', mods: { add: { auraRate: 0.12 } } },
+          { name: 'Fortress Walls', cost: 2600, desc: 'Wider circle; helpers +12% more speed (24% total).', mods: { mul: { range: 1.2 }, add: { auraRate: 0.12 } } },
         ]},
       ],
     },
@@ -570,15 +570,15 @@
          gives OTHER penguins; "covers more ground" = how far the circle itself
          reaches. "Range aura" next to "aura radius" read as the same thing. */
       desc: 'Pings the ice: helpers in its circle shoot further and see stealth.',
-      stats: { kind: 'aura', range: 130, auraRange: 0.10, auraStealth: true, water: 'never' },
+      stats: { kind: 'aura', range: 130, auraRange: 0.08, auraStealth: true, water: 'never' },
       paths: [
         { name: 'Amplify', tiers: [
-          { name: 'Big Dish',       cost: 350, desc: 'Helpers shoot 16% further.', mods: { add: { auraRange: 0.06 } } },
+          { name: 'Big Dish',       cost: 350, desc: 'Helpers shoot 13% further.', mods: { add: { auraRange: 0.05 } } },
           { name: 'Deep Ping',      cost: 700, desc: 'Circle covers 20% more ground.', mods: { mul: { range: 1.2 } } },
           { name: 'Grand Array',    cost: 1800, desc: 'Helpers’ shots pierce 1 extra sea lion.', mods: { set: { auraPierce: 1 } } },
         ]},
         { name: 'Decrypt', tiers: [
-          { name: 'Signal Boost',   cost: 300, desc: 'Helpers attack 10% faster.',        mods: { add: { auraRate: 0.1 } } },
+          { name: 'Signal Boost',   cost: 300, desc: 'Helpers attack 8% faster.',        mods: { add: { auraRate: 0.08 } } },
           { name: 'Echo Location',  cost: 650, desc: 'Circle covers 20% more ground.', mods: { mul: { range: 1.2 } } },
           { name: 'Full Decloak',   cost: 1600, desc: 'Stealth in the circle is revealed to EVERY penguin.', mods: { set: { decloak: true } } },
         ]},
@@ -586,16 +586,16 @@
     },
     drummer: {
       cls: 'support', name: 'War Drummer', cost: 700,
-      desc: 'Pounds a walrus-hide drum: helpers inside its circle attack 20% faster.',
-      stats: { kind: 'aura', range: 120, auraRate: 0.2, water: 'never' },
+      desc: 'Pounds a walrus-hide drum: helpers inside its circle attack 16% faster.',
+      stats: { kind: 'aura', range: 120, auraRate: 0.16, water: 'never' },
       paths: [
         { name: 'Rhythm', tiers: [
-          { name: 'Double Time',    cost: 450, desc: 'Helpers attack 35% faster.',            mods: { add: { auraRate: 0.15 } } },
-          { name: 'Battle Anthem',  cost: 950, desc: 'Helpers attack 55% faster.',            mods: { add: { auraRate: 0.2 } } },
-          { name: 'Thunder Drums',  cost: 2400, desc: 'Helpers attack 80% faster; wider circle.', mods: { add: { auraRate: 0.25 }, mul: { range: 1.15 } } },
+          { name: 'Double Time',    cost: 450, desc: 'Helpers attack 28% faster.',            mods: { add: { auraRate: 0.12 } } },
+          { name: 'Battle Anthem',  cost: 950, desc: 'Helpers attack 44% faster.',            mods: { add: { auraRate: 0.16 } } },
+          { name: 'Thunder Drums',  cost: 2400, desc: 'Helpers attack 64% faster; wider circle.', mods: { add: { auraRate: 0.2 }, mul: { range: 1.15 } } },
         ]},
         { name: 'Morale', tiers: [
-          { name: 'Rallying Beat',  cost: 400, desc: 'Helpers hit 10% harder.',      mods: { add: { auraDmg: 0.1 } } },
+          { name: 'Rallying Beat',  cost: 400, desc: 'Helpers hit 8% harder.',      mods: { add: { auraDmg: 0.08 } } },
           { name: 'Marching Orders', cost: 850, desc: 'Circle covers 20% more ground.', mods: { mul: { range: 1.2 } } },
           { name: 'Heroic Ballad',  cost: 2000, desc: 'Helpers punch through 2 armor.', mods: { set: { auraShred: 2 } } },
         ]},
@@ -646,7 +646,7 @@
   G.TOWERS.hero_beak = {
     cls: 'support', hero: true, name: 'Commander Beak', cost: 500,
     desc: 'A living rallying cry: every penguin near him fights harder and faster.',
-    stats: { range: 155, rate: 1.0, damage: 2, pierce: 2, projSpeed: 480, kind: 'bullet', auraDmg: 0.15, auraRate: 0.1, water: 'never' },
+    stats: { range: 155, rate: 1.0, damage: 2, pierce: 2, projSpeed: 480, kind: 'bullet', auraDmg: 0.12, auraRate: 0.08, water: 'never' },
     paths: [],
   };
   G.TOWERS.hero_shiver = {
@@ -667,7 +667,7 @@
     hero_beak: {
       pebbles: 5000,
       blurb: 'Weak alone, mighty together — his aura grows with every level.',
-      perLevel: { damage: 0.12, auraDmg: 0.02, auraRate: 0.015, range: 0.02 },
+      perLevel: { damage: 0.12, auraDmg: 0.016, auraRate: 0.012, range: 0.02 },
       ability: { name: 'War Cry', icon: '📯', cd: 60, unlock: 3,
                  desc: 'The whole colony attacks 50% faster for 8 seconds.' },
     },
@@ -1218,16 +1218,28 @@
      hand.
 
      Damage is back at full: every penguin hits for its printed number again.
-     What stays nerfed is everything around the hit — 15% shorter reach, 15%
-     slower fire, 20% weaker buffs — so a penguin covers less trail and gets
-     fewer swings at what crosses it, but each swing lands as it always did.
+     What stays nerfed is everything around the hit — 15% shorter reach and 15%
+     slower fire — so a penguin covers less trail and gets fewer swings at what
+     crosses it, but each swing lands as it always did.
+
+     The 20% aura cut used to live here too. It moved into the aura values
+     themselves, because a multiplier applied at compute time made every
+     printed percentage a lie: "Helpers hit 35% harder" really meant 28%, and
+     no screen in the game could tell you that. Aura numbers in this file are
+     now the numbers the player is promised.
 
      The 0.75 damage cut came out because it overshot. Measured on a scripted
      learner: with it, battlefield 1 on Easy squeaked home with 20 lives and
      Medium collapsed at wave 17. Without it, Easy finishes with 160 (the
      un-nerfed game manages 190) and Medium runs the full 40 waves. That is the
      intended shape — noticeably harder than before, still winnable. */
-  G.NERF = { damage: 1, rate: 0.85, range: 0.85, aura: 0.80 };
+  G.NERF = { damage: 1, rate: 0.85, range: 0.85 };
+
+  /* Fish Vendor stacking. The richest stall earns full price and each one
+     after it takes this fraction of the one before, so the total converges and
+     carpeting the map with vendors stops being the correct opening. Named
+     rather than inlined because the dock panel quotes it back to the player. */
+  G.VENDOR_FALLOFF = 0.7;
 
   const OBSTACLE_KINDS = {
     1: ['rock', 'rock', 'crack', 'glacier'],
