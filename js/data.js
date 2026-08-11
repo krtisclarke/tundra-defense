@@ -68,32 +68,64 @@
     };
   };
 
-  /* ---------------- Tower drip ----------------
-     A brand-new player starts with a five-penguin starter kit; the rest join
-     two at a time as battlefields are defended (any difficulty). Numbers are
-     "battlefields defended, anywhere" — an existing profile with wins keeps
-     everything it could already use. */
-  G.TOWER_UNLOCKS = {
-    pebble: 0, snowball: 0, slush: 0, harpoon: 0, vendor: 0,
-    shards: 1, torpedo: 1,
-    glacier: 2, depth: 2,      // the water pair arrives before Frozen River
-    aurora: 3, sonar: 3,
-    witch: 4, drummer: 4,
-    jetpack: 5, icewall: 5,
-    shadow: 6, igloo: 6,
-    blizzard: 7, artillery: 7,
-    sunpriest: 8,
+  /* ---------------- Colony rank (XP levels) ----------------
+     Every sea lion destroyed is 1 XP — splits included, so a Beachmaster is
+     worth 17 and a Colossus 52. Each rank gained recruits exactly one new
+     penguin. A brand-new colony fields five (one or two per class); the other
+     fifteen arrive at ranks 2-16, weakest first, the Sun Priest last.
+
+     The curve is measured, not guessed: a first Easy campaign yields ~2,140
+     sea lions and all ten Frostlands battlefields ~30,900, so rank 16 lands
+     just as the first campaign tier is finished. Harder difficulties field
+     more sea lions per battle and so rank up faster — which is only fair. */
+  G.MAX_RANK = 16;
+  G.RANK_XP = [
+    0,      // rank 1 — where everyone starts
+    60, 300, 750, 1450, 2450,
+    3700, 5250, 7150, 9400, 12000,
+    14900, 18200, 21900, 26000, 30500,
+  ];
+  G.STARTERS = ['pebble', 'snowball', 'harpoon', 'aurora', 'vendor'];
+  /* recruited one per rank, from rank 2 — cheap utility first, the heavy
+     hitters and the big aura pieces last. The water pair (Torpedo Sub, Depth
+     Charge Boat) lands at ranks 4 and 6, comfortably before Frozen River. */
+  G.RANK_UNLOCKS = [
+    'slush', 'shards', 'torpedo', 'glacier', 'depth',
+    'sonar', 'shadow', 'witch', 'icewall', 'drummer',
+    'jetpack', 'blizzard', 'artillery', 'igloo', 'sunpriest',
+  ];
+
+  G.xpForRank = (rank) => G.RANK_XP[Math.max(0, Math.min(G.MAX_RANK, rank) - 1)] || 0;
+  G.rankFromXp = function (xp) {
+    let r = 1;
+    for (let i = 1; i < G.RANK_XP.length; i++) if ((xp || 0) >= G.RANK_XP[i]) r = i + 1;
+    return r;
   };
+  // XP into the current rank / XP that rank spans — for the progress bar
+  G.rankProgress = function (xp) {
+    xp = xp || 0;
+    const rank = G.rankFromXp(xp);
+    if (rank >= G.MAX_RANK) return { rank, into: 0, span: 0, next: null, maxed: true };
+    const base = G.xpForRank(rank), next = G.xpForRank(rank + 1);
+    return { rank, into: xp - base, span: next - base, next, maxed: false };
+  };
+  // the penguin a given rank recruits (null for rank 1)
+  G.unlockAtRank = (rank) => G.RANK_UNLOCKS[rank - 2] || null;
+  // 0 = usable now; otherwise the rank still needed
+  G.towerNeed = function (profile, typeId) {
+    if ((G.TOWERS[typeId] || {}).hero) return 0;
+    if (G.STARTERS.includes(typeId)) return 0;
+    const idx = G.RANK_UNLOCKS.indexOf(typeId);
+    if (idx < 0) return 0;
+    const need = idx + 2;
+    return G.rankFromXp((profile || {}).xp) >= need ? 0 : need;
+  };
+
   G.defendedCount = (profile) =>
     G.LEVELS.filter((L) => {
       const d = ((profile || {}).diffDone || {})[L.id];
       return d && (d.easy || d.medium || d.hard);
     }).length;
-  // 0 = usable now; otherwise the battlefields-defended count still needed
-  G.towerNeed = function (profile, typeId) {
-    const need = G.TOWER_UNLOCKS[typeId] || 0;
-    return G.defendedCount(profile) >= need ? 0 : need;
-  };
 
   /* ---------------- Campaign tiers ----------------
      Ten battlefields each. Later tiers use a physically larger map, tougher

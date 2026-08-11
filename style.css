@@ -678,12 +678,51 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
 .diff-facts b { color: var(--text); }
 .diff-reward { color: var(--gold); font-weight: 750; }
 
+/* colony rank chip + progress bar */
+.chip-row { display: flex; gap: 10px; justify-content: center; align-items: center; flex-wrap: wrap; }
+.rank-chip {
+  display: inline-flex; align-items: center; gap: 9px;
+  background: rgba(116, 220, 251, 0.09);
+  border: 1px solid rgba(116, 220, 251, 0.32);
+  border-radius: 999px;
+  padding: 6px 15px;
+  margin-bottom: 14px;
+  font-size: 14px; font-weight: 750;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+.rank-chip.wide { display: flex; width: min(460px, 92%); margin: 0 auto 16px; justify-content: space-between; }
+.rank-bar {
+  display: block;
+  width: 90px; height: 6px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.rank-chip.wide .rank-bar { flex: 1; max-width: 240px; }
+.rank-bar i {
+  display: block; height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, var(--accent), #9ff0ff);
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}
+
 /* main-menu rows: related buttons share a line instead of stacking */
 .menu-row { display: flex; gap: 8px; justify-content: center; width: min(420px, 92vw); margin: 6px auto; }
 .menu-row .btn { flex: 1 1 0; padding: 12px 8px; font-size: 14px; }
 
 /* Penguin Guide */
 #screen-guide { max-width: 980px; }
+.gd-rank {
+  background: rgba(116, 220, 251, 0.09);
+  border: 1px solid rgba(116, 220, 251, 0.3);
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-bottom: 18px;
+  font-size: 13.5px;
+  color: var(--accent);
+}
 .gd-sec { margin-bottom: 22px; text-align: left; }
 .gd-sec-head {
   display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;

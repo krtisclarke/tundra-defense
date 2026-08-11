@@ -102,11 +102,30 @@ from then on.
 
 ### Your penguins — 20 towers, 4 classes, each with 2 upgrade paths × 3 tiers
 
-A brand-new colony starts with a five-penguin starter kit (Pebble Flinger, Snowball
-Roller, Slush Thrower, Harpoon Sniper, Fish Vendor); the rest join **two at a time as
-battlefields are defended**, on any difficulty — the full roster is in hand by eight
-battlefields. Existing profiles keep everything they've earned. Every penguin's card
-shows its **☠ kill count**, and the victory screen names the battle's top defender.
+Every penguin's card shows its **☠ kill count**, and the victory screen names the
+battle's top defender.
+
+### Colony rank — every sea lion is 1 XP
+
+The colony starts with five penguins (Pebble Flinger, Snowball Roller, Harpoon Sniper,
+Aurora Mage, Fish Vendor) — one or two from each class. **Every sea lion destroyed earns
+1 XP**, splits included, so a Beachmaster is worth 17 and a Colossus 52. **Each rank
+gained recruits exactly one more penguin**, weakest first, and the legendary Sun Priest
+last at rank 16:
+
+| Rank | Recruit | Rank | Recruit | Rank | Recruit |
+|---|---|---|---|---|---|
+| 2 | Slush Thrower | 7 | Sonar Station | 12 | Jetpack Penguin |
+| 3 | Ice Shard Gunner | 8 | Shadow Diver | 13 | Blizzard Caller |
+| 4 | Torpedo Sub 🌊 | 9 | Frost Witch | 14 | Artillery Emperor |
+| 5 | Glacier Cannon | 10 | Ice Wall Builder | 15 | Igloo Fortress |
+| 6 | Depth Charge Boat 🌊 | 11 | War Drummer | 16 | Sun Priest |
+
+Rank 2 arrives about six waves into your very first battle, and rank 16 lands as you
+finish the Frostlands — a first Easy campaign yields roughly 2,100 sea lions, and all
+ten of them about 30,900. Harder difficulties field more sea lions per battle, so they
+rank up faster. Lost battles still count every sea lion they felled. Existing profiles
+are seeded at the rank their wins had already earned.
 
 | Class | Towers |
 |---|---|

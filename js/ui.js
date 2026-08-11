@@ -54,6 +54,13 @@
     if (!p.heroes) p.heroes = { hero_frost: true };  // the Captain serves for free
     if (p.heroSel === undefined) p.heroSel = 'hero_frost'; // null = fight heroless
     if (!p.colony) p.colony = {};                    // permanent Colony Upgrades tiers
+    /* Colony rank. Profiles from the battlefields-defended era are seeded with
+       the XP for the rank their wins had already earned (that drip gave five
+       starters + two per battlefield), so nobody loses a penguin they had. */
+    if (p.xp == null) {
+      const grandfathered = Math.min(G.MAX_RANK, 1 + G.defendedCount(p) * 2);
+      p.xp = G.xpForRank(grandfathered);
+    }
     G.applyColony(p.colony);                         // perks live in G.PERK from here on
     // legacy profiles: a completed level was a 50-wave campaign → credit it as Hard
     for (const id in p.completed) {
@@ -293,6 +300,7 @@
     $('#overlay').style.display = id ? 'flex' : 'none';
     // every menu screen carries a pebble chip — keep them all current
     for (const b of document.querySelectorAll('.js-pebbles')) b.textContent = UI.profile.pebbles.toLocaleString();
+    syncRankChips();
   }
 
   function openPauseMenu() {
@@ -648,6 +656,7 @@
   function doSave(silent) {
     const g = UI.game;
     if (!g || g.over) return;
+    bankXp();   // no-op if nothing new was felled; keeps quitting from losing XP
     const ok = store.set(saveKey(g.levelIdx), g.serialize());
     if (!silent) toast(ok ? '💾 Game saved.' : 'Save failed — browser storage unavailable.', ok ? '' : 'bad');
   }
@@ -663,6 +672,7 @@
       updateWavePreview();
       updateHud();
     } else if (kind === 'waveEnd') {
+      bankXp();
       doSave(true);
       if (g.endless && payload.wave > g.totalWaves) {
         const p = UI.profile;
@@ -702,20 +712,16 @@
       toast(`☠ ${payload} destroyed!`);
     } else if (kind === 'victory') {
       G.music.stop();
+      bankXp();          // the final wave's sea lions count too
       sfx.win();
       const p = UI.profile;
       const D = G.DIFFICULTIES[g.diffId];
-      const lockedBefore = G.TOWER_ORDER.filter((id) => G.towerNeed(p, id));
       p.completed[g.level.id] = true;
       p.diffDone[g.level.id] = Object.assign({}, p.diffDone[g.level.id], { [g.diffId]: true });
       p.bestWave[g.level.id] = Math.max(p.bestWave[g.level.id] || 0, g.totalWaves);
       p.pebbles += D.pebbles;
       putProfile(p);
       store.del(saveKey(g.levelIdx));
-
-      // did this win drip new penguins into the palette?
-      const joined = lockedBefore.filter((id) => !G.towerNeed(p, id)).map((id) => G.TOWERS[id].name);
-      if (joined.length) toast(`🐧 New penguins have joined the colony: ${joined.join(' & ')}!`);
 
       // who earned their fish this battle?
       const top = [...g.towers].sort((a, b) => (b.kills || 0) - (a.kills || 0))[0];
@@ -741,10 +747,12 @@
       eb.onclick = keepGoing;
       $('#end-title').textContent = '🏆 Colony Defended!';
       $('#end-sub').textContent = `${g.level.name} (${D.name}) is safe. All ${g.totalWaves} waves repelled with ${g.lives} lives to spare.` + topLine +
-        ` Reward: +${D.pebbles} 🪨 pebbles — you now have ${p.pebbles.toLocaleString()}.` + opened;
+        ` Reward: +${D.pebbles} 🪨 pebbles — you now have ${p.pebbles.toLocaleString()}. ` +
+        `${g.kills.toLocaleString()} sea lions destroyed — ${rankChipText()}.` + opened;
       show('#screen-end');
     } else if (kind === 'defeat') {
       G.music.stop();
+      bankXp();          // a lost battle still earned every sea lion it felled
       sfx.lose();
       const p = UI.profile;
       p.bestWave[g.level.id] = Math.max(p.bestWave[g.level.id] || 0, g.wave - 1);
@@ -772,8 +780,9 @@
           (afford ? ' The colony can rally, for a price…' : '');
       } else {
         $('#end-title').textContent = '💔 The Colony Has Fallen';
-        $('#end-sub').textContent = `The sea lions broke through on wave ${g.wave}. You survived ${g.wave - 1} full waves` +
-          (afford ? ' — but the colony can rally, for a price…' : ' — regroup and try again!');
+        $('#end-sub').textContent = `The sea lions broke through on wave ${g.wave}. You survived ${g.wave - 1} full waves ` +
+          `and felled ${g.kills.toLocaleString()} sea lions — ${rankChipText()}.` +
+          (afford ? ' The colony can rally, for a price…' : ' Regroup and try again!');
       }
       show('#screen-end');
     }
@@ -904,12 +913,51 @@
     }
   }
 
-  // why this penguin can't be built yet (tower drip) — null when usable
+  // why this penguin can't be built yet (colony rank) — null when usable
   function towerLockMsg(id) {
     const need = G.towerNeed(UI.profile, id);
     if (!need) return null;
-    const toGo = need - G.defendedCount(UI.profile);
-    return `${G.TOWERS[id].name} joins after ${need} battlefield${need === 1 ? ' is' : 's are'} defended — ${toGo} to go.`;
+    const short = Math.max(0, G.xpForRank(need) - (UI.profile.xp || 0));
+    return `${G.TOWERS[id].name} joins the colony at rank ${need} — ${short.toLocaleString()} more sea lions.`;
+  }
+
+  /* ---------- colony rank: XP banked from the battle, one penguin per rank ---------- */
+  function bankXp() {
+    const g = UI.game;
+    if (!g) return;
+    const gained = g.kills - g.xpBanked;
+    if (gained <= 0) return;
+    g.xpBanked = g.kills;
+    const p = UI.profile;
+    const before = G.rankFromXp(p.xp);
+    p.xp = (p.xp || 0) + gained;
+    const after = G.rankFromXp(p.xp);
+    putProfile(p);
+    for (let r = before + 1; r <= after; r++) {
+      const id = G.unlockAtRank(r);
+      sfx.win();
+      banner(`⬆ Colony Rank ${r}`);
+      toast(id
+        ? `⬆ Rank ${r}! 🐧 ${G.TOWERS[id].name} joins the colony — build it right now.`
+        : `⬆ Rank ${r}!`);
+      if (id) buildPalette();   // the new penguin appears in the tray mid-battle
+    }
+    updateHud();
+  }
+
+  // "Rank 4 · 812 / 1,450" for the menu chips
+  function rankChipText() {
+    const pr = G.rankProgress(UI.profile.xp);
+    return pr.maxed
+      ? `Rank ${pr.rank} · every penguin recruited`
+      : `Rank ${pr.rank} · ${(UI.profile.xp || 0).toLocaleString()} / ${pr.next.toLocaleString()} 🦭`;
+  }
+  function syncRankChips() {
+    const pr = G.rankProgress(UI.profile.xp);
+    for (const c of document.querySelectorAll('.js-rank')) c.textContent = rankChipText();
+    for (const b of document.querySelectorAll('.js-rank-bar i')) {
+      b.style.width = (pr.maxed ? 100 : Math.round((pr.into / pr.span) * 100)) + '%';
+    }
   }
 
   function armTower(id) {
@@ -1118,6 +1166,14 @@
     body.innerHTML = '';
     const p = UI.profile;
 
+    // where the colony stands, and who joins next
+    const pr = G.rankProgress(p.xp);
+    const nextId = pr.maxed ? null : G.unlockAtRank(pr.rank + 1);
+    body.appendChild(el('div', 'gd-rank', pr.maxed
+      ? `<b>Colony Rank ${pr.rank}</b> — every penguin has been recruited.`
+      : `<b>Colony Rank ${pr.rank}</b> · ${(p.xp || 0).toLocaleString()} / ${pr.next.toLocaleString()} sea lions` +
+        (nextId ? ` — <b>${G.TOWERS[nextId].name}</b> joins at rank ${pr.rank + 1}, ${(pr.next - (p.xp || 0)).toLocaleString()} to go.` : '')));
+
     // one section per class, every tower with both full upgrade paths
     for (const clsKey of Object.keys(G.CLASSES)) {
       const cls = G.CLASSES[clsKey];
@@ -1146,7 +1202,7 @@
         head.appendChild(el('div', '', `
           <div class="gd-name" style="color:${cls.color}">${def.name}
             <span class="gd-cost">🐟${def.cost}</span>
-            ${need ? `<span class="gd-lock">🔒 after ${need} battlefield${need === 1 ? '' : 's'}</span>` : ''}</div>
+            ${need ? `<span class="gd-lock">🔒 recruited at rank ${need}</span>` : ''}</div>
           <div class="gd-stats">${bits.join(' · ')}</div>
           <div class="gd-desc">${def.desc}</div>`));
         card.appendChild(head);

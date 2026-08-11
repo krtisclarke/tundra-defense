@@ -83,7 +83,13 @@
       <p class="blurb">The sea lion herds are marching on the colony. Recruit 20 penguin defenders across
         four classes, hold the line across 30 battlefields in three campaign tiers — 30, 40 or 50
         waves depending on your nerve — and keep every last chick safe.</p>
-      <div class="pebble-chip" title="Pebbles — win battles to earn them">🪨 <b class="js-pebbles">0</b> pebbles</div>
+      <div class="chip-row">
+        <div class="pebble-chip" title="Pebbles — win battles to earn them">🪨 <b class="js-pebbles">0</b> pebbles</div>
+        <div class="rank-chip" title="Every sea lion destroyed is 1 XP. Each rank recruits another penguin.">
+          <span class="js-rank">Rank 1</span>
+          <span class="rank-bar js-rank-bar"><i></i></span>
+        </div>
+      </div>
       <button class="btn big primary" id="btn-play">Play</button>
       <div class="menu-row">
         <button class="btn" id="btn-heroes">⭐ Heroes</button>
@@ -108,6 +114,10 @@
         <button class="btn small" id="btn-levels-back">← Menu</button>
         <h2>Choose a Battlefield</h2>
         <span class="pebble-chip" title="Pebbles — win battles to earn them">🪨 <b class="js-pebbles">0</b> pebbles</span>
+      </div>
+      <div class="rank-chip wide" title="Every sea lion destroyed is 1 XP. Each rank recruits another penguin.">
+        <span class="js-rank">Rank 1</span>
+        <span class="rank-bar js-rank-bar"><i></i></span>
       </div>
       <div id="level-grid"></div>
     </div>

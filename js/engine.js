@@ -93,6 +93,8 @@
       this.nextWaveIn = null;   // auto-start countdown (ticks only while unpaused)
       this.over = null;           // 'win' | 'lose'
       this.endless = false;       // set after victory if the player keeps going
+      this.kills = 0;             // sea lions destroyed this battle = colony XP
+      this.xpBanked = 0;          // how much of that is already on the profile
       this.selected = null;
       this.placingType = null;
       this.mouse = { x: -999, y: -999 };
@@ -335,6 +337,7 @@
     killEnemy(e, tower) {
       if (e.dead) return;
       e.dead = true;
+      this.kills++;                                     // leaks never reach here
       if (tower) tower.kills = (tower.kills || 0) + 1;
       const def = G.ENEMIES[e.type];
       const bounty = Math.max(1, Math.round(def.bounty * (this.level.bountyMult || 1) * G.PERK.bounty));
@@ -747,6 +750,7 @@
         wave: this.wave, waveInProgress: this.waveInProgress, waveTime: this.waveTime,
         waveReward: this.waveReward || 0, autoStart: this.autoStart, time: this.time,
         frenzyUntil: this.frenzyUntil || 0, endless: this.endless,
+        kills: this.kills, xpBanked: this.xpBanked,
         heroType: this.heroType, heroWaves: this.heroWaves,
         heroReadyIn: Math.max(0, this.heroReadyAt - this.time),
         towers: this.towers.map((t) => ({ type: t.type, x: t.x, y: t.y, up: [...t.up], target: t.target, invested: t.invested, kills: t.kills || 0 })),
@@ -767,6 +771,7 @@
       g.waveInProgress = data.waveInProgress; g.waveTime = data.waveTime;
       g.waveReward = data.waveReward; g.autoStart = !!data.autoStart; g.time = data.time || 0;
       g.frenzyUntil = data.frenzyUntil || 0; g.endless = !!data.endless;
+      g.kills = data.kills || 0; g.xpBanked = data.xpBanked || 0;
       g.heroWaves = data.heroWaves || 0;
       g.heroReadyAt = g.time + (data.heroReadyIn || 0);
       for (const td of data.towers) {
