@@ -53,6 +53,10 @@
     if (!p.diffDone) p.diffDone = {};
     if (!p.powerInv) p.powerInv = {};
     if (!p.heroes) p.heroes = { hero_frost: true };  // the Captain serves for free
+    // audio levels, 0..1. Music sits under the effects by default: it is a bed,
+    // and the effects are the ones carrying information.
+    if (p.musicVol == null) p.musicVol = 0.7;
+    if (p.sfxVol == null) p.sfxVol = 1;
     if (p.heroSel === undefined) p.heroSel = 'hero_frost'; // null = fight heroless
     if (!p.colony) p.colony = {};                    // permanent Colony Upgrades tiers
     /* Colony rank. Profiles from the battlefields-defended era are seeded with
@@ -71,22 +75,39 @@
   }
   function putProfile(p) { store.set(PROFILE_KEY, p); }
 
-  /* ---------- sound (tiny synth) ---------- */
-  let actx = null;
+  /* ---------- sound (tiny synth) ----------
+     Every effect runs through one master gain rather than straight to the
+     speakers, so a single slider can ride the whole set. Each beep still picks
+     its own level; that is balance between the effects, this is how loud the
+     effects are as a group. */
+  let actx = null, sfxMaster = null, sfxVol = 1;
+  function sfxCtx() {
+    if (!actx) {
+      actx = new (window.AudioContext || window.webkitAudioContext)();
+      sfxMaster = actx.createGain();
+      sfxMaster.gain.value = sfxVol;
+      sfxMaster.connect(actx.destination);
+    }
+    if (actx.state === 'suspended') actx.resume();
+    return actx;
+  }
+  function setSfxVolume(v) {
+    sfxVol = Math.max(0, Math.min(1, Number(v) || 0));
+    if (sfxMaster) sfxMaster.gain.value = sfxVol;
+  }
   function beep(freq, dur, type, vol, slide) {
-    if (UI.profile.muted) return;
+    if (UI.profile.muted || sfxVol <= 0) return;
     try {
-      actx = actx || new (window.AudioContext || window.webkitAudioContext)();
-      if (actx.state === 'suspended') actx.resume();
-      const o = actx.createOscillator();
-      const g = actx.createGain();
+      const ac = sfxCtx();
+      const o = ac.createOscillator();
+      const g = ac.createGain();
       o.type = type || 'square';
-      o.frequency.setValueAtTime(freq, actx.currentTime);
-      if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, freq + slide), actx.currentTime + dur);
-      g.gain.setValueAtTime(vol || 0.04, actx.currentTime);
-      g.gain.exponentialRampToValueAtTime(0.0001, actx.currentTime + dur);
-      o.connect(g).connect(actx.destination);
-      o.start(); o.stop(actx.currentTime + dur);
+      o.frequency.setValueAtTime(freq, ac.currentTime);
+      if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, freq + slide), ac.currentTime + dur);
+      g.gain.setValueAtTime(vol || 0.04, ac.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + dur);
+      o.connect(g).connect(sfxMaster);
+      o.start(); o.stop(ac.currentTime + dur);
     } catch (e) { /* audio unavailable */ }
   }
   const sfx = {
@@ -307,14 +328,12 @@
   function openPauseMenu() {
     const g = UI.game;
     if (!g || g.over) return;
-    g.paused = true;
-    updateHud();
+    setPaused(true);
     show('#screen-pause');
   }
   function closePauseMenu() {
-    const g = UI.game;
     show(null);
-    if (g) { g.paused = false; updateHud(); }
+    setPaused(false);
   }
 
   const ICON_FS = '<svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M3 3h7v2H5v5H3V3zm11 0h7v7h-2V5h-5V3zM3 14h2v5h5v2H3v-7zm16 0h2v7h-7v-2h5v-5z"/></svg>';
@@ -1612,15 +1631,82 @@
     const g = UI.game;
     if (g && !g.waveInProgress && !g.over) { g.startWave(); updateHud(); }
   }
+  /* Single door for pausing, so the music can never disagree with the game.
+     There are three ways to pause — the dock button, the P key, and the Esc
+     menu — and the bed has to stop for all of them. */
+  function setPaused(paused) {
+    const g = UI.game;
+    if (!g) return;
+    g.paused = !!paused;
+    G.music.setPaused(g.paused);
+    updateHud();
+  }
   function togglePause() {
     const g = UI.game;
-    if (g) { g.paused = !g.paused; updateHud(); }
+    if (g) setPaused(!g.paused);
   }
   function toggleMute() {
     UI.profile.muted = !UI.profile.muted;
     putProfile(UI.profile);
     G.music.setMuted(UI.profile.muted);
+    syncAudioControls();
     updateHud();
+  }
+
+  /* ---------- audio levels ----------
+     Push the saved levels into the two engines. Called on boot, and whenever a
+     slider moves, so the sliders and what you hear can't drift apart. */
+  function applyAudioSettings() {
+    G.music.setVolume(UI.profile.musicVol);
+    setSfxVolume(UI.profile.sfxVol);
+    G.music.setMuted(UI.profile.muted);
+  }
+  /* Two mount points (the pause screen and the main menu) show the same
+     settings, so moving one has to redraw the other. */
+  function syncAudioControls() {
+    for (const box of document.querySelectorAll('.audio-panel')) {
+      const m = box.querySelector('.au-music'), s = box.querySelector('.au-sfx');
+      const mute = box.querySelector('.au-mute');
+      if (m) { m.value = Math.round(UI.profile.musicVol * 100); m.nextElementSibling.textContent = m.value + '%'; }
+      if (s) { s.value = Math.round(UI.profile.sfxVol * 100); s.nextElementSibling.textContent = s.value + '%'; }
+      if (mute) {
+        mute.textContent = UI.profile.muted ? '🔇 Sound is off' : '🔊 Sound is on';
+        mute.classList.toggle('muted', !!UI.profile.muted);
+      }
+      box.classList.toggle('is-muted', !!UI.profile.muted);
+    }
+  }
+  function buildAudioPanel(mount) {
+    if (!mount || mount.querySelector('.audio-panel')) return;
+    const box = el('div', 'audio-panel');
+    box.innerHTML = `
+      <div class="au-title">Audio</div>
+      <label class="au-row"><span>Music</span>
+        <input class="au-music" type="range" min="0" max="100" step="1" /><b>70%</b></label>
+      <label class="au-row"><span>Effects</span>
+        <input class="au-sfx" type="range" min="0" max="100" step="1" /><b>100%</b></label>
+      <button class="btn tiny au-mute" type="button">🔊 Sound is on</button>`;
+    const wire = (sel, key) => {
+      const input = box.querySelector(sel);
+      const readout = input.nextElementSibling;
+      input.addEventListener('input', () => {
+        UI.profile[key] = input.value / 100;
+        readout.textContent = input.value + '%';
+        /* Un-mute the moment someone reaches for a slider: leaving the toggle
+           off would make a dragged slider do nothing at all, which reads as a
+           broken control rather than a mute. */
+        if (UI.profile.muted && UI.profile[key] > 0) UI.profile.muted = false;
+        applyAudioSettings();
+        putProfile(UI.profile);
+        syncAudioControls();
+        updateHud();
+      });
+    };
+    wire('.au-music', 'musicVol');
+    wire('.au-sfx', 'sfxVol');
+    box.querySelector('.au-mute').addEventListener('click', toggleMute);
+    mount.appendChild(box);
+    syncAudioControls();
   }
   function cycleSpeed() {
     const g = UI.game;
@@ -1855,6 +1941,9 @@
     new ResizeObserver(fitCanvas).observe($('#stage'));
 
     buildMainMenu();
+    buildAudioPanel($('#menu-audio'));
+    buildAudioPanel($('#pause-audio'));
+    applyAudioSettings();
     wireInput();
     $('#btn-fs').onclick = toggleFullscreen;
     document.addEventListener('fullscreenchange', updateFsButton);
@@ -1867,7 +1956,7 @@
     // browsers unlock audio on the first gesture — start the menu tune then
     const kickAudio = () => {
       unlockMobileAudio();
-      G.music.setMuted(UI.profile.muted);
+      applyAudioSettings();
       if (!UI.game) G.music.play('menu');
       window.removeEventListener('pointerdown', kickAudio);
       window.removeEventListener('keydown', kickAudio);

@@ -112,16 +112,19 @@
   const M = {
     actx: null, master: null, noiseBuf: null,
     track: null, trackName: null,
-    tempoScale: 1, muted: false,
+    tempoScale: 1, muted: false, vol: 1, paused: false,
     step: 0, bar: 0, nextTime: 0, timer: null,
   };
+  const PEAK = 0.15;                       // full-volume gain for the whole bed
+  const gainNow = () => (M.muted || M.paused ? 0 : PEAK * M.vol);
+  function applyGain() { if (M.master) M.master.gain.value = gainNow(); }
 
   function ensureCtx() {
     if (M.actx) return true;
     try {
       M.actx = new (window.AudioContext || window.webkitAudioContext)();
       M.master = M.actx.createGain();
-      M.master.gain.value = M.muted ? 0 : 0.15;
+      M.master.gain.value = gainNow();
       M.master.connect(M.actx.destination);
       const len = M.actx.sampleRate * 0.3 | 0;
       M.noiseBuf = M.actx.createBuffer(1, len, M.actx.sampleRate);
@@ -229,6 +232,8 @@
       this.stop();
       M.track = TRACKS[name];
       M.trackName = name;
+      M.paused = false;
+      applyGain();
       M.step = 0; M.bar = 0;
       // start after any already-scheduled notes from the previous track finish,
       // so track switches don't overlap into a smear
@@ -238,6 +243,26 @@
     stop() {
       if (M.timer) { clearInterval(M.timer); M.timer = null; }
       M.track = null; M.trackName = null;
+      M.paused = false;
+    },
+    /* Pausing the battle pauses the bed. The scheduler stops so no further
+       notes are queued, and the gain drops to silence the fraction of a second
+       already sitting in the queue — without it, pausing left a bar of music
+       playing on into the silence. The track and its position are kept, so
+       resume picks up where it stopped rather than restarting. */
+    setPaused(paused) {
+      paused = !!paused;
+      if (M.paused === paused) return;
+      M.paused = paused;
+      applyGain();
+      if (paused) {
+        if (M.timer) { clearInterval(M.timer); M.timer = null; }
+      } else if (M.track && !M.timer) {
+        if (M.actx && M.actx.state === 'suspended') M.actx.resume();
+        // don't dump the silent interval's worth of notes as a burst
+        if (M.actx) M.nextTime = M.actx.currentTime + 0.06;
+        M.timer = setInterval(pump, 30);
+      }
     },
     setTempoScale(x) {
       /* Ceiling sits just above the wave-75 cap (1.01^74 = 2.086) so the wave
@@ -246,9 +271,14 @@
       M.tempoScale = Math.max(0.5, Math.min(2.1, x));
     },
     setMuted(muted) {
-      M.muted = muted;
-      if (M.master) M.master.gain.value = muted ? 0 : 0.15;
+      M.muted = !!muted;
+      applyGain();
     },
+    setVolume(v) {
+      M.vol = Math.max(0, Math.min(1, Number(v) || 0));
+      applyGain();
+    },
+    getVolume() { return M.vol; },
     trackForLevel(li) {
       return li <= 2 ? 'frost' : li <= 6 ? 'deep' : 'storm';
     },

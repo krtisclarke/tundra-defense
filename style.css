@@ -459,6 +459,54 @@ kbd {
 .btn.big { display: block; width: 280px; margin: 9px auto; padding: 13px; font-size: 15.5px; border-radius: 12px; }
 /* backup / restore pair on the main menu */
 .menu-io { display: flex; gap: 8px; justify-content: center; margin: 4px auto 6px; }
+
+/* ---------- audio levels (main menu + pause screen) ---------- */
+.audio-panel {
+  width: min(420px, 92vw);
+  margin: 8px auto;
+  padding: 10px 14px 12px;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  text-align: left;
+}
+.audio-panel.is-muted .au-row { opacity: 0.45; }
+.au-title {
+  font-size: 11px; font-weight: 800; letter-spacing: 1px;
+  text-transform: uppercase; color: var(--dim);
+  margin-bottom: 7px;
+}
+.au-row {
+  display: flex; align-items: center; gap: 10px;
+  margin: 5px 0;
+  font-size: 13.5px; font-weight: 650;
+  cursor: pointer;
+}
+.au-row > span { flex: 0 0 62px; color: var(--text); }
+.au-row > b {
+  flex: 0 0 42px; text-align: right;
+  color: var(--gold); font-variant-numeric: tabular-nums; font-size: 12.5px;
+}
+.au-row input[type='range'] {
+  flex: 1 1 auto; min-width: 0;
+  -webkit-appearance: none; appearance: none;
+  height: 5px; border-radius: 3px;
+  background: rgba(255, 255, 255, 0.18);
+  cursor: pointer;
+}
+.au-row input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 16px; height: 16px; border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid #0d1625;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+}
+.au-row input[type='range']::-moz-range-thumb {
+  width: 14px; height: 14px; border-radius: 50%;
+  background: var(--accent); border: 2px solid #0d1625;
+}
+.au-mute { margin-top: 8px; width: 100%; }
+.au-mute.muted { color: var(--bad); border-color: rgba(229, 109, 119, 0.5); }
 .btn.danger { background: rgba(224, 96, 106, 0.14); border-color: rgba(224, 96, 106, 0.4); color: #ff9ba3; }
 .btn.danger:hover { background: rgba(224, 96, 106, 0.26); }
 .btn.danger-ghost { background: transparent; border-color: transparent; color: #d98a8a; }
