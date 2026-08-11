@@ -347,7 +347,11 @@
       if (!opts.pure && !c.armorPierce) {
         // Heroic Ballad and friends let nearby penguins punch through blubber
         const armor = Math.max(0, e.armor - (tower ? tower.buff.shred || 0 : 0));
-        dmg = Math.max(1, dmg - armor);
+        /* The 1-damage floor only applies to shots that HAVE damage. It used to
+           apply unconditionally, so the Slush Thrower (damage 0, a pure slow)
+           quietly dealt 1 per hit — which in turn made its "+1 damage" upgrade
+           a literal no-op, since 0 and 1 both came out as 1. */
+        dmg = rawDmg > 0 ? Math.max(1, dmg - armor) : Math.max(0, dmg - armor);
       }
       e.hp -= dmg;
       if (tower && c.fx) this.applyFx(e, c.fx);
@@ -590,8 +594,10 @@
         for (let i = 0; i < shots; i++) {
           this.effects.push({ kind: c.kind === 'ray' ? 'ray' : 'snipeTrail', x: pos.x, y: pos.y, tx: target.ep.x, ty: target.ep.y, life: 0.12, max: 0.12 });
           this.damageEnemy(target.e, c.damage, t);
-          // chain harpoons / solar lance: bounce to extra targets
-          let extra = (c.pierce || 1) - 1, last = target.e;
+          /* chain harpoons / solar lance: bounce to extra targets. These kinds
+             fire no projectile, so a pierce aura has to be added here or it
+             would silently do nothing for the Harpoon Sniper and Sun Priest. */
+          let extra = (c.pierce || 1) - 1 + (t.buff.pierce || 0), last = target.e;
           while (extra-- > 0) {
             const lp = samplePath(this.paths[last.pathIdx], last.dist);
             let nxt = null, nd = 130 * 130;
