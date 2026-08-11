@@ -304,7 +304,7 @@
       this.enemies.push({
         id: nextId++, type, pathIdx, dist,
         hp, maxHp: hp, hpMult: hpMult || 1,
-        speed: def.speed * this.level.speedMult,
+        speed: def.speed * this.level.speedMult * (this.endless ? G.endlessSpeed(this.wave) : 1),
         armor: def.armor, stealth: def.stealth, regen: def.regen,
         size: def.size, rank: def.rank, boss: !!def.boss, orca: !!def.orca,
         slowF: 1, slowUntil: 0, dotDps: 0, dotUntil: 0, stunUntil: 0, revealUntil: 0,
@@ -356,22 +356,25 @@
     }
 
     applyFx(e, fx) {
-      if (fx.slow && !e.boss) {
-        if (fx.slow.f < e.slowF || e.slowUntil <= this.time) e.slowF = fx.slow.f;
-        e.slowUntil = Math.max(e.slowUntil, this.time + fx.slow.d);
-      }
-      if (fx.slow && e.boss) { // bosses resist: half strength
-        const f = 1 - (1 - fx.slow.f) * 0.4;
+      /* Deep endless herds shrug off the chill (and the ice) — without this a
+         wave-150 sea lion sits pinned at a third speed forever and the wave
+         never resolves. Bosses resist on top of that, as they always did. */
+      const resist = this.endless ? G.slowResist(this.wave) : 0;
+      const soften = (f) => 1 - (1 - f) * (1 - resist);
+      if (fx.slow) {
+        const f = e.boss ? soften(1 - (1 - fx.slow.f) * 0.4) : soften(fx.slow.f);
+        const dur = fx.slow.d * (e.boss ? 0.6 : 1) * (1 - resist * 0.5);
         if (f < e.slowF || e.slowUntil <= this.time) e.slowF = f;
-        e.slowUntil = Math.max(e.slowUntil, this.time + fx.slow.d * 0.6);
+        e.slowUntil = Math.max(e.slowUntil, this.time + dur);
       }
       if (fx.dot) {
         e.dotDps = Math.max(e.dotDps, fx.dot.dps);
         e.dotUntil = Math.max(e.dotUntil, this.time + fx.dot.d);
       }
       if (fx.shred && e.armor > 0) e.armor = Math.max(0, e.armor - fx.shred);
-      if (fx.stun && !e.boss) e.stunUntil = Math.max(e.stunUntil, this.time + fx.stun);
-      if (fx.stun && e.boss) e.stunUntil = Math.max(e.stunUntil, this.time + fx.stun * 0.25);
+      if (fx.stun) {
+        e.stunUntil = Math.max(e.stunUntil, this.time + fx.stun * (e.boss ? 0.25 : 1) * (1 - resist));
+      }
     }
 
     killEnemy(e, tower) {

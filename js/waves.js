@@ -104,8 +104,11 @@
            Toughness compounds every wave (so every endless run ends someday),
            while herd sizes stay capped so the field never floods. */
         const depth = Math.max(1, w - 50);
-        const hp = Math.pow(1.05, depth);        // regulars: +5% compounding per wave
-        const bossHp = Math.pow(1.07, depth);    // bosses ramp harder still
+        /* Toughness compounds more gently than it used to (was 1.05/1.07) —
+           the rest of the escalation now comes from G.endlessSpeed, because
+           fat slow sea lions made waves long rather than hard. */
+        const hp = Math.pow(1.04, depth);        // regulars: +4% compounding per wave
+        const bossHp = Math.pow(1.055, depth);   // bosses ramp harder still
         const sp = Math.max(0.45, 1 - depth * 0.008); // spawns pack tighter with depth
         const n = (base) => Math.min(60, R(base * d));
 

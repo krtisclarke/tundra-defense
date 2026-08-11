@@ -70,6 +70,14 @@ an orca is a meal you're serving. Clear the chaff fast, or feed them.
 Healing is capped at 60% of an orca's own maximum however rich the water, so feeding
 buys them time and never immortality.
 
+**Deep endless gets faster, not just fatter.** Past wave 50 the herds pick up speed
+(to ×1.7) and shrug off more and more of your chill (to 60% resistance), because piling
+health onto slow-moving sea lions made late waves long rather than hard — by wave 130
+every enemy had spawned within 70 seconds and the remaining four minutes were spent
+chipping at a handful of pinned survivors. Waves now resolve in about two minutes at any
+depth, and failure is sharp: the herd either dies or reaches the igloo. None of this
+touches the 30/40/50-wave campaign, which plays exactly as before.
+
 **Letting one reach the igloo is the loss condition**, not a setback — an orca through
 the door costs more lives than any sea lion in the game:
 

@@ -86,6 +86,21 @@
      so the second and third are for covering more ground, not more power. */
   G.AURA_CAP = { dmg: 2.0, rate: 2.0, range: 1.45, shred: 4, pierce: 2 };
 
+  /* Endless pacing. Piling HP on slow-moving sea lions turned late waves into
+     grinds: by wave 130 every enemy had spawned inside 70 seconds and the
+     remaining four minutes were spent chipping down a handful of slowed
+     survivors — 77% of the wave, rising to 89% by wave 160. Deep waves now
+     get part of their menace from SPEED instead, so they resolve quickly and
+     failure is sharp: either the herd dies or it reaches the igloo. */
+  G.endlessSpeed = (wave) =>
+    wave > 50 ? Math.min(1.7, 1 + (wave - 50) * 0.006) : 1;
+  /* The grind was really the slows: a sea lion with 50x health pinned at 35%
+     speed neither dies nor arrives, so the wave just hangs there. Deep endless
+     herds shrug off more and more of the chill, which forces every wave to
+     resolve — they get through the kill zone and either drop or reach you. */
+  G.slowResist = (wave) =>
+    wave > 50 ? Math.min(0.6, (wave - 50) * 0.009) : 0;   // 0.6 paces as well as 0.8 and leaves slow towers a job
+
   G.MUSIC_CAP_WAVE = 75;
   G.tempoForWave = (wave) => Math.pow(1.01, Math.min(wave || 1, G.MUSIC_CAP_WAVE) - 1);
 
