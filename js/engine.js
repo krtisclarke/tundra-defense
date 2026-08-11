@@ -225,20 +225,50 @@
       for (const t of this.towers) {
         if (t.calc.bountyBonus) this.bountyBonus = Math.max(this.bountyBonus, t.calc.bountyBonus);
       }
-      for (const t of this.towers) t.buff = { dmg: 1, rate: 1, range: 1, stealth: false };
+      /* Auras used to add up flat and without limit, so the winning move was
+         simply to build more of them: a real board reached x7 attack speed and
+         x2.65 range on one penguin, and 44% of it was support towers. Now each
+         extra source of the same buff counts for HALF the one before it (so a
+         second drummer is worth 50%, a third 25%) and every channel has a hard
+         ceiling. One excellent aura tower gets you most of the way; a wall of
+         them gets you almost nothing more. */
+      const inbox = new Map();
+      for (const t of this.towers) inbox.set(t, { dmg: [], rate: [], range: [], shred: [], pierce: [], stealth: false });
       for (const s of this.towers) {
         const c = s.calc;
         // aura sources: dedicated aura towers, plus any unit carrying aura stats (heroes)
-        if (c.kind !== 'aura' && !c.auraDmg && !c.auraRate && !c.auraRange && !c.auraStealth) continue;
+        if (c.kind !== 'aura' && !c.auraDmg && !c.auraRate && !c.auraRange && !c.auraStealth
+            && !c.auraShred && !c.auraPierce) continue;
         const r2 = c.range * c.range;
         for (const t of this.towers) {
           if (t === s || t.calc.kind === 'aura' || t.calc.kind === 'income') continue;
           if (dist2(s.x, s.y, t.x, t.y) > r2) continue;
-          if (c.auraDmg) t.buff.dmg += c.auraDmg;
-          if (c.auraRate) t.buff.rate += c.auraRate;
-          if (c.auraRange) t.buff.range += c.auraRange;
-          if (c.auraStealth) t.buff.stealth = true;
+          const k = inbox.get(t);
+          if (c.auraDmg) k.dmg.push(c.auraDmg);
+          if (c.auraRate) k.rate.push(c.auraRate);
+          if (c.auraRange) k.range.push(c.auraRange);
+          if (c.auraShred) k.shred.push(c.auraShred);
+          if (c.auraPierce) k.pierce.push(c.auraPierce);
+          if (c.auraStealth) k.stealth = true;
         }
+      }
+      // strongest source in full, then halving: converges to 2x the best one
+      const stack = (arr) => {
+        arr.sort((a, b) => b - a);
+        let f = 1, total = 0;
+        for (const v of arr) { total += v * f; f *= 0.5; }
+        return total;
+      };
+      for (const t of this.towers) {
+        const k = inbox.get(t);
+        t.buff = {
+          dmg: Math.min(G.AURA_CAP.dmg, 1 + stack(k.dmg)),
+          rate: Math.min(G.AURA_CAP.rate, 1 + stack(k.rate)),
+          range: Math.min(G.AURA_CAP.range, 1 + stack(k.range)),
+          shred: Math.min(G.AURA_CAP.shred, stack(k.shred)),
+          pierce: Math.min(G.AURA_CAP.pierce, Math.round(stack(k.pierce))),
+          stealth: k.stealth,
+        };
       }
     }
 
@@ -314,7 +344,11 @@
       const c = tower ? tower.calc : {};
       let dmg = rawDmg * (tower ? tower.buff.dmg : 1);
       if (e.boss && c.bossBonus) dmg *= c.bossBonus;
-      if (!opts.pure && !c.armorPierce) dmg = Math.max(1, dmg - e.armor);
+      if (!opts.pure && !c.armorPierce) {
+        // Heroic Ballad and friends let nearby penguins punch through blubber
+        const armor = Math.max(0, e.armor - (tower ? tower.buff.shred || 0 : 0));
+        dmg = Math.max(1, dmg - armor);
+      }
       e.hp -= dmg;
       if (tower && c.fx) this.applyFx(e, c.fx);
       if (e.hp <= 0) this.killEnemy(e, tower);
@@ -577,7 +611,7 @@
           this.projectiles.push({
             kind: 'lob', sx: pos.x, sy: pos.y,
             tx: target.ep.x + (Math.random() - 0.5) * off, ty: target.ep.y + (Math.random() - 0.5) * off,
-            t: 0, T: 0.55, splash: c.splash, damage: c.damage, pierce: c.pierce, owner: t.id,
+            t: 0, T: 0.55, splash: c.splash, damage: c.damage, pierce: c.pierce + (t.buff.pierce || 0), owner: t.id,
           });
         }
       } else if (c.kind === 'volley') {
@@ -586,7 +620,7 @@
           const a = (i / n) * Math.PI * 2 + t.orbitAngle * 0.1;
           this.projectiles.push({
             kind: 'bullet', x: pos.x, y: pos.y, vx: Math.cos(a) * c.projSpeed, vy: Math.sin(a) * c.projSpeed,
-            damage: c.damage, pierce: c.pierce, splash: c.splash || 0, range, traveled: 0, owner: t.id, hit: [],
+            damage: c.damage, pierce: c.pierce + (t.buff.pierce || 0), splash: c.splash || 0, range, traveled: 0, owner: t.id, hit: [],
           });
         }
       } else { // bullet | homing
@@ -596,7 +630,7 @@
           this.projectiles.push({
             kind: c.kind, x: pos.x, y: pos.y,
             vx: Math.cos(a) * c.projSpeed, vy: Math.sin(a) * c.projSpeed,
-            damage: c.damage, pierce: c.pierce, splash: c.splash || 0,
+            damage: c.damage, pierce: c.pierce + (t.buff.pierce || 0), splash: c.splash || 0,
             range: range * 1.4, traveled: 0, owner: t.id, targetId: target.e.id, hit: [],
           });
         }

@@ -78,6 +78,17 @@
      sea lions and all ten Frostlands battlefields ~30,900, so rank 16 lands
      just as the first campaign tier is finished. Harder difficulties field
      more sea lions per battle and so rank up faster — which is only fair. */
+  /* The battle music speeds up 1% per wave, but stops accelerating at wave 75 —
+     past that the march is already frantic and endless runs would only get
+     sillier. One helper so every call site agrees. */
+  /* Hard ceilings on what auras can do to one penguin, however many support
+     towers surround it. Reached by roughly one maxed aura tower of each kind,
+     so the second and third are for covering more ground, not more power. */
+  G.AURA_CAP = { dmg: 2.0, rate: 2.0, range: 1.45, shred: 4, pierce: 2 };
+
+  G.MUSIC_CAP_WAVE = 75;
+  G.tempoForWave = (wave) => Math.pow(1.01, Math.min(wave || 1, G.MUSIC_CAP_WAVE) - 1);
+
   G.MAX_RANK = 16;
   G.RANK_XP = [
     0,      // rank 1 — where everyone starts
@@ -384,7 +395,9 @@
     artillery: {
       cls: 'navy', name: 'Artillery Emperor', cost: 850,
       desc: 'An emperor penguin with a howitzer. Massive range, massive shells, blind up close.',
-      stats: { range: 420, rate: 0.33, damage: 6, pierce: 16, splash: 85, kind: 'lob', minRange: 110, water: 'never' },
+      /* 420 covered 54% of the whole battlefield from one tile — one of these
+         made placement meaningless. 320 is still by far the longest reach. */
+      stats: { range: 320, rate: 0.33, damage: 6, pierce: 16, splash: 85, kind: 'lob', minRange: 110, water: 'never' },
       paths: [
         { name: 'Shells', tiers: [
           { name: 'HE Shells',      cost: 500, desc: '+4 damage.',                        mods: { add: { damage: 4 } } },
@@ -518,8 +531,8 @@
       paths: [
         { name: 'Command', tiers: [
           { name: 'War Room',       cost: 600, desc: 'Damage aura +35%.',                 mods: { add: { auraDmg: 0.15 } } },
-          { name: 'Elite Training', cost: 1300, desc: 'Damage aura +55%, +20% aura range.', mods: { add: { auraDmg: 0.2 }, mul: { range: 1.2 } } },
-          { name: 'High Command',   cost: 3200, desc: 'Damage aura +85% total.',          mods: { add: { auraDmg: 0.3 } } },
+          { name: 'Elite Training', cost: 1300, desc: '+20% aura range, and nearby penguins pierce 1 more.', mods: { mul: { range: 1.2 }, set: { auraPierce: 1 } } },
+          { name: 'High Command',   cost: 3200, desc: 'Damage aura +65% total, and nearby penguins punch through 2 armor.', mods: { add: { auraDmg: 0.3 }, set: { auraShred: 2 } } },
         ]},
         { name: 'Garrison', tiers: [
           { name: 'Watchtower',     cost: 500, desc: 'Nearby penguins see stealth.',      mods: { set: { auraStealth: true } } },
@@ -531,12 +544,12 @@
     sonar: {
       cls: 'support', name: 'Sonar Station', cost: 550,
       desc: 'Pings the ice: nearby penguins gain +15% range and stealth vision.',
-      stats: { kind: 'aura', range: 190, auraRange: 0.15, auraStealth: true, water: 'never' },
+      stats: { kind: 'aura', range: 190, auraRange: 0.10, auraStealth: true, water: 'never' },
       paths: [
         { name: 'Amplify', tiers: [
-          { name: 'Big Dish',       cost: 350, desc: 'Range aura +25% total.',            mods: { add: { auraRange: 0.1 } } },
+          { name: 'Big Dish',       cost: 350, desc: 'Range aura +16% total.',            mods: { add: { auraRange: 0.06 } } },
           { name: 'Deep Ping',      cost: 700, desc: '+30% aura radius.',                 mods: { mul: { range: 1.3 } } },
-          { name: 'Grand Array',    cost: 1800, desc: 'Range aura +40% total.',           mods: { add: { auraRange: 0.15 } } },
+          { name: 'Grand Array',    cost: 1800, desc: 'Nearby penguins’ shots pierce 1 extra sea lion.', mods: { set: { auraPierce: 1 } } },
         ]},
         { name: 'Decrypt', tiers: [
           { name: 'Signal Boost',   cost: 300, desc: 'Nearby penguins attack 10% faster.', mods: { add: { auraRate: 0.1 } } },
@@ -558,7 +571,7 @@
         { name: 'Morale', tiers: [
           { name: 'Rallying Beat',  cost: 400, desc: 'Nearby penguins +10% damage.',      mods: { add: { auraDmg: 0.1 } } },
           { name: 'Marching Orders', cost: 850, desc: '+25% aura radius.',                mods: { mul: { range: 1.25 } } },
-          { name: 'Heroic Ballad',  cost: 2000, desc: 'Nearby penguins +20% damage total.', mods: { add: { auraDmg: 0.1 } } },
+          { name: 'Heroic Ballad',  cost: 2000, desc: 'Nearby penguins punch through 2 armor.', mods: { set: { auraShred: 2 } } },
         ]},
       ],
     },

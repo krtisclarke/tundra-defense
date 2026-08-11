@@ -298,6 +298,10 @@ The interface is a bottom command dock built for keyboard + mouse: build palette
 ### Tips
 
 - Slush Throwers and Snowball Rollers make everything else hit more often — slow is damage.
+- **Aura towers don't stack much.** Each extra source of the same buff counts for half the
+  one before it, and every buff has a ceiling (damage ×2, attack speed ×2, range ×1.45).
+  One excellent Igloo or War Drummer gets a cluster most of the way there; a wall of them
+  adds almost nothing. Build the second one to cover different ground, not more power.
 - Build a Fish Vendor or two before wave 10 — but only a couple. Each extra vendor earns
   30% less than the one before it, so a third and fourth barely pay for themselves. Their
   two paths are a real choice: **Market** is flat reliable income, **Finance** pays off
