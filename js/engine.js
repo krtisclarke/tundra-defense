@@ -101,7 +101,7 @@
       /* hero: chosen before battle, placed like a tower, one per battle */
       this.heroType = G.TOWERS[heroType] && G.TOWERS[heroType].hero ? heroType : null;
       this.heroTower = null;      // the placed hero (a towers[] entry) or null
-      this.heroWaves = 0;         // waves cleared while placed -> level
+      this.heroKills = 0;         // sea lions felled while placed -> level
       this.heroLevel = 1;
       this.heroReadyAt = 0;       // game time when the ability recharges
       this.totalWaves = G.DIFFICULTIES[this.diffId].waves;
@@ -183,9 +183,9 @@
     }
 
     /* re-derive the hero's level and battle stats (called when either input
-       moves: a wave cleared, the endless curve deepened, a save loaded) */
+       moves: a sea lion fell, the endless curve deepened, a save loaded) */
     refreshHero() {
-      this.heroLevel = G.heroLevelFor(this.heroWaves);
+      this.heroLevel = G.heroLevelFor(this.heroKills);
       const t = this.heroTower;
       if (!t) return;
       t.calc = G.applyHeroScale(
@@ -493,6 +493,18 @@
       e.dead = true;
       this.kills++;                                     // leaks never reach here
       if (tower) tower.kills = (tower.kills || 0) + 1;
+      /* Hero XP. Every sea lion the colony fells counts, not only the ones the
+         hero shot — the hero is the champion the colony fights around, and
+         crediting only its own kills would punish the two support heroes for
+         doing their job. But it must be ON THE FIELD to earn: this is what
+         "waves cleared while placed" used to mean. */
+      if (this.heroTower) {
+        this.heroKills++;
+        if (G.heroLevelFor(this.heroKills) > this.heroLevel) {
+          this.refreshHero();
+          this.emit('heroLevel', this.heroLevel);
+        }
+      }
       const def = G.ENEMIES[e.type];
       const bounty = Math.max(1, Math.round(def.bounty * (this.level.bountyMult || 1) * G.PERK.bounty)
         + (this.bountyBonus || 0));   // Fresh Catch
@@ -914,15 +926,13 @@
           this.cash += p.got;
           earned += p.got;
         }
-        // the hero grows with every wave it stood through
-        if (this.heroTower) {
-          this.heroWaves++;
-          const was = this.heroLevel;
-          this.refreshHero();
-          if (this.heroLevel > was) this.emit('heroLevel', this.heroLevel);
-        }
         const finished = this.wave;
         this.wave++;
+        /* The hero's LEVEL now moves on kills, in killEnemy. Its strength
+           still tracks the wave number (heroStrength), so it has to be
+           recomputed when the wave advances or the hero silently stops
+           scaling with the endless curve. */
+        if (this.heroTower) this.refreshHero();
         if (finished >= this.totalWaves && !this.endless) {
           this.over = 'win';
           this.emit('victory');
@@ -948,7 +958,7 @@
         waveReward: this.waveReward || 0, autoStart: this.autoStart, time: this.time,
         frenzyUntil: this.frenzyUntil || 0, endless: this.endless,
         kills: this.kills, xpBanked: this.xpBanked,
-        heroType: this.heroType, heroWaves: this.heroWaves,
+        heroType: this.heroType, heroKills: this.heroKills,
         heroReadyIn: Math.max(0, this.heroReadyAt - this.time),
         towers: this.towers.map((t) => ({ type: t.type, x: t.x, y: t.y, up: [...t.up], target: t.target, invested: t.invested, kills: t.kills || 0 })),
         spawnQueue: this.spawnQueue.map((s) => ({ ...s })),
@@ -969,7 +979,16 @@
       g.waveReward = data.waveReward; g.autoStart = !!data.autoStart; g.time = data.time || 0;
       g.frenzyUntil = data.frenzyUntil || 0; g.endless = !!data.endless;
       g.kills = data.kills || 0; g.xpBanked = data.xpBanked || 0;
-      g.heroWaves = data.heroWaves || 0;
+      /* Saves written before hero XP moved to kills carry heroWaves instead.
+         Convert by keeping the LEVEL the player had earned (3 waves a level,
+         old cap 10) and crediting the kills that level now costs, so nobody
+         loads a mid-campaign save and finds their hero demoted. */
+      if (data.heroKills != null) {
+        g.heroKills = data.heroKills;
+      } else {
+        const oldLevel = Math.min(10, 1 + Math.floor((data.heroWaves || 0) / 3));
+        g.heroKills = G.heroKillsFor(oldLevel);
+      }
       g.heroReadyAt = g.time + (data.heroReadyIn || 0);
       for (const td of data.towers) {
         const t = {

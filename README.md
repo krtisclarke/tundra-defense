@@ -124,8 +124,9 @@ Boosts you own appear in the command dock during battle — one click fires them
 ### Heroes — one champion fights beside you
 
 Pick a hero on the challenge screen before a battle. In battle they place like a tower
-(a fish price, one per battle), then **level up on their own** — one level every 3 waves
-held, to level 10 — and their damage **scales with the herd itself**: as tough as the sea
+(a fish price, one per battle), then **level up on their own** — on sea lions felled while
+they stand on the field, each level costing more than the last, to level 20 — and their
+damage **scales with the herd itself**: as tough as the sea
 lions are, the hero hits proportionally, from the home shores to the Frozen Abyss to the
 deep Endless Tide. At level 3 the signature ability unlocks — free to fire (press **H**),
 recharging over time.

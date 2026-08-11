@@ -10,6 +10,7 @@
   };
   // in-match currency is fish 🐟 (recruiting); pebbles 🪨 are the meta-currency
   const fmt = (n) => '🐟' + Math.round(n).toLocaleString();
+  const num = (n) => Math.round(n).toLocaleString();   // a count, not a fish price
 
   /* Hotkey rows mirror the physical keyboard; each row is one class. */
   const HOTKEY_ROWS = [
@@ -1298,7 +1299,7 @@
     // heroes
     const hsec = el('div', 'gd-sec');
     hsec.appendChild(el('div', 'gd-sec-head',
-      `<span class="gd-sec-name" style="color:var(--gold)">⭐ Heroes</span><span class="gd-sec-desc">One per battle. They level up every 3 waves and hit as hard as the herd is tough.</span>`));
+      `<span class="gd-sec-name" style="color:var(--gold)">⭐ Heroes</span><span class="gd-sec-desc">One per battle. They level up on sea lions felled while they stand on the field — to level ${G.HERO_MAX_LEVEL} — and hit as hard as the herd is tough.</span>`));
     for (const id of G.HERO_ORDER) {
       const def = G.TOWERS[id];
       const H = G.HEROES[id];
@@ -1517,8 +1518,16 @@
 
     if (def.hero) {
       const H = G.HEROES[t.type];
+      /* Show the actual count and what it is counting toward. A level that
+         arrives on a hidden threshold feels arbitrary; a number you watch
+         climb is the whole appeal of levelling on kills. */
+      const prog = G.heroProgress(g.heroKills);
+      const xpLine = prog
+        ? `<b>${num(prog.into)}</b> / ${num(prog.need)} sea lions to Level ${prog.next}` +
+          `<span class="hero-xp"><i style="width:${Math.round((prog.into / prog.need) * 100)}%"></i></span>`
+        : `<b>Level ${G.HERO_MAX_LEVEL}</b> — fully grown. Damage still rises with the herd’s strength.`;
       box.appendChild(el('div', 'ds-hero-note',
-        `Levels up every 3 waves — damage grows with the herd’s strength.<br>` +
+        `${xpLine}<br>` +
         `${H.ability.icon} <b>${H.ability.name}</b>${g.heroLevel < H.ability.unlock ? ` unlocks at level ${H.ability.unlock}` : ' — fire it from the hero panel or press <kbd>H</kbd>'}`));
       const act0 = el('div', 'ds-actions');
       const tgt0 = el('button', 'btn tiny', `<kbd>T</kbd> ${t.target}`);

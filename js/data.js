@@ -629,7 +629,8 @@
 
   /* ---------------- Heroes ----------------
      One per battle, placed like a tower (cost = fish). They level up on their
-     own — +1 level every 3 waves cleared while placed, to level 10 — and their
+     own — on sea lions felled while the hero stands on the field, to level 20
+     (see the levelling curve below) — and their
      damage scales with the herd's toughness (the battlefield's hpMult, plus the
      endless curve past wave 50), so a hero hits as hard as the sea lions are
      tough, on every map. At level `ability.unlock` a signature ability opens:
@@ -681,8 +682,48 @@
   };
   G.HERO_ORDER = ['hero_frost', 'hero_beak', 'hero_shiver'];
 
-  // level from waves cleared while placed; strength from the herd itself
-  G.heroLevelFor = (heroWaves) => Math.min(10, 1 + Math.floor((heroWaves || 0) / 3));
+  /* ---- hero levelling ----
+     Level comes from sea lions destroyed while the hero stands on the field;
+     strength comes from the herd itself (below). Kills, not waves cleared: a
+     hero that has been in the thick of it should grow faster than one parked
+     on a quiet corner, and a wave counter cannot tell those apart.
+
+     Each level costs more than the last — level L needs 25 x (L-1)^2 kills —
+     so the curve is fast early and slow late. Fitted to a census of what the
+     game actually fields: battlefield 1 on Easy sends 2,143 sea lions across
+     its 30 waves, and the hardest campaign (battlefield 30 on Hard) sends
+     13,801 across 50. That 6.4x spread is why a flat "every N kills" would
+     not work — it would cap instantly on the big maps.
+
+     What the curve lands on: level 2 at 25 kills and level 3 (the ability) at
+     100, which on battlefield 1 Easy is waves 3 and 5 — the same early pace
+     the old every-3-waves rule gave, so nothing feels slower at the start.
+     Level 10 needs 2,025, which is the last wave or two of a gentle campaign.
+     Beyond that is endless territory: level 20 needs 9,025, roughly wave 65 of
+     an endless run on battlefield 1.
+
+     The cap is 20 rather than 10 because levelling is now driven by a quantity
+     that keeps growing. At 10 the hero stopped progressing halfway through a
+     Hard campaign and instantly in endless. Raising it is safe: the per-level
+     gain is linear (Captain Frost is x2.8 damage at 10, x4.8 at 20), while
+     heroStrength below is already exponential in deep endless, so the level
+     ladder is the small term. */
+  G.HERO_MAX_LEVEL = 20;
+  G.HERO_KILL_BASE = 25;
+  // kills needed to REACH a given level
+  G.heroKillsFor = (level) => G.HERO_KILL_BASE * Math.pow(Math.max(0, level - 1), 2);
+  G.heroLevelFor = (heroKills) =>
+    Math.min(G.HERO_MAX_LEVEL, 1 + Math.floor(Math.sqrt(Math.max(0, heroKills || 0) / G.HERO_KILL_BASE)));
+  /* Progress toward the next level, for the hero panel. Returns null at the
+     cap so the panel can say "maxed" instead of showing a bar that never
+     moves. */
+  G.heroProgress = (heroKills) => {
+    const k = Math.max(0, heroKills || 0);
+    const lv = G.heroLevelFor(k);
+    if (lv >= G.HERO_MAX_LEVEL) return null;
+    const from = G.heroKillsFor(lv), to = G.heroKillsFor(lv + 1);
+    return { level: lv, into: k - from, need: to - from, next: lv + 1 };
+  };
   G.heroStrength = (L, wave) =>
     ((L && L.hpMult) || 1) * (wave > 50 ? Math.pow(1.05, wave - 50) : 1);
   G.applyHeroScale = function (calc, heroId, level, strength) {
