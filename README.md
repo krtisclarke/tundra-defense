@@ -305,6 +305,10 @@ The interface is a bottom command dock built for keyboard + mouse: build palette
 
 ### Tips
 
+- **The ground beside the trail is the real resource.** Boulders, cracked ice and glacier
+  ridges can't be built on, and there are progressively more of them as the campaign goes
+  on — Icy Shores is nearly open, World's End is a maze. Scout where you *can* stand
+  before you commit your fish.
 - Slush Throwers and Snowball Rollers make everything else hit more often — slow is damage.
 - **Aura towers don't stack much.** Each extra source of the same buff counts for half the
   one before it, and every buff has a ceiling (damage ×2, attack speed ×2, range ×1.45).

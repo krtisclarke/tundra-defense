@@ -1177,4 +1177,115 @@
     L.h = L.h || d.h;
     L.bountyMult = L.bountyMult || TIER_BOUNTY[L.tier] || 1;
   });
+
+  /* ---------------- Terrain obstacles ----------------
+     Boulder fields, cracked ice and glacier walls that penguins cannot build
+     on. They exist to take away firing positions: the ground beside the trail
+     is the only ground worth holding, so denying some of it is what makes a
+     battlefield hard rather than merely long.
+
+     The bite scales with how deep into the campaign a map sits — battlefield 1
+     loses almost nothing, World's End loses better than a third. Before this,
+     the late maps were the roomiest on the roster (tier 3 averaged ~1,500
+     firing spots against tier 1's ~950), which had difficulty running backwards.
+
+     Generated rather than hand-placed: 30 maps × dozens of formations is a lot
+     of literals to keep correct, and a seeded generator is reproducible, so a
+     given battlefield looks identical on every device and every run. */
+  const OBSTACLE_KINDS = {
+    1: ['rock', 'rock', 'crack', 'glacier'],
+    2: ['rock', 'crack', 'crack', 'glacier'],
+    3: ['rock', 'crack', 'glacier', 'glacier'],
+  };
+  // fraction of the buildable firing ground each battlefield should lose
+  G.obstacleBite = (li) => 0.05 + (li / 29) * 0.33;
+
+  function seeded(seed) {
+    let a = seed >>> 0;
+    return () => {
+      a += 0x6d2b79f5;
+      let t = a;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function pathPointsOf(L) {
+    const pts = [];
+    for (const pl of L.paths) {
+      for (let i = 0; i < pl.length - 1; i++) {
+        const a = pl[i], b = pl[i + 1];
+        const len = Math.hypot(b.x - a.x, b.y - a.y);
+        for (let d = 0; d < len; d += 24) {
+          pts.push({ x: a.x + ((b.x - a.x) * d) / len, y: a.y + ((b.y - a.y) * d) / len });
+        }
+      }
+    }
+    return pts;
+  }
+  const inWaterOf = (L, x, y) => L.water.some((w) => w.rect
+    ? x >= w.rect.x - 10 && x <= w.rect.x + w.rect.w + 10 && y >= w.rect.y - 10 && y <= w.rect.y + w.rect.h + 10
+    : (x - w.x) ** 2 + (y - w.y) ** 2 <= (w.r + 10) ** 2);
+
+  G.LEVELS.forEach((L, li) => {
+    const W = L.w, H = L.h;
+    const rnd = seeded(9161 + li * 2711);
+    const pts = pathPointsOf(L);
+    const kinds = OBSTACLE_KINDS[L.tier] || OBSTACLE_KINDS[1];
+    const CLEAR = G.PATH_HALF + G.TOWER_R + 12;   // never crowd the trail itself
+
+    // the firing ground worth denying: buildable, and within a penguin's reach
+    const lattice = [];
+    for (let y = 60; y < H - 30; y += 20) {
+      for (let x = 30; x < W - 30; x += 20) {
+        if (inWaterOf(L, x, y)) continue;
+        let near = false, tooClose = false;
+        for (const p of pts) {
+          const d2 = (x - p.x) ** 2 + (y - p.y) ** 2;
+          if (d2 < CLEAR * CLEAR) { tooClose = true; break; }
+          if (d2 <= 150 * 150) near = true;
+        }
+        if (!tooClose && near) lattice.push({ x, y });
+      }
+    }
+    if (!lattice.length) return;
+
+    const blocked = new Set();
+    const key = (p) => p.x + ',' + p.y;
+    for (const b of L.blockers) {
+      for (const p of lattice) {
+        if ((p.x - b.x) ** 2 + (p.y - b.y) ** 2 < (b.r + G.TOWER_R) ** 2) blocked.add(key(p));
+      }
+    }
+    const want = Math.round(lattice.length * G.obstacleBite(li));
+    // never strip a map bare — a third of its firing ground always survives
+    const floor = Math.round(lattice.length * 0.34);
+    let guard = 0;
+    while (blocked.size < want && lattice.length - blocked.size > floor && guard++ < 400) {
+      const seed = lattice[(rnd() * lattice.length) | 0];
+      if (blocked.has(key(seed))) continue;
+      const kind = kinds[(rnd() * kinds.length) | 0];
+      // a formation is a short chain of lumps, so it reads as terrain not confetti
+      const lumps = kind === 'glacier' ? 2 + ((rnd() * 3) | 0) : 1 + ((rnd() * 2) | 0);
+      const ang = rnd() * Math.PI * 2;
+      let cx = seed.x, cy = seed.y;
+      for (let n = 0; n < lumps; n++) {
+        const r = (kind === 'glacier' ? 26 : kind === 'crack' ? 24 : 22) + rnd() * 10;
+        if (cx < 30 || cx > W - 30 || cy < 60 || cy > H - 30) break;
+        if (inWaterOf(L, cx, cy)) break;
+        let clearsPath = true;
+        for (const p of pts) {
+          if ((cx - p.x) ** 2 + (cy - p.y) ** 2 < (CLEAR + r * 0.5) ** 2) { clearsPath = false; break; }
+        }
+        if (!clearsPath) break;
+        L.blockers.push({ x: Math.round(cx), y: Math.round(cy), r: Math.round(r), kind, gen: true });
+        for (const p of lattice) {
+          if ((p.x - cx) ** 2 + (p.y - cy) ** 2 < (r + G.TOWER_R) ** 2) blocked.add(key(p));
+        }
+        cx += Math.cos(ang) * (r * 1.35);
+        cy += Math.sin(ang) * (r * 1.35);
+      }
+    }
+  });
 })();

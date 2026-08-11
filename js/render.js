@@ -941,12 +941,117 @@
       ctx.fillRect(-4, -b.r * 1.3, 5, b.r * 0.9);
       ctx.fillStyle = '#c9b9a2';
       ctx.beginPath(); ctx.moveTo(1, -b.r * 1.3); ctx.lineTo(b.r * 0.7, -b.r * 0.8); ctx.lineTo(1, -b.r * 0.6); ctx.closePath(); ctx.fill();
+    } else if (b.kind === 'crack') {
+      ctx.restore();
+      drawCrackedIce(ctx, b.x, b.y, b.r, mulberry32(b.x * 31 + b.y * 7));
+      return;
+    } else if (b.kind === 'glacier') {
+      ctx.restore();
+      drawGlacierWall(ctx, b.x, b.y, b.r, mulberry32(b.x * 17 + b.y * 3));
+      return;
     } else { // rock
       ctx.restore();
       drawStone(ctx, b.x, b.y, b.r * 0.9, mulberry32(b.x * 13 + b.y));
       return;
     }
     ctx.restore();
+  }
+
+  /* Cracked ice: a dark fracture pool with plates tilted out of it. Reads as
+     "you cannot stand here" without looking like another boulder. */
+  function drawCrackedIce(c, x, y, r, rnd) {
+    c.save();
+    // the hole itself
+    const g = c.createRadialGradient(x, y, r * 0.15, x, y, r);
+    g.addColorStop(0, 'rgba(16,42,74,0.85)');
+    g.addColorStop(0.65, 'rgba(30,72,116,0.6)');
+    g.addColorStop(1, 'rgba(120,170,210,0.12)');
+    c.fillStyle = g;
+    c.beginPath();
+    const n = 9;
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * TAU;
+      const rr = r * (0.72 + rnd() * 0.34);
+      const px = x + Math.cos(a) * rr, py = y + Math.sin(a) * rr * 0.82;
+      i ? c.lineTo(px, py) : c.moveTo(px, py);
+    }
+    c.closePath(); c.fill();
+    // fracture lines radiating out
+    c.strokeStyle = 'rgba(226,240,252,0.55)';
+    c.lineWidth = 1.3;
+    for (let i = 0; i < 6; i++) {
+      const a = rnd() * TAU;
+      c.beginPath();
+      c.moveTo(x + Math.cos(a) * r * 0.3, y + Math.sin(a) * r * 0.25);
+      const mx = x + Math.cos(a + 0.3) * r * 0.8, my = y + Math.sin(a + 0.3) * r * 0.65;
+      c.lineTo(mx, my);
+      c.lineTo(x + Math.cos(a - 0.2) * r * 1.25, y + Math.sin(a - 0.2) * r * 1.0);
+      c.stroke();
+    }
+    // tilted plates around the rim
+    for (let i = 0; i < 4; i++) {
+      const a = rnd() * TAU, rr = r * (0.72 + rnd() * 0.3);
+      const px = x + Math.cos(a) * rr, py = y + Math.sin(a) * rr * 0.82;
+      const s = r * (0.26 + rnd() * 0.2);
+      c.fillStyle = 'rgba(232,244,255,0.92)';
+      c.strokeStyle = 'rgba(96,140,180,0.8)'; c.lineWidth = 1.2;
+      c.beginPath();
+      c.moveTo(px - s, py); c.lineTo(px - s * 0.3, py - s * 0.75);
+      c.lineTo(px + s * 0.9, py - s * 0.35); c.lineTo(px + s * 0.4, py + s * 0.4);
+      c.closePath(); c.fill(); c.stroke();
+    }
+    c.restore();
+  }
+
+  /* Glacier wall: a slab of blue ice shoved up out of the snow. Drawn tall so
+     a chain of them reads as one ridge running across the field. */
+  function drawGlacierWall(c, x, y, r, rnd) {
+    c.save();
+    propShadow(c, x + r * 0.15, y + r * 0.5, r * 0.95);
+    const top = y - r * (0.95 + rnd() * 0.35);
+    // main slab
+    const g = c.createLinearGradient(x - r, top, x + r, y + r * 0.5);
+    g.addColorStop(0, '#dff0fb');
+    g.addColorStop(0.45, '#a8cfe8');
+    g.addColorStop(1, '#6f9dc2');
+    c.fillStyle = g;
+    c.strokeStyle = '#4d7799';
+    c.lineWidth = 1.8;
+    c.lineJoin = 'round';
+    c.beginPath();
+    c.moveTo(x - r, y + r * 0.42);
+    c.lineTo(x - r * 0.78, top + r * 0.3);
+    c.lineTo(x - r * 0.16, top);
+    c.lineTo(x + r * 0.5, top + r * 0.42);
+    c.lineTo(x + r, y + r * 0.28);
+    c.lineTo(x + r * 0.82, y + r * 0.5);
+    c.lineTo(x - r * 0.8, y + r * 0.52);
+    c.closePath(); c.fill(); c.stroke();
+    // lit facet down the sunward face
+    c.fillStyle = 'rgba(255,255,255,0.55)';
+    c.beginPath();
+    c.moveTo(x - r * 0.78, top + r * 0.3);
+    c.lineTo(x - r * 0.16, top);
+    c.lineTo(x - r * 0.05, y + r * 0.1);
+    c.lineTo(x - r * 0.72, y + r * 0.3);
+    c.closePath(); c.fill();
+    // shadowed cleft
+    c.fillStyle = 'rgba(40,86,128,0.35)';
+    c.beginPath();
+    c.moveTo(x + r * 0.5, top + r * 0.42);
+    c.lineTo(x + r, y + r * 0.28);
+    c.lineTo(x + r * 0.82, y + r * 0.5);
+    c.lineTo(x + r * 0.36, y + r * 0.2);
+    c.closePath(); c.fill();
+    // rime along the crest
+    c.strokeStyle = 'rgba(255,255,255,0.85)';
+    c.lineWidth = 2.2;
+    c.beginPath();
+    c.moveTo(x - r * 0.78, top + r * 0.3);
+    c.lineTo(x - r * 0.16, top);
+    c.lineTo(x + r * 0.5, top + r * 0.42);
+    c.stroke();
+    c.restore();
   }
 
   /* ================= PENGUIN =================
