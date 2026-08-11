@@ -13,11 +13,13 @@
      livesMult scales each level's starting lives (rounded to 5).
      waves is the campaign length — each ends on a boss wave.
      pebbles is the victory reward (persistent meta-currency);
-     retryCost is the pebble price of a Second Chance after defeat. */
+     retryCost is the pebble price of a Second Chance after defeat;
+     drip is the endless-wave payout basis (every 10th wave; ×10 each century)
+     — kept separate so retry pricing can move without touching rewards. */
   G.DIFFICULTIES = {
-    easy:   { name: 'Easy',   icon: '🐣', waves: 30, costMult: 0.85, livesMult: 1.25, pebbles: 100, retryCost: 25 },
-    medium: { name: 'Medium', icon: '🐧', waves: 40, costMult: 1.0,  livesMult: 1.0,  pebbles: 250, retryCost: 50 },
-    hard:   { name: 'Hard',   icon: '🦭', waves: 50, costMult: 1.15, livesMult: 0.8,  pebbles: 500, retryCost: 100 },
+    easy:   { name: 'Easy',   icon: '🐣', waves: 30, costMult: 0.85, livesMult: 1.25, pebbles: 100, retryCost: 40,  drip: 25 },
+    medium: { name: 'Medium', icon: '🐧', waves: 40, costMult: 1.0,  livesMult: 1.0,  pebbles: 250, retryCost: 75,  drip: 50 },
+    hard:   { name: 'Hard',   icon: '🦭', waves: 50, costMult: 1.15, livesMult: 0.8,  pebbles: 500, retryCost: 150, drip: 100 },
   };
   G.DIFF_ORDER = ['easy', 'medium', 'hard'];
   G.scaleCost = (raw, diffId) => {
@@ -36,17 +38,17 @@
      Three tiers each; `v` is the value the perk system reads. */
   G.COLONY = {
     stores:    { name: 'Deeper Stores',   icon: '🐟', desc: 'The colony stockpiles herring: start every battle with extra fish.',
-                 fmt: (v) => `+${v} starting 🐟`,            tiers: [{ cost: 150, v: 75 }, { cost: 400, v: 150 }, { cost: 900, v: 250 }] },
+                 fmt: (v) => `+${v} starting 🐟`,            tiers: [{ cost: 300, v: 75 }, { cost: 800, v: 150 }, { cost: 1800, v: 250 }] },
     walls:     { name: 'Thicker Walls',   icon: '💖', desc: 'Reinforced nests: start every battle with extra lives.',
-                 fmt: (v) => `+${v} starting lives`,         tiers: [{ cost: 150, v: 10 }, { cost: 400, v: 20 }, { cost: 900, v: 35 }] },
+                 fmt: (v) => `+${v} starting lives`,         tiers: [{ cost: 300, v: 10 }, { cost: 800, v: 20 }, { cost: 1800, v: 35 }] },
     hooks:     { name: 'Sharper Hooks',   icon: '🪝', desc: 'Every sea lion popped pays more fish.',
-                 fmt: (v) => `+${v}% bounties`,              tiers: [{ cost: 200, v: 4 }, { cost: 500, v: 8 }, { cost: 1100, v: 12 }] },
+                 fmt: (v) => `+${v}% bounties`,              tiers: [{ cost: 400, v: 4 }, { cost: 1000, v: 8 }, { cost: 2200, v: 12 }] },
     contracts: { name: 'Cheap Contracts', icon: '📜', desc: 'Penguins enlist for less: towers and upgrades cost less fish.',
-                 fmt: (v) => `−${v}% tower prices`,          tiers: [{ cost: 250, v: 3 }, { cost: 600, v: 6 }, { cost: 1300, v: 9 }] },
+                 fmt: (v) => `−${v}% tower prices`,          tiers: [{ cost: 500, v: 3 }, { cost: 1200, v: 6 }, { cost: 2600, v: 9 }] },
     flags:     { name: 'Rally Flags',     icon: '🚩', desc: 'The colony rallies for less: Second Chance costs fewer pebbles.',
-                 fmt: (v) => `−${v}% retry price`,           tiers: [{ cost: 200, v: 20 }, { cost: 450, v: 35 }, { cost: 1000, v: 50 }] },
+                 fmt: (v) => `−${v}% retry price`,           tiers: [{ cost: 400, v: 20 }, { cost: 900, v: 35 }, { cost: 2000, v: 50 }] },
     scouts:    { name: 'Keen Scouts',     icon: '🔭', desc: 'Scouts salvage the beach: bigger fish rewards for every wave cleared.',
-                 fmt: (v) => `+${v}% wave rewards`,          tiers: [{ cost: 200, v: 5 }, { cost: 500, v: 10 }, { cost: 1100, v: 15 }] },
+                 fmt: (v) => `+${v}% wave rewards`,          tiers: [{ cost: 400, v: 5 }, { cost: 1000, v: 10 }, { cost: 2200, v: 15 }] },
   };
   G.COLONY_ORDER = ['stores', 'walls', 'hooks', 'contracts', 'flags', 'scouts'];
 
