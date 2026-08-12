@@ -560,6 +560,20 @@
           row.appendChild(bCont);
         }
         card.appendChild(row);
+
+        /* The whole card is the target, not just the button in the corner of
+           it — a card with a picture on it reads as clickable and people click
+           the picture. It does whatever the card's primary button does: resume
+           where there is a save, otherwise go and pick a difficulty. The
+           buttons stop the event, so clicking one still does its own thing. */
+        const enter = () => { if (save) startGame(i, save); else openDiffSelect(i); };
+        card.onclick = enter;
+        card.tabIndex = 0;
+        card.setAttribute('role', 'button');
+        card.setAttribute('aria-label', `${L.name} — ${save ? `continue at wave ${save.wave}` : 'play'}`);
+        card.onkeydown = (ev) => {
+          if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); enter(); }
+        };
       }
       (sections[L.tier] || grid).appendChild(card);
     });
