@@ -1119,19 +1119,37 @@
           ? 'Tap to pick up, then drag onto the map to place'
           : `Press <kbd>${def.hero ? 'H' : TOWER_KEY[typeId]}</kbd> or click, then click the map`}</div>`;
     tip.style.display = 'block';
+    placeTip(anchor);
+  }
+
+  /* Where a floating card goes. Anything anchored in the control column gets it
+     to the LEFT of the column, level with what it describes: a card centred
+     over the thing you are pointing at covers the thing you are pointing at,
+     which is the one place it must not be. It lands on the map instead, which
+     is the cheaper thing to hide for a moment.
+
+     It cannot interfere with dragging a penguin out: the card is
+     pointer-events:none, so it never takes a pointer, and a touch drag is
+     implicitly captured by the tile that received the press, so the moves keep
+     arriving there wherever the finger goes. The drag hides the card the moment
+     the finger crosses into the map anyway.
+
+     Falls back to centred-above when there is not room to the left — a narrow
+     window, or an anchor that is not in the column at all. */
+  function placeTip(anchor) {
+    const tip = $('#tooltip');
     const r = anchor.getBoundingClientRect();
     const tr = tip.getBoundingClientRect();
-    const dockLeft = columnLeft();
-    if (IS_TOUCH && r.left >= dockLeft && dockLeft > tr.width + 16) {
-      // side-dock: the card sits beside the pane, level with the finger
-      tip.style.left = Math.max(8, dockLeft - tr.width - 10) + 'px';
-      tip.style.top = Math.max(8, Math.min(window.innerHeight - tr.height - 8, r.top + r.height / 2 - tr.height / 2)) + 'px';
+    const left = columnLeft();
+    const clampY = (y) => Math.max(8, Math.min(window.innerHeight - tr.height - 8, y));
+    if (r.left >= left - 1 && left > tr.width + 16) {
+      tip.style.left = Math.max(8, left - tr.width - 10) + 'px';
+      tip.style.top = clampY(r.top + r.height / 2 - tr.height / 2) + 'px';
       return;
     }
-    let x = r.left + r.width / 2 - tr.width / 2;
-    x = Math.max(8, Math.min(window.innerWidth - tr.width - 8, x));
+    const x = Math.max(8, Math.min(window.innerWidth - tr.width - 8, r.left + r.width / 2 - tr.width / 2));
     tip.style.left = x + 'px';
-    tip.style.top = Math.max(8, r.top - tr.height - 10) + 'px';
+    tip.style.top = clampY(r.top - tr.height - 10) + 'px';
   }
   function hideTooltip() { $('#tooltip').style.display = 'none'; }
 
@@ -1183,12 +1201,7 @@
       <div class="tt-desc">${P.desc}</div>
       <div class="tt-key">${owned > 0 ? 'Click to fire it now.' : `Buy for ${P.cost} 🪨 in the Boost Shop (main menu).`}</div>`;
     tip.style.display = 'block';
-    const r = anchor.getBoundingClientRect();
-    const tr = tip.getBoundingClientRect();
-    let x = r.left + r.width / 2 - tr.width / 2;
-    x = Math.max(8, Math.min(window.innerWidth - tr.width - 8, x));
-    tip.style.left = x + 'px';
-    tip.style.top = (r.top - tr.height - 10) + 'px';
+    placeTip(anchor);
   }
 
   /* Floating card for an upgrade — the whole path laid out, with the tier you
@@ -1214,12 +1227,7 @@
       <div class="tt-tiers">${rows}</div>
       <div class="tt-key">${afford ? `Press <kbd>${pathIdx === 0 ? 'Q' : 'W'}</kbd> or click to buy <b>${u.name}</b>` : `Need ${fmt(cost - (g ? g.cash : 0))} more`}</div>`;
     tip.style.display = 'block';
-    const r = anchor.getBoundingClientRect();
-    const tr = tip.getBoundingClientRect();
-    let x = r.left + r.width / 2 - tr.width / 2;
-    x = Math.max(8, Math.min(window.innerWidth - tr.width - 8, x));
-    tip.style.left = x + 'px';
-    tip.style.top = Math.max(8, r.top - tr.height - 10) + 'px';
+    placeTip(anchor);
   }
 
   /* ---------- Second Chance (paid retry after defeat) ---------- */
