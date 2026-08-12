@@ -1205,16 +1205,20 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
   #palette {
     grid-column: 3; grid-row: 2;
     min-width: 0; min-height: 0;
+    /* The tray is the container everything inside is measured against, so the
+       tiles and their contents are one drawing that scales with the column
+       rather than fixed furniture rattling around in a growing box. */
+    container-type: inline-size;
     grid-template-columns: repeat(2, 1fr);
-    /* Both halves of this behaviour matter. When the rows do not fill the box
-       they share the spare height, so the tray never shows a void beneath the
-       last penguin — which is what a plain `start` left, and it reads as the
-       tray being broken. When they would overflow, the 56px floor stops them
-       being squeezed to a sliver and the box scrolls instead. */
-    grid-auto-rows: minmax(56px, 1fr);
-    align-content: stretch;
+    /* The row height is the tile's shape worked out in the open — two columns
+       of (column width less margin, padding and gap), at 27:20. An auto row
+       cannot do it: the tile's height comes from its width, so the row and the
+       tile end up defining each other and the row collapses to 12px, which is
+       what had them overlapping. */
+    grid-auto-rows: calc((var(--sidew, 400px) - 30px) / 2.7);
+    align-content: start;
     margin: 0 0 4px 8px;
-    padding: 7px 8px;
+    padding: 8px;
     background: linear-gradient(180deg, rgba(18, 28, 45, 0.97), rgba(11, 18, 30, 0.99));
     border: 1px solid var(--line-strong);
     border-radius: 14px;
@@ -1223,7 +1227,67 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
     scrollbar-width: none;
   }
   #palette::-webkit-scrollbar { display: none; }
-  #palette .slot { max-width: none; }
+
+  /* A penguin tile. It keeps one shape at every size — 27:20, near the
+     proportion the narrow column happened to produce — instead of stretching
+     into a letterbox when the column is wide, which left the icon marooned in
+     the middle of a lot of nothing.
+
+     Everything inside is measured in cqw, a percentage of the tile's own width,
+     so the tile is one drawing scaled rather than a box with fixed furniture
+     rattling around in it. At the nominal 400px column a tile is 187 wide and
+     these work out to a 52px icon, 14px price and 11px key — the sizes they
+     were designed at. */
+  #palette .slot {
+    max-width: none;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1.4cqw;
+    padding: 0;
+    /* Enough class colour to sort the tray at a glance, not so much that the
+       penguin has to fight it: a wash from the top, over the dark panel. */
+    background:
+      linear-gradient(170deg,
+        color-mix(in srgb, var(--cls) 30%, transparent),
+        color-mix(in srgb, var(--cls) 9%, transparent) 62%,
+        transparent),
+      rgba(9, 15, 26, 0.72);
+    border: 1px solid color-mix(in srgb, var(--cls) 40%, transparent);
+    border-bottom: 3px solid color-mix(in srgb, var(--cls) 78%, transparent);
+    border-radius: 4.6cqw;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+  /* All against the tray's width, which is what cqw means here: at the nominal
+     400px column these are a 52px icon, a 14px price and an 11px key — the
+     sizes they were drawn at. */
+  #palette .slot canvas { width: 13.3cqw; height: auto; margin: 0; }
+  #palette .slot-cost {
+    font-size: 3.6cqw; line-height: 1.05; letter-spacing: 0;
+    color: var(--gold); font-weight: 800;
+  }
+  #palette .slot-key {
+    position: absolute; top: 1.6cqw; left: 1.9cqw; transform: none;
+    font-size: 2.8cqw; line-height: 1; padding: 0.7cqw 1.3cqw; border-radius: 1.4cqw;
+    background: rgba(0, 0, 0, 0.45); border-color: transparent; color: var(--text);
+  }
+  #palette .slot-lock { font-size: 5.5cqw; }
+  #palette .slot:hover { transform: translateY(-2px); }
+  /* A locked penguin should read as locked at a glance rather than as a
+     slightly dimmer coloured tile: it loses the class colour entirely. */
+  #palette .slot.locked {
+    opacity: 1; filter: none;
+    background: rgba(255, 255, 255, 0.028);
+    border-color: var(--line);
+    border-bottom-color: var(--line);
+  }
+  #palette .slot.locked canvas { opacity: 0.2; filter: grayscale(1); }
+  #palette .slot.locked .slot-cost { color: var(--dim); opacity: 0.55; }
+  #palette .slot.poor { opacity: 1; filter: none; }
+  #palette .slot.poor canvas { opacity: 0.5; }
+  #palette .slot.poor .slot-cost { color: var(--bad); }
 
   /* The four panels: the bottom half of the column, and they never scroll.
      They are laid out once at a nominal 260px wide and then scaled to whatever
@@ -1236,39 +1300,57 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
     min-width: 0; min-height: 0;
     margin: 4px 0 0 8px;
     display: grid;
-    place-content: center;
+    /* start, not centre: the group is scaled from its top-left corner and sized
+       to fill this box exactly, so centring the unscaled box first threw it
+       54px out of line with the tray above it */
+    place-content: start;
     overflow: hidden;
   }
+  /* Two columns, because a single stack left the width unused and the height
+     short: the card runs across the top, the hero and the boosts sit side by
+     side under it, and the wave controls run across the bottom. */
   #sidebar {
-    width: var(--panelw, 320px);
+    width: var(--panelw, 400px);
+    height: var(--panelh, auto);
     transform: scale(var(--pscale, 1));
-    transform-origin: center center;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    padding: 8px;
+    transform-origin: top left;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-auto-rows: min-content;
+    gap: 10px;
+    padding: 10px;
     background: linear-gradient(180deg, rgba(18, 28, 45, 0.97), rgba(11, 18, 30, 0.99));
     border: 1px solid var(--line-strong);
     border-radius: 14px;
     box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
-    overflow: visible;
+    overflow: hidden;
   }
-  #sidebar > * { width: 100%; max-width: none; min-width: 0; flex: none; }
-  /* One panel, four sections — not four panels. Each box was carrying its own
-     border, background, corner radius and 16px of padding, which is 55px of
-     height spent drawing lines between things that are already in order and
-     already labelled. The group is the box now; the sections are separated by
-     a hairline. That height goes back into the scale, so everything inside
-     ends up larger, not smaller. */
-  #sidebar > * + * { border-top: 1px solid var(--line); padding-top: 8px; }
-  #sidebar > * { background: none; border: 0; border-radius: 0; padding: 0; }
+  #sidebar > * { max-width: none; min-width: 0; }
+  #dock-sel, #command { grid-column: 1 / -1; }
+  #sidebar.no-hero #dock-powers { grid-column: 1 / -1; }
+  /* the middle row takes whatever the half has spare, so the group always
+     reaches the bottom of its box instead of floating in it */
+  #sidebar { grid-template-rows: auto 1fr auto; }
+  #dock-hero, #dock-powers { min-height: 0; }
+  /* Sections, not four separate panels: one faint fill and a hairline each, so
+     they group without four competing borders and four sets of padding. */
+  #sidebar > * {
+    background: rgba(255, 255, 255, 0.035);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 8px 9px;
+  }
+  #command { background: none; border: 0; padding: 0; }
   /* Fixed, not min-height: the group is scaled as a whole, so a card that grew
      when you clicked a penguin would rescale everything in the column with it —
      the boosts and the wave controls would visibly resize on every click. 128
      is the tallest this card gets at PANEL_W, swept over every tower and hero
      at both wave depths, one notch clear of the 125 the worst of them (a plain
      Pebble Flinger, both upgrade names running to two lines) actually needs. */
-  #dock-sel { order: 1; height: 128px; }
+  #dock-sel { grid-row: 1; height: 148px; display: flex; flex-direction: column; }
+  /* the empty card sat as three lines at the top of a fixed box with the rest
+     of it dark — it centres now, so the box reads as deliberate */
+  #dock-sel .ds-empty { margin: auto 0; }
   /* Two lines allowed for both: "Commander Beak · ★ Lv 20" is the longest thing
      the card ever shows, and the nominal width does not have to widen to keep
      it on one row. */
@@ -1278,22 +1360,27 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
     display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
     overflow: hidden;
   }
-  #dock-hero { order: 2; }
-  #dock-powers { order: 3; }
-  /* The command block sits last and takes the group's leftover height, which
-     goes to the wave strip: everywhere else it has to hide enemy types to fit
-     two rows, and given the room it lists the whole wave. Nothing here needs a
-     sticky Send Wave or a scrolling column any more — the group is a fixed
-     shape scaled to fit, so it cannot run out of room. */
-  #command { order: 4; flex: 1 1 auto; min-height: 112px; }
+  #dock-hero, #dock-powers {
+    grid-row: 2;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 8px;
+  }
+  .dp-grid { grid-template-columns: repeat(3, 1fr); justify-items: center; gap: 7px; }
+  /* Send Wave does not need the whole width — the speed, pause and auto
+     controls ride beside it instead of costing another row underneath. */
+  #command {
+    grid-row: 3;
+    display: grid; grid-template-columns: 1fr auto; gap: 8px;
+    align-items: center;
+  }
   #command #wave-preview {
-    flex: 1 1 auto;
+    grid-column: 1 / -1;
     max-height: none;
     align-content: flex-start;
-    padding: 2px 2px 0;
+    padding: 0;
   }
-  .dp-grid { grid-template-columns: repeat(3, 1fr); justify-items: center; }
-  #dock-powers, #dock-hero { align-items: center; }
+  #command #send-wave { grid-column: 1; margin: 0; }
+  #command #cmd-row { grid-column: 2; flex: none; }
 
 
 /* ============================================================

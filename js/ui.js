@@ -959,11 +959,11 @@
       const def = G.TOWERS[id];
       const slot = el('div', 'slot');
       slot.dataset.type = id;
+      /* Only the colour goes on the element. The fill itself is built from it
+         in CSS, so a locked tile can drop the class tint entirely — an inline
+         background wins over any stylesheet rule, and every locked penguin was
+         coming out as brightly coloured as a usable one. */
       slot.style.setProperty('--cls', color);
-      /* The class is the tile's background now, not a box drawn around every
-         five, so it has to be strong enough to read as one at a glance —
-         the old 17% wash was a hint under a border that is no longer there. */
-      slot.style.background = `linear-gradient(165deg, ${color}66, ${color}2e 55%, ${color}18)`;
       const cv = document.createElement('canvas');
       cv.width = 38; cv.height = 38;
       G.drawTowerIcon(cv, id);
@@ -1217,8 +1217,15 @@
   function buildDockHero() {
     const box = $('#dock-hero');
     const g = UI.game;
-    if (!g || !g.heroType) { box.style.display = 'none'; box.innerHTML = ''; return; }
+    /* the panel grid puts the hero and the boosts side by side; with no hero
+       the boosts take the whole row rather than leaving a hole beside them */
+    if (!g || !g.heroType) {
+      box.style.display = 'none'; box.innerHTML = '';
+      $('#sidebar').classList.add('no-hero');
+      return;
+    }
     box.style.display = 'flex';
+    $('#sidebar').classList.remove('no-hero');
     box.innerHTML = '<div class="dp-label">hero</div>';
     const chip = el('button', 'hero-chip');
     chip.id = 'hero-chip';
@@ -1964,20 +1971,22 @@
   const PANEL_W = 400;
   const PAD = 12;
 
-  /* The scale the panel group is drawn at: the smaller of the two fits, so it
-     is contained rather than cropped. Separate from fitCanvas and watched by a
-     ResizeObserver because the group's natural height is not known when the
-     layout is measured — startGame fits the canvas and only then builds the
-     card, the hero and the boosts, so reading it there gave the height of an
-     empty column and the group was drawn 21px too tall for its half. */
+  /* The panel group is drawn at PANEL_W and scaled by width alone, and given
+     the height its half works out to in those same nominal units. So it fills
+     the half exactly — no slack down one side, which is what "contained" gave:
+     the group came out narrower than the tray above it and the two boxes did
+     not line up. What varies with the battlefield is only how tall the group is
+     in nominal units (0.80 to 0.87 of its width), and the sections inside share
+     that between them. */
   function fitPanels() {
     const root = document.documentElement;
     const side = parseFloat(root.style.getPropertyValue('--sidew'));
     const half = parseFloat(root.style.getPropertyValue('--halfh'));
     if (!side || !half) return;
-    const need = $('#sidebar').scrollHeight;
-    root.style.setProperty('--pscale',
-      Math.min(side / PANEL_W, need ? (half - 8) / need : Infinity).toFixed(4));
+    const cellW = side - 8, cellH = half - 4;      /* the half, less its margins */
+    const scale = cellW / PANEL_W;
+    root.style.setProperty('--pscale', scale.toFixed(4));
+    root.style.setProperty('--panelh', Math.round(cellH / scale) + 'px');
   }
 
   /* One path, no branch. There is no window size at which a different
