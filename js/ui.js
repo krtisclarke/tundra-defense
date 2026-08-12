@@ -189,6 +189,15 @@
      follows the finger, and lifting on the map places it. A quick tap still
      arms for tap-then-drag. Vertical strokes stay with the browser (tray
      scrolling): touch-action pan-y makes those fire pointercancel here. */
+  /* Where the control column starts. #dock cannot answer this any more: it is
+     display:contents in the only layout there is, so it generates no box and
+     getBoundingClientRect() returns all zeros. That silently broke dragging a
+     penguin out of the tray on a phone — the drag begins when the finger
+     crosses the column's left edge, and the edge was reported as 0, so the
+     finger could never be left of it. The tray is a real element in that
+     column and spans its full width, so it is the one to ask. */
+  const columnLeft = () => $('#palette').getBoundingClientRect().left;
+
   function attachTrayDrag(slot, id) {
     let timer = null, showing = false, carrying = false, swallow = false;
     const clear = () => { if (timer) { clearTimeout(timer); timer = null; } };
@@ -212,7 +221,7 @@
       if (ev.pointerType === 'mouse') return;
       const g = UI.game;
       if (!g || g.over) return;
-      const dockLeft = $('#dock').getBoundingClientRect().left;
+      const dockLeft = columnLeft();
       if (!carrying && ev.clientX < dockLeft - 4) {
         // finger left the pane: the description goes away and the penguin comes along
         clear();
@@ -1098,10 +1107,10 @@
     tip.style.display = 'block';
     const r = anchor.getBoundingClientRect();
     const tr = tip.getBoundingClientRect();
-    const dock = $('#dock').getBoundingClientRect();
-    if (IS_TOUCH && r.left >= dock.left && dock.left > tr.width + 16) {
+    const dockLeft = columnLeft();
+    if (IS_TOUCH && r.left >= dockLeft && dockLeft > tr.width + 16) {
       // side-dock: the card sits beside the pane, level with the finger
-      tip.style.left = Math.max(8, dock.left - tr.width - 10) + 'px';
+      tip.style.left = Math.max(8, dockLeft - tr.width - 10) + 'px';
       tip.style.top = Math.max(8, Math.min(window.innerHeight - tr.height - 8, r.top + r.height / 2 - tr.height / 2)) + 'px';
       return;
     }

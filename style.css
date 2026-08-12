@@ -1352,9 +1352,11 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
   #sidebar > * { max-width: none; min-width: 0; }
   #dock-sel, #command { grid-column: 1 / -1; }
   #sidebar.no-hero #dock-powers { grid-column: 1 / -1; }
-  /* the middle row takes whatever the half has spare, so the group always
-     reaches the bottom of its box instead of floating in it */
-  #sidebar { grid-template-rows: auto 1fr auto; }
+  /* The middle row takes whatever the half has spare, so the group always
+     reaches the bottom of its box instead of floating in it — and gives it
+     back first when the wave controls need more, which is the whole reason
+     they are usable on a phone. It keeps a floor so it cannot vanish. */
+  #sidebar { grid-template-rows: auto minmax(92px, 1fr) auto; }
   #dock-hero, #dock-powers { min-height: 0; }
   /* Sections, not four separate panels: one faint fill and a hairline each, so
      they group without four competing borders and four sets of padding. */
@@ -1430,12 +1432,21 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
      wide, so a 3x2 grid of squares is limited by width and leaves the height
      unused — 46px buttons under 125px of nothing. Turned on its side the same
      six buttons are limited by height instead and come out half again as big. */
+  /* Two across at a fixed size and scrolling, not sharing the height: this row
+     is the one that gives way when the wave controls want more, and buttons
+     that shrink with it end up as unhittable dots. They keep their size and the
+     box scrolls for the rest. Two across rather than three because the button
+     is then 78 wide rather than 50, which is 28px on a phone rather than 18. */
   #dock-powers .dp-grid {
     flex: 1 1 auto; min-height: 0;
     grid-template-columns: repeat(2, 1fr);
-    grid-template-rows: repeat(3, 1fr);
+    grid-auto-rows: 78px;
+    align-content: start;
     gap: 7px;
+    overflow-y: auto;
+    scrollbar-width: none;
   }
+  #dock-powers .dp-grid::-webkit-scrollbar { display: none; }
   /* Same treatment as the penguin tiles: the icon fills the button rather than
      sitting in the middle of it. The button is its own container so the glyph
      can be a share of it — 62% — and grows with the panel. */
@@ -1452,11 +1463,21 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
   #dock-powers .dp-count { font-size: 17cqw; min-width: 0; padding: 0 6cqw; }
   /* Send Wave does not need the whole width — the speed, pause and auto
      controls ride beside it instead of costing another row underneath. */
+  /* Sized for a finger, not for the desktop it looks generous on. Everything
+     here is scaled down by the block, and on a phone in landscape that factor
+     is about a third — at the sizes these were, Send Wave came out 16px tall
+     and the speed and pause buttons 10. The row below states what these are in
+     nominal units; on a phone they land at 28-30px. */
   #command {
     grid-row: 3;
     display: grid; grid-template-columns: 1fr auto; gap: 8px;
-    align-items: center;
+    align-items: stretch;
   }
+  #command #send-wave { min-height: 96px; font-size: 22px; }
+  #command #cmd-row { gap: 8px; align-items: stretch; }
+  #command #cmd-row .btn.tiny { min-width: 64px; font-size: 20px; padding: 6px 10px; }
+  #command .hud-check { font-size: 16px; gap: 8px; }
+  #command .hud-check .switch { transform: scale(1.5); transform-origin: center; }
   #command #wave-preview {
     grid-column: 1 / -1;
     max-height: none;
