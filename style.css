@@ -213,7 +213,8 @@ html.touch #btn-fs { display: none; }
 .toast.bad { border-left-color: var(--bad); }
 
 /* ============ COMMAND DOCK ============ */
-#dock {
+#dock { display: none; }              /* only while a battle is on */
+#dock.playing {
   /* FIXED height, never min-height. The stage is flex:1 above it, so any dock
      that grows steals map height and the battlefield visibly jumps the moment
      you click a penguin. The selection card is kept short enough to always fit
@@ -229,6 +230,16 @@ html.touch #btn-fs { display: none; }
   box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.45);
   z-index: 10;
 }
+
+/* The sidebar wrapper is a grouping device for the wide L layout only. Here it
+   dissolves, so its children are flex items of #dock just as they always were,
+   and the order below restores the arrangement the markup used to imply. */
+#sidebar { display: contents; }
+#dock-sel { order: 1; }
+#palette { order: 2; }
+#dock-hero { order: 3; }
+#dock-powers { order: 4; }
+#command { order: 5; }
 
 /* selection card (left) */
 #dock-sel {
@@ -1152,7 +1163,7 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
    panel on the bottom row now flexes, which guarantees two rows at any width
    in this range and keeps the battlefield a constant size. */
 @media (max-width: 1250px) and (min-height: 561px) {
-  #dock {
+  #dock.playing {
     flex-wrap: wrap;
     align-content: flex-start;
     /* min-height, not height. Two rows measure 329px, so this looks exactly as
@@ -1197,6 +1208,90 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
   .dp-btn { width: 40px; height: 40px; font-size: 17px; }
 }
 
+/* ============ WIDE LAYOUT: the map in the corner, controls in an L ============
+   The map keeps a fixed aspect (1.60-1.74) but a window rarely matches it, so
+   a centred map left dead bars either side — 142px each at 16:10, 238px at
+   16:9. Here the map is pinned to the top-left instead, the build tray runs
+   along the bottom under it, and the leftover width down the right holds the
+   selection card, the hero, the boosts and the wave controls. Nothing is
+   centred, so nothing is wasted.
+
+   #app becomes a two-column grid; #dock dissolves so its panels can be placed
+   into it directly. The sidebar's exact width is set from JS (--sidew) once the
+   map has been fitted, because the map's size depends only on the height left
+   over from the tray — so the width it does not use can be handed to the
+   sidebar with no circularity. */
+@media (min-width: 1100px) and (min-height: 620px) {
+  #app {
+    display: grid;
+    grid-template-columns: 1fr var(--sidew, 320px);
+    grid-template-rows: 1fr auto;
+  }
+  #stage {
+    grid-column: 1; grid-row: 1;
+    justify-content: flex-start;      /* map hugs the left edge */
+    align-items: flex-start;
+    padding: 8px 0 0 8px;
+  }
+  #dock.playing { display: contents; }
+
+  /* Build tray: full width under the map, and only the tray. Its height is the
+     height the map could not use (--trayh from fitCanvas), so the column below
+     the map is always exactly filled. */
+  #palette {
+    grid-column: 1; grid-row: 2;
+    height: var(--trayh, 150px);
+    min-width: 0;
+    margin: 0 0 8px 8px;
+    padding: 7px 10px;
+    background: linear-gradient(180deg, rgba(18, 28, 45, 0.97), rgba(11, 18, 30, 0.99));
+    border: 1px solid var(--line-strong);
+    border-radius: 14px;
+    justify-content: center;
+    gap: 7px;
+  }
+  /* shallow tray: the two rows sit side by side, so all four class groups run
+     across in one band and the map keeps the height */
+  #palette.one-row { flex-direction: row; align-items: center; gap: 10px; }
+  #palette.one-row .pal-row { width: auto; flex: 1 1 0; }
+  .pal-row { gap: 8px; }
+  #palette .slot { max-width: 120px; }
+
+  /* right-hand column: everything that is not the tray */
+  #sidebar {
+    grid-column: 2; grid-row: 1 / span 2;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+    padding: 8px 8px 8px 6px;
+    background: linear-gradient(180deg, rgba(18, 28, 45, 0.97), rgba(11, 18, 30, 0.99));
+    border-left: 1px solid var(--line-strong);
+    box-shadow: -8px 0 30px rgba(0, 0, 0, 0.45);
+    overflow: hidden;
+  }
+  #sidebar > * { width: 100%; max-width: none; min-width: 0; flex: none; }
+  /* the selection card is the tall one — give it the slack and let it keep the
+     fixed height it needs, upgrades and all */
+  #dock-sel { order: 1; height: 152px; }
+  #dock-hero { order: 2; }
+  #dock-powers { order: 3; }
+  /* The command block takes the column's leftover height and hands it to the
+     wave strip, which everywhere else has to hide enemy types to fit two rows.
+     Given the room it lists the whole wave, and Send Wave still sits at the
+     bottom of the column where it is easiest to reach. */
+  #command { order: 4; flex: 1 1 auto; min-height: 0; }
+  #command #wave-preview {
+    flex: 1 1 auto;
+    max-height: none;
+    align-content: flex-start;
+    padding: 2px 2px 0;
+  }
+  .dp-grid { grid-template-columns: repeat(3, 1fr); justify-items: center; }
+  #dock-powers, #dock-hero { align-items: center; }
+}
+
+
 /* ============================================================
    COMPACT LANDSCAPE — phones held sideways (and any short window).
    Height is the scarce resource, so the dock becomes one shallow
@@ -1220,7 +1315,7 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
   }
   #stage { flex: 1 1 auto; min-width: 0; }
 
-  #dock {
+  #dock.playing {
     flex-direction: column;
     width: var(--dockw);
     flex: none;

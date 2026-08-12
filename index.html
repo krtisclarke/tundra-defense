@@ -53,21 +53,27 @@
       <button id="btn-cancel-place" title="Cancel placement">✕ cancel</button>
     </div>
 
-    <!-- bottom command dock -->
-    <div id="dock" style="display:none">
-      <div id="dock-sel"></div>
+    <!-- Command dock. The build tray and everything else are separated by
+         #sidebar so a wide window can put the tray under the map and stack the
+         rest down the right. In every other layout #sidebar is display:contents
+         and these five panels behave as one flex row exactly as before — the
+         CSS sets their order explicitly rather than relying on this markup. -->
+    <div id="dock">
       <div id="palette"></div>
-      <div id="dock-hero" style="display:none"></div>
-      <div id="dock-powers" title=""></div>
-      <div id="command">
-        <div id="wave-preview"></div>
-        <button class="btn primary" id="send-wave">Send Wave <kbd>space</kbd></button>
-        <div id="cmd-row">
-          <button class="btn tiny" id="btn-speed" title="Game speed (Tab)">1×</button>
-          <button class="btn tiny" id="btn-pause" title="Pause (P)">⏸</button>
-          <label class="hud-check" title="Auto-send the next wave">
-            <span class="switch"><input type="checkbox" id="auto-start" /><span class="knob"></span></span> auto
-          </label>
+      <div id="sidebar">
+        <div id="dock-sel"></div>
+        <div id="dock-hero" style="display:none"></div>
+        <div id="dock-powers" title=""></div>
+        <div id="command">
+          <div id="wave-preview"></div>
+          <button class="btn primary" id="send-wave">Send Wave <kbd>space</kbd></button>
+          <div id="cmd-row">
+            <button class="btn tiny" id="btn-speed" title="Game speed (Tab)">1×</button>
+            <button class="btn tiny" id="btn-pause" title="Pause (P)">⏸</button>
+            <label class="hud-check" title="Auto-send the next wave">
+              <span class="switch"><input type="checkbox" id="auto-start" /><span class="knob"></span></span> auto
+            </label>
+          </div>
         </div>
       </div>
     </div>

@@ -654,7 +654,11 @@
     show(null);
     $('#hud-stats').style.display = 'flex';
     $('#hud-sys').style.display = 'flex';
-    $('#dock').style.display = 'flex';
+    /* a class, not an inline display — the wide layout needs #dock to be
+       display:contents so its panels can be placed into the page grid, and an
+       inline style would win over that */
+    $('#dock').classList.add('playing');
+    fitCanvas();          // the dock's arrival changes what the map has to fill
     $('#auto-start').checked = game.autoStart;
     UI.previewWave = 0;
     syncCancelBtn();
@@ -677,7 +681,8 @@
     UI.game = null;
     $('#hud-stats').style.display = 'none';
     $('#hud-sys').style.display = 'none';
-    $('#dock').style.display = 'none';
+    $('#dock').classList.remove('playing');
+    fitCanvas();          // and its departure gives the whole window back
     hideTooltip();
     G.music.play('menu');
     buildLevelSelect();
@@ -1931,10 +1936,53 @@
     UI.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     fitCanvas();
   }
+  /* ---- wide layout geometry ----
+     The map keeps a fixed aspect, so a centred map always left dead bars either
+     side. Here it is pinned top-left and the two leftovers are handed to real
+     panels: the width the map does not use becomes the sidebar, the height it
+     does not use becomes the build tray.
+
+     Both are solved in one pass rather than by CSS auto-sizing, because letting
+     the tray size itself from its content makes the three quantities circular —
+     tray height sets map height sets map width sets sidebar width. Starting
+     from the SMALLEST the tray can be gives the map its largest possible
+     height, and everything else follows from that with no feedback. */
+  const SIDEBAR_MIN = 296, SIDEBAR_MAX = 460;   // floor fits the upgrade card
+  const TRAY_MIN = 74;                          // one row of build slots
+  const PAD = 16;
+  const wideLayout = () => matchMedia('(min-width: 1100px) and (min-height: 620px)').matches;
+
   function fitCanvas() {
     if (!UI.canvas) return;
     const wrap = $('#stage');
-    const availW = wrap.clientWidth - 16, availH = wrap.clientHeight - 16;
+    const root = document.documentElement;
+
+    if (wideLayout()) {
+      const W = root.clientWidth, H = root.clientHeight, aspect = G.W / G.H;
+      /* Between battles there is no dock, so the sidebar column collapses and
+         the menu's backdrop gets the whole window. */
+      const playing = $('#dock').classList.contains('playing');
+      // the tallest the map could be, i.e. if the tray were as short as it goes
+      const maxMapH = H - (playing ? TRAY_MIN + PAD : PAD);
+      const side = playing
+        ? Math.max(SIDEBAR_MIN, Math.min(SIDEBAR_MAX, W - maxMapH * aspect - PAD))
+        : 0;
+      const mapW = Math.min(W - side - PAD, maxMapH * aspect);
+      const mapH = mapW / aspect;
+      root.style.setProperty('--sidew', Math.round(side) + 'px');
+      root.style.setProperty('--trayh', playing ? Math.round(H - mapH - PAD) + 'px' : '0px');
+      /* Four class groups across one row when the tray is shallow, the usual
+         two-by-two when the map left it some height to spare. */
+      $('#palette').classList.toggle('one-row', H - mapH - PAD < 118);
+      UI.canvas.style.width = Math.round(mapW) + 'px';
+      UI.canvas.style.height = Math.round(mapH) + 'px';
+      return;
+    }
+
+    root.style.removeProperty('--sidew');
+    root.style.removeProperty('--trayh');
+    $('#palette').classList.remove('one-row');
+    const availW = wrap.clientWidth - PAD, availH = wrap.clientHeight - PAD;
     const scale = Math.min(availW / G.W, availH / G.H);
     UI.canvas.style.width = G.W * scale + 'px';
     UI.canvas.style.height = G.H * scale + 'px';
