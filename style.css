@@ -1257,6 +1257,44 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
   .pal-row { gap: 8px; }
   #palette .slot { max-width: 120px; }
 
+  /* ---- rail-only: no bottom band, the tray moves into the column ----
+     Whether the band is worth having is a question of geometry, not taste. The
+     map keeps a fixed aspect, so once the rail is as narrow as it goes the map
+     is width-limited and there is height under it nobody can use — on a 16:10
+     laptop that is 159px, and the band turns it into a roomy tray. On a 16:9
+     desktop or a phone the map is height-limited instead: the leftover is
+     almost nothing, and a band there is pure cost, so the tray goes in the
+     column and the map takes the full height. fitCanvas measures both and
+     picks; this is the second arrangement. */
+  #app.rail-only { grid-template-rows: 1fr auto; }
+  #app.rail-only #stage { grid-row: 1 / span 2; }
+  #app.rail-only #palette {
+    grid-column: 2; grid-row: 1;
+    height: auto; min-height: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
+    justify-content: flex-start;
+    margin: 8px 8px 0 6px;
+    /* takes whatever the column has spare, and scrolls when it has none —
+       so the rail never shows a gap and never hides a penguin it could fit */
+    overflow-y: auto;
+    scrollbar-width: none;
+  }
+  #app.rail-only #palette::-webkit-scrollbar { display: none; }
+  /* Four class groups stacked, five penguins across each. The groups share
+     whatever height the column has spare rather than sitting at the top with a
+     void beneath them — the slack ends up inside the panels as breathing room,
+     which is what the wave strip does with its own leftover. */
+  #app.rail-only .pal-row { flex-direction: column; width: 100%; gap: 7px; flex: 1 1 auto; }
+  #app.rail-only .pal-group { flex: 1 1 0; min-height: 62px; align-items: center; }
+  #app.rail-only .slot { max-width: none; }
+  #app.rail-only .slot canvas { width: 40px; }   /* room here for a bigger icon */
+  #app.rail-only #sidebar {
+    grid-row: 2;
+    padding-top: 8px;
+    border-left: 1px solid var(--line-strong);
+  }
+
   /* right-hand column: everything that is not the tray */
   #sidebar {
     grid-column: 2; grid-row: 1 / span 2;

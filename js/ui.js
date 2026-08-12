@@ -1957,6 +1957,9 @@
   const SIDEBAR_MIN = 262, SIDEBAR_MAX = 460;
   const TRAY_MIN = 66;
   const PAD = 12;
+  /* what the card, hero, boosts and wave controls stack to in the column, and
+     the least tray worth putting above them — two class groups showing */
+  const RAIL_PANELS_H = 570, TRAY_RAIL_MIN = 150;
   const wideLayout = () => matchMedia('(min-width: 1100px) and (min-height: 620px)').matches;
 
   function fitCanvas() {
@@ -1969,18 +1972,35 @@
       /* Between battles there is no dock, so the sidebar column collapses and
          the menu's backdrop gets the whole window. */
       const playing = $('#dock').classList.contains('playing');
-      // the tallest the map could be, i.e. if the tray were as short as it goes
-      const maxMapH = H - (playing ? TRAY_MIN + PAD : PAD);
-      const side = playing
-        ? Math.max(SIDEBAR_MIN, Math.min(SIDEBAR_MAX, W - maxMapH * aspect - PAD))
-        : 0;
+      /* Two arrangements of the same three pieces, and geometry picks. Give the
+         map the full height first: if that leaves a strip under it too thin to
+         be a build tray, there is no band worth having — put the tray in the
+         column and let the map keep the height (a 16:9 desktop gains 5% of map
+         that way, a phone 30%). If the strip is deep enough to hold the tray,
+         the map could not have used that height anyway, so spend it. */
+      const railFor = (h) => Math.max(SIDEBAR_MIN, Math.min(SIDEBAR_MAX, W - h * aspect - PAD));
+      const fullH = H - PAD;
+      const railOnlyW = Math.min(W - railFor(fullH) - PAD, fullH * aspect);
+      const leftover = H - railOnlyW / aspect - PAD;
+      /* ...and only if the column can actually hold a tray once the four panels
+         below have taken their share. On a short wide window it could not: the
+         tray was squeezed to 29px, which scrolls but shows a sliver of one
+         penguin. Below that the band wins, because down there the tray has the
+         whole width to lay out in. */
+      const railOnly = playing && leftover < TRAY_MIN && H - RAIL_PANELS_H >= TRAY_RAIL_MIN;
+
+      const maxMapH = H - (playing && !railOnly ? TRAY_MIN + PAD : PAD);
+      const side = playing ? railFor(maxMapH) : 0;
       const mapW = Math.min(W - side - PAD, maxMapH * aspect);
       const mapH = mapW / aspect;
+
+      $('#app').classList.toggle('rail-only', railOnly);
       root.style.setProperty('--sidew', Math.round(side) + 'px');
-      root.style.setProperty('--trayh', playing ? Math.round(H - mapH - PAD) + 'px' : '0px');
-      /* Four class groups across one row when the tray is shallow, the usual
-         two-by-two when the map left it some height to spare. */
-      $('#palette').classList.toggle('one-row', H - mapH - PAD < 118);
+      root.style.setProperty('--trayh', playing && !railOnly ? Math.round(H - mapH - PAD) + 'px' : '0px');
+      /* In the band, four class groups across one row when it is shallow and
+         the usual two-by-two when the map left it height to spare. In the
+         column they always stack. */
+      $('#palette').classList.toggle('one-row', !railOnly && H - mapH - PAD < 118);
       UI.canvas.style.width = Math.round(mapW) + 'px';
       UI.canvas.style.height = Math.round(mapH) + 'px';
       return;
@@ -1989,6 +2009,7 @@
     root.style.removeProperty('--sidew');
     root.style.removeProperty('--trayh');
     $('#palette').classList.remove('one-row');
+    $('#app').classList.remove('rail-only');
     const availW = wrap.clientWidth - PAD, availH = wrap.clientHeight - PAD;
     const scale = Math.min(availW / G.W, availH / G.H);
     UI.canvas.style.width = G.W * scale + 'px';
