@@ -668,6 +668,7 @@
     renderDockSel();
     updateWavePreview();
     updateHud();
+    fitPanels();   // the panels have their content now; scale to what it needs
     keepAwake(true);
     banner(save ? `Welcome back — Wave ${game.wave}` : `${game.level.name} — ${G.DIFFICULTIES[game.diffId].name}`);
     G.music.play(G.music.trackForLevel(levelIdx));
@@ -959,7 +960,10 @@
       const slot = el('div', 'slot');
       slot.dataset.type = id;
       slot.style.setProperty('--cls', color);
-      slot.style.background = `linear-gradient(165deg, ${color}2c, ${color}10 60%, transparent)`;
+      /* The class is the tile's background now, not a box drawn around every
+         five, so it has to be strong enough to read as one at a glance —
+         the old 17% wash was a hint under a border that is no longer there. */
+      slot.style.background = `linear-gradient(165deg, ${color}66, ${color}2e 55%, ${color}18)`;
       const cv = document.createElement('canvas');
       cv.width = 38; cv.height = 38;
       G.drawTowerIcon(cv, id);
@@ -1938,42 +1942,47 @@
     UI.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     fitCanvas();
   }
-  /* ---- wide layout geometry ----
-     There is one arrangement and only one: the map on the left, the control
-     column on the right. The map keeps a fixed aspect and a window almost never
-     matches it, so on some window shapes a second strip of controls under the
-     map would buy the map a few percent — but it would also mean the interface
-     rearranging itself as the window is dragged, and a layout that stays put is
-     worth more than the percent. So the only quantity to decide here is the
-     column's width, and the map takes what is left.
+  /* ---- in-level geometry ----
+     The map and the column beside it are one block of FIXED proportions. The
+     block is scaled to fit the window and centred; whatever the window has left
+     over is empty space above and below, or either side. The block's shape is
+     never bent to match the window's — that is the whole idea, and it is what
+     makes the layout identical everywhere instead of merely similar.
 
-     The column is a share of the map's width, not a pixel count, so it grows
-     and shrinks with the battlefield. The two bounds are the block's shape
-     written the other way round: on a 16:10 battlefield a column of 11% of the
-     map makes the pair 16:9, and 36% makes it 19.5:9. Expressed against the map
-     they also hold on the 1.67 and 1.74 battlefields, where a literal 16:9
-     block would have left almost no column at all.
-
-     The narrow end is 17:9 rather than the 16:9 it could be. At 16:9 the column
-     is only 11% of the map — 150px on a full-screen 16:10 laptop — and since
-     the panels are drawn at 320 and scaled into it, that puts their text at
-     7px. 17:9 makes the column 18% and the text 11px. Both ends stay inside
-     16:9-19.5:9; the cost is a slightly deeper margin above and below. */
-  const COL_MIN = (17 / 9) / 1.6 - 1;      /* 0.181 — the narrow end */
-  const COL_MAX = (19.5 / 9) / 1.6 - 1;    /* 0.354 — the wide end   */
-  /* The panels are laid out at this width and then scaled, so it is the only
-     width their contents ever see — every measurement about wrapping, clipping
-     and sell prices is settled once, here, instead of at every window size.
-
-     320 is chosen for shape, not for the content's floor (which is nearer 200).
-     The group has to be scaled into half a column, and it wastes whatever it
-     does not match: at 260 it comes out 260x563, far narrower in proportion
-     than the half it has to fill, so it fits on height and leaves a third of
-     the width dark. At 320 it is 320x510 — 0.63, and half a column on a window
-     of the shape people actually use is 0.64. */
-  const PANEL_W = 320;
+     The column is a quarter of the map's width. That one number sets the
+     block's shape, and it is a share of the map rather than a pixel count so
+     everything scales together. Checked against all three battlefields, since
+     they are not one shape: 1.60 gives an 18:9 block, 1.67 gives 18.8:9 and
+     1.74 gives 19.6:9 — all inside 16:9 to 20:9, with room at both ends. */
+  const COL_FRAC = 0.25;
+  /* The panels are laid out at this width and then scaled into their half, so
+     it is the only width their contents ever see: every question about
+     wrapping, clipping and long sell prices is settled once, here, rather than
+     at every window size. Because the block's shape is fixed, half a column is
+     always the same shape too — COL_FRAC * 2 * map aspect, which is 0.80 to
+     0.87 — so a group of that shape scales in with nothing left over. */
+  const PANEL_W = 400;
   const PAD = 12;
-  const wideLayout = () => matchMedia('(min-width: 1100px) and (min-height: 620px)').matches;
+  /* Below this the block would be too small to be worth it and touch layouts
+     take over. There is no height bound: a short window just gets a wider
+     margin either side, which is the point. */
+  const wideLayout = () => matchMedia('(min-width: 900px) and (min-height: 500px)').matches;
+
+  /* The scale the panel group is drawn at: the smaller of the two fits, so it
+     is contained rather than cropped. Separate from fitCanvas and watched by a
+     ResizeObserver because the group's natural height is not known when the
+     layout is measured — startGame fits the canvas and only then builds the
+     card, the hero and the boosts, so reading it there gave the height of an
+     empty column and the group was drawn 21px too tall for its half. */
+  function fitPanels() {
+    const root = document.documentElement;
+    const side = parseFloat(root.style.getPropertyValue('--sidew'));
+    const half = parseFloat(root.style.getPropertyValue('--halfh'));
+    if (!side || !half) return;
+    const need = $('#sidebar').scrollHeight;
+    root.style.setProperty('--pscale',
+      Math.min(side / PANEL_W, need ? (half - 8) / need : Infinity).toFixed(4));
+  }
 
   function fitCanvas() {
     if (!UI.canvas) return;
@@ -1985,24 +1994,14 @@
       const aspect = G.W / G.H;
       const playing = $('#dock').classList.contains('playing');
 
-      /* Between battles there is no column, so the map simply takes the window
-         and the menu's backdrop gets the rest. */
-      let mapH = H, side = 0;
-      if (playing) {
-        /* Grow the map to the full height and give the column what is left. If
-           that leaves the column under its share, the window is a narrower
-           shape than the block can be: shrink the block until the pair is at
-           the 16:9 end, which centres it with a margin above and below. If it
-           leaves the column over its share, the window is longer than the block
-           can be: the map stops growing at the 19.5:9 end and the extra becomes
-           a margin either side. In between — which is most windows people
-           actually use — the block fills the window exactly. */
-        let frac = (W - H * aspect) / (H * aspect);
-        if (frac < COL_MIN) { frac = COL_MIN; mapH = W / (aspect * (1 + COL_MIN)); }
-        else if (frac > COL_MAX) frac = COL_MAX;
-        side = frac * mapH * aspect;
-      }
-      const mapW = mapH * aspect;
+      /* Between battles there is no column, so the block is just the map and it
+         takes the window; the menu's backdrop gets the rest. */
+      const frac = playing ? COL_FRAC : 0;
+      const ratio = aspect * (1 + frac);
+      /* The one place the window is consulted: how big the block can be. Its
+         shape does not depend on this. */
+      const blockW = Math.min(W, H * ratio);
+      const mapH = blockW / ratio, mapW = mapH * aspect, side = blockW - mapW;
 
       /* Half the column each. The panels do not reflow into their half — they
          are laid out at PANEL_W and scaled into it, so they hold their shape at
@@ -2012,11 +2011,7 @@
       root.style.setProperty('--sidew', Math.round(side) + 'px');
       root.style.setProperty('--halfh', Math.round(half) + 'px');
       root.style.setProperty('--panelw', PANEL_W + 'px');
-      /* scrollHeight is a layout figure, so the transform already on the group
-         does not disturb it — this is the height the panels want at PANEL_W. */
-      const need = $('#sidebar').scrollHeight;
-      root.style.setProperty('--pscale',
-        Math.min(side / PANEL_W, need ? (half - 8) / need : Infinity).toFixed(4));
+      fitPanels();
 
       UI.canvas.style.width = Math.round(mapW) + 'px';
       UI.canvas.style.height = Math.round(mapH) + 'px';
@@ -2074,6 +2069,10 @@
     window.addEventListener('resize', fitCanvas);
     setTimeout(fitCanvas, 0);
     new ResizeObserver(fitCanvas).observe($('#stage'));
+    /* the panel group's own height, which changes as its contents are built and
+       as the hero panel comes and goes; the transform does not affect what this
+       reports, so setting the scale cannot re-trigger it */
+    new ResizeObserver(fitPanels).observe($('#sidebar'));
 
     buildMainMenu();
     buildAudioPanel($('#menu-audio'));

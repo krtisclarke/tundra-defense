@@ -1154,7 +1154,10 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
    wrapped a third time and the dock swallowed 461px of a 936px window. Every
    panel on the bottom row now flexes, which guarantees two rows at any width
    in this range and keeps the battlefield a constant size. */
-@media (max-width: 1250px) and (min-height: 561px) {
+/* Bottom-dock refinements. Bounded at 899 to stay clear of the in-level block,
+   which now starts at 900 — they set fixed panel heights the block does not
+   override, and at 1250 they were pinning its tray to 150px. */
+@media (max-width: 899px) and (min-height: 501px) {
   #dock.playing {
     flex-wrap: wrap;
     align-content: flex-start;
@@ -1184,7 +1187,7 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
    row (which costs the battlefield 150px), the two fixed-width panels give up
    the padding they can spare, and the command column narrows. Measured: this
    holds two rows down to ~660px, below which the dock grows instead. */
-@media (max-width: 1000px) and (min-height: 561px) {
+@media (max-width: 899px) and (min-height: 501px) {
   /* The four bases plus gaps have to clear the dock's inner width with room to
      spare — at one point they cleared it by a single pixel, and the row wrapped
      anyway. The card buys its narrower basis back with a smaller icon and a
@@ -1223,7 +1226,7 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
    column, a 1fr gutter — so the block centres on both axes without anything
    being positioned by hand. #dock dissolves so its panels can be placed
    directly. All four measurements come from fitCanvas. */
-@media (min-width: 1100px) and (min-height: 620px) {
+@media (min-width: 900px) and (min-height: 500px) {
   #app {
     display: grid;
     grid-template-columns: 1fr var(--mapw, 1fr) var(--sidew, 0px) 1fr;
@@ -1337,7 +1340,11 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
    strip: a scrollable penguin tray, boosts, and the wave controls.
    The selection card stops holding a seat and floats only when used.
    ============================================================ */
-@media (orientation: landscape) and (max-height: 560px) {
+/* Phone-in-landscape rail. 499, not 560: above 500 the in-level block takes
+   over and a short wide window gets it with a margin either side, which is the
+   arrangement asked for. Real handsets in landscape are 360-430 tall, so they
+   all still land here. */
+@media (orientation: landscape) and (max-height: 499px) {
   /* Slim rail: three penguins per row instead of five, so the dock can give
      back ~80px of width to the battlefield without shrinking the icons. */
   :root { --dockw: clamp(140px, 19vw, 170px); }
