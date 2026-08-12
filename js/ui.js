@@ -838,6 +838,10 @@
     if (!g) return;
     $('#hud-lives').textContent = g.lives;
     $('#hud-cash').textContent = Math.round(g.cash).toLocaleString(); // fish icon sits beside it
+    /* Set here rather than by the .js-pebbles sweep, which only runs on a
+       screen change: pebbles are awarded mid-battle for surviving a wave, and
+       this is the one place that is already re-reading the HUD as it happens. */
+    $('#hud-pebbles').textContent = UI.profile.pebbles.toLocaleString();
     $('#hud-wave').textContent = g.endless ? `Wave ${g.wave} · ∞` : `Wave ${Math.min(g.wave, g.totalWaves)} / ${g.totalWaves}`;
     $('#wave-bar i').style.width = Math.min(100, ((g.wave - 1) / g.totalWaves) * 100) + '%';
     $('#hud-level').textContent = `${g.level.name} · ${G.DIFFICULTIES[g.diffId].name}`;

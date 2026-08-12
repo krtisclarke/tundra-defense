@@ -122,8 +122,12 @@ html.touch #btn-cancel-place.show { display: block; }
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
 }
 .stat svg { width: 19px; height: 19px; }
+/* the other two carry an inline SVG at 19px; pebbles are an emoji everywhere
+   else in the game, so it is matched to that height rather than redrawn */
+.stat-glyph { font-size: 15px; line-height: 1; }
 .stat.lives { color: #ffa8a8; }
 .stat.cash { color: var(--gold); }
+.stat.pebbles { color: #d9c6a6; }
 .stat.wavebox { color: var(--accent); flex-direction: column; align-items: flex-start; gap: 5px; padding: 8px 17px; }
 #hud-wave { font-size: 15px; line-height: 1; font-weight: 800; }
 #wave-bar {
@@ -1287,7 +1291,7 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
   }
   #palette .slot-key {
     position: absolute; top: 1.1cqw; left: 1.1cqw; transform: none;
-    font-size: 2.4cqw; line-height: 1; padding: 0.5cqw 1cqw; border-radius: 1.1cqw;
+    font-size: 3.3cqw; line-height: 1; padding: 0.6cqw 1.2cqw; border-radius: 1.2cqw;
     background: rgba(6, 11, 20, 0.7); border-color: transparent; color: var(--text);
   }
   #palette .slot-lock {
@@ -1409,11 +1413,20 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
     grid-template-rows: repeat(3, 1fr);
     gap: 7px;
   }
+  /* Same treatment as the penguin tiles: the icon fills the button rather than
+     sitting in the middle of it. The button is its own container so the glyph
+     can be a share of it — 62% — and grows with the panel. */
   #dock-powers .dp-btn {
     width: auto; height: 100%; aspect-ratio: 1;
     justify-self: center; max-width: 100%;
-    font-size: 22px;
+    container-type: inline-size;
+    padding: 0;
   }
+  /* 1.25, not 1: an emoji's ink is taller than its em box, so at line-height 1
+     the glyph spilled 3px out of its own line — visible as a clipped icon on a
+     small block. The extra leading contains it and the glyph is unchanged. */
+  #dock-powers .dp-btn .dp-icon { font-size: 62cqw; line-height: 1.25; }
+  #dock-powers .dp-count { font-size: 17cqw; min-width: 0; padding: 0 6cqw; }
   /* Send Wave does not need the whole width — the speed, pause and auto
      controls ride beside it instead of costing another row underneath. */
   #command {
