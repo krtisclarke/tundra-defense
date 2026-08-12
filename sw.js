@@ -2,7 +2,7 @@
    After the first visit, the phone keeps its own copy of every file, so the
    home-screen app works with no server and no internet.
    Bump VERSION whenever game files change so players pick up the update. */
-const VERSION = 'tundra-v42';
+const VERSION = 'tundra-v43';
 const FILES = [
   './',
   'index.html',
@@ -32,18 +32,30 @@ self.addEventListener('activate', (e) => {
   );
 });
 
-/* Serve from cache, refresh the cache from the network in the background. */
+/* Network first, cache as the fallback — not the other way round.
+
+   Cache-first is the usual advice and it was wrong here. It answers from the
+   copy on disk and only refreshes in the background, so the first visit after
+   an update always shows the PREVIOUS version, and a second visit is needed to
+   see the new one. Playing on a phone that is a nuisance; while the game is
+   being worked on it reads as the change having been lost, and cost a round of
+   "it reverted" over a build that had shipped correctly.
+
+   The trade is one network round-trip when online, on a handful of small files
+   from the same origin. With no network — the whole point of the cache — the
+   fetch fails and the stored copy answers exactly as before, so the
+   home-screen app still works offline. */
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
   e.respondWith(
-    caches.match(e.request).then((hit) => {
-      const refresh = fetch(e.request)
-        .then((res) => {
-          if (res.ok) caches.open(VERSION).then((c) => c.put(e.request, res.clone()));
-          return res;
-        })
-        .catch(() => hit);
-      return hit || refresh;
-    })
+    fetch(e.request)
+      .then((res) => {
+        if (res.ok) {
+          const copy = res.clone();
+          caches.open(VERSION).then((c) => c.put(e.request, copy));
+        }
+        return res;
+      })
+      .catch(() => caches.match(e.request))
   );
 });

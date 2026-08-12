@@ -18,7 +18,12 @@ http.createServer((req, res) => {
   if (!file.startsWith(ROOT)) { res.writeHead(403); res.end(); return; }
   fs.readFile(file, (err, data) => {
     if (err) { res.writeHead(404); res.end('Not found'); return; }
-    res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream' });
+    /* no-store: this is the copy you get while working on the game, so it must
+       never be the browser's idea of the file rather than the one on disk. */
+    res.writeHead(200, {
+      'Content-Type': MIME[path.extname(file)] || 'application/octet-stream',
+      'Cache-Control': 'no-store, must-revalidate',
+    });
     res.end(data);
   });
 }).listen(PORT, () => console.log(`Tundra Defense running at http://localhost:${PORT}`));
