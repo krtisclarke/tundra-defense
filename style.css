@@ -1370,11 +1370,34 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
      the boosts and the wave controls would visibly resize on every click. 128
      is the tallest this card gets at PANEL_W, swept over every tower and hero
      at both wave depths, one notch clear of the 125 the worst of them (a plain
-     Pebble Flinger, both upgrade names running to two lines) actually needs. */
-  #dock-sel { grid-row: 1; height: 148px; display: flex; flex-direction: column; }
+     Pebble Flinger, both upgrade names running to two lines) actually needs.
+     170 now that the head carries a 58px portrait and the buttons are taller;
+     the worst needs 167. The height comes out of the row below, which had it
+     going spare. */
+  #dock-sel { grid-row: 1; height: 170px; display: flex; flex-direction: column; }
   /* the empty card sat as three lines at the top of a fixed box with the rest
      of it dark — it centres now, so the box reads as deliberate */
   #dock-sel .ds-empty { margin: auto 0; }
+
+  /* ---- the selection card, when a penguin is in it ----
+     Three rows that were all left-packed in a 358px card: the head used 188 of
+     it, the action row 176, and the rest was dark. Each row fills now, and the
+     penguin at the head of it is a portrait rather than a 34px stamp. */
+  #dock-sel .ds-head { gap: 11px; align-items: center; }
+  #dock-sel .ds-head canvas { width: 58px; height: 58px; }
+  #dock-sel .ds-head > div { flex: 1 1 auto; }
+  #dock-sel .ds-name { font-size: 16px; }
+  #dock-sel .ds-stats { font-size: 13px; color: #d3e2f2; margin-top: 3px; }
+  /* the two buttons already shared the width; what they lacked was edge and
+     legible sub-text, both of which were sitting at the dim end */
+  #dock-sel .btn.upg-mini { height: 56px; border-color: var(--line-strong); padding-left: 27px; }
+  #dock-sel .um-name { font-size: 13.5px; color: var(--text); }
+  #dock-sel .um-sub { font-size: 12px; color: #b8cade; }
+  #dock-sel .btn.upg-mini.can { border-color: rgba(87, 212, 136, 0.75); }
+  #dock-sel .btn.upg-mini.done { border-color: rgba(255, 255, 255, 0.16); }
+  /* targeting and sell share the row rather than huddling on the left */
+  #dock-sel .ds-actions { gap: 8px; }
+  #dock-sel .ds-actions .btn { flex: 1 1 0; justify-content: center; font-size: 13px; }
   /* Two lines allowed for both: "Commander Beak · ★ Lv 20" is the longest thing
      the card ever shows, and the nominal width does not have to widen to keep
      it on one row. */

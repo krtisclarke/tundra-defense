@@ -1546,8 +1546,10 @@
     box.innerHTML = '';
 
     const head = el('div', 'ds-head');
+    /* 96, not 40: the card shows this at 58px now rather than as a 34px stamp,
+       and drawTowerIcon draws to whatever size the canvas is. */
     const cv = document.createElement('canvas');
-    cv.width = 40; cv.height = 40;
+    cv.width = 96; cv.height = 96;
     G.drawTowerIcon(cv, t.type, t.up);
     head.appendChild(cv);
     const stats = [];
