@@ -1154,54 +1154,6 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
    wrapped a third time and the dock swallowed 461px of a 936px window. Every
    panel on the bottom row now flexes, which guarantees two rows at any width
    in this range and keeps the battlefield a constant size. */
-/* Bottom-dock refinements. Bounded at 899 to stay clear of the in-level block,
-   which now starts at 900 — they set fixed panel heights the block does not
-   override, and at 1250 they were pinning its tray to 150px. */
-@media (max-width: 899px) and (min-height: 501px) {
-  #dock.playing {
-    flex-wrap: wrap;
-    align-content: flex-start;
-    /* min-height, not height. Two rows measure 329px, so this looks exactly as
-       it did — but if a narrow window ever forces a third row, the dock grows
-       to hold it instead of painting the command column out through the
-       bottom. Growing costs map height; clipping costs you the Send Wave
-       button. height:auto is required — the base rule's fixed height would
-       otherwise pin it and clip anyway. */
-    height: auto;
-    min-height: 330px;
-    row-gap: 10px;
-  }
-  #palette { order: 1; flex: 1 1 100%; height: 150px; }
-  /* min-width, not just a basis: at the bottom of this range the four panels
-     of row two had only 3px of slack to share, and the card was squeezed to
-     212px — narrow enough to ellipse a plain Pebble Flinger's stat line. The
-     card holds its ground and the others give way. */
-  #dock-sel { order: 2; flex: 2 1 290px; min-width: 268px; max-width: none; height: 148px; }
-  #dock-hero { order: 3; flex: 0 1 auto; height: 148px; }
-  #dock-powers { order: 4; flex: 0 1 auto; height: 148px; }
-  #command { order: 5; flex: 2 1 200px; max-width: none; height: 148px; }
-}
-
-/* Under ~1000px the four panels of row two stop fitting side by side — their
-   own widths add up to more than the dock has. Rather than spill onto a third
-   row (which costs the battlefield 150px), the two fixed-width panels give up
-   the padding they can spare, and the command column narrows. Measured: this
-   holds two rows down to ~660px, below which the dock grows instead. */
-@media (max-width: 899px) and (min-height: 501px) {
-  /* The four bases plus gaps have to clear the dock's inner width with room to
-     spare — at one point they cleared it by a single pixel, and the row wrapped
-     anyway. The card buys its narrower basis back with a smaller icon and a
-     slightly tighter stat line, so its content still fits on one line. */
-  #dock-sel { flex: 2 1 280px; min-width: 262px; }
-  #command { flex: 1 1 175px; }
-  #dock-sel .ds-head canvas { width: 30px; height: 30px; }
-  #dock-sel .ds-stats { font-size: 11.5px; letter-spacing: -0.1px; }
-  #dock-hero { padding: 6px 6px; gap: 4px; }
-  .hero-abil { min-width: 72px; max-width: 104px; font-size: 11px; padding: 6px 5px; }
-  #dock-powers { padding: 6px 7px; }
-  .dp-grid { grid-template-columns: repeat(3, 40px); gap: 5px; }
-  .dp-btn { width: 40px; height: 40px; font-size: 17px; }
-}
 
 /* ============ WIDE LAYOUT: the map, and one column beside it ============
    One arrangement at every window size, and it is a block of fixed proportions
@@ -1226,14 +1178,25 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
    column, a 1fr gutter — so the block centres on both axes without anything
    being positioned by hand. #dock dissolves so its panels can be placed
    directly. All four measurements come from fitCanvas. */
-@media (min-width: 900px) and (min-height: 500px) {
+/* This is the only in-level layout there is. It is not behind a media query:
+   there is no window size at which the pieces move somewhere else. A window
+   the block does not match gets a margin, never a different arrangement. */
   #app {
     display: grid;
     grid-template-columns: 1fr var(--mapw, 1fr) var(--sidew, 0px) 1fr;
     grid-template-rows: 1fr var(--halfh, 1fr) var(--halfh, 1fr) 1fr;
   }
-  #stage { grid-column: 2; grid-row: 1 / span 4; padding: 0; }
+  /* Exactly the map's box, not the full window height. Everything that floats
+     over the battlefield — the vitals, the system buttons, the banner, the
+     cancel button — is positioned against this, so on a window taller than the
+     block they belong to the map rather than drifting up into the margin. */
+  #stage { grid-column: 2; grid-row: 2 / span 2; padding: 0; }
   #dock.playing { display: contents; }
+  /* and they scale with the block for the same reason the panels do: the whole
+     thing has to look like one drawing at any size */
+  #hud-stats { top: 0; left: 0; transform: scale(var(--uiscale, 1)); transform-origin: top left; margin: 14px 0 0 16px; }
+  #hud-sys { top: 0; right: 0; transform: scale(var(--uiscale, 1)); transform-origin: top right; margin: 14px 16px 0 0; }
+  #banner { transform: translateX(-50%) scale(var(--uiscale, 1)); }
 
   /* Build tray: the top half of the column, two penguins across, scrolling for
      the rest. Two across is fixed on purpose — the tiles grow and shrink with
@@ -1331,123 +1294,15 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
   }
   .dp-grid { grid-template-columns: repeat(3, 1fr); justify-items: center; }
   #dock-powers, #dock-hero { align-items: center; }
-}
 
 
 /* ============================================================
-   COMPACT LANDSCAPE — phones held sideways (and any short window).
-   Height is the scarce resource, so the dock becomes one shallow
-   strip: a scrollable penguin tray, boosts, and the wave controls.
-   The selection card stops holding a seat and floats only when used.
+   PHONE IN LANDSCAPE — the layout above is unchanged here; a phone just
+   needs its chrome smaller. Everything that used to move the dock to the
+   side or the bottom on a short screen is gone: there is one arrangement,
+   and a screen it does not match gets a margin.
    ============================================================ */
-/* Phone-in-landscape rail. 499, not 560: above 500 the in-level block takes
-   over and a short wide window gets it with a margin either side, which is the
-   arrangement asked for. Real handsets in landscape are 360-430 tall, so they
-   all still land here. */
 @media (orientation: landscape) and (max-height: 499px) {
-  /* Slim rail: three penguins per row instead of five, so the dock can give
-     back ~80px of width to the battlefield without shrinking the icons. */
-  :root { --dockw: clamp(140px, 19vw, 170px); }
-
-  /* Side dock, not a bottom bar. A phone in landscape is ~2.2 wide to 1 tall
-     while the battlefields are 1.6-1.75, so height is what the map is starved
-     of — put the controls in the leftover width and let the map fill the
-     screen top to bottom. Roughly doubles the visible battlefield. */
-  #app {
-    flex-direction: row;
-    padding-left: env(safe-area-inset-left);
-    padding-right: env(safe-area-inset-right);
-    padding-bottom: env(safe-area-inset-bottom);
-  }
-  #stage { flex: 1 1 auto; min-width: 0; }
-
-  #dock.playing {
-    flex-direction: column;
-    width: var(--dockw);
-    flex: none;
-    height: 100%;
-    gap: 6px;
-    padding: 7px 7px 8px;
-    border-top: none;
-    border-left: 1px solid var(--line-strong);
-    box-shadow: -8px 0 30px rgba(0, 0, 0, 0.45);
-  }
-
-  /* penguin tray fills the free height and scrolls if it must. Three
-     finger-size penguins per row here, the rest reached by scrolling. */
-  #palette {
-    flex: 1 1 auto;
-    order: 1;
-    grid-template-columns: repeat(3, 1fr);
-    align-content: flex-start;
-    gap: 4px;
-    min-height: 0;
-    overflow-y: auto;
-    overflow-x: hidden;
-    scrollbar-width: none;
-    -webkit-overflow-scrolling: touch;   /* momentum scrolling */
-    touch-action: pan-y;
-    overscroll-behavior: contain;
-  }
-  #palette::-webkit-scrollbar { display: none; }
-  /* pan-y intentionally overrides the base .slot touch-action: none — vertical
-     strokes must stay with the browser here (tray scroll fires pointercancel). */
-  .slot { width: auto; min-width: 0; max-width: none; padding: 4px 1px 3px; border-radius: 8px; touch-action: pan-y; }
-  .slot canvas { width: 34px; height: 34px; }
-  .slot-cost { font-size: 10.5px; line-height: 1.15; letter-spacing: -0.3px; }
-  .slot-key { display: none; }          /* no keyboard to mirror */
-
-  #dock-hero { order: 2; flex: none; padding: 4px 5px; gap: 2px; flex-direction: row; }
-  #dock-hero .dp-label { display: none; }
-  .hero-chip { width: 40px; height: 40px; }
-  .hero-chip canvas { width: 32px; height: 32px; }
-  .hero-abil { min-width: 0; flex: 1; font-size: 10.5px; }
-  #dock-powers { order: 3; flex: none; padding: 4px 5px; gap: 2px; }
-  .dp-label { display: none; }
-  .dp-grid { grid-template-columns: repeat(3, 1fr); gap: 4px; width: 100%; }
-  .dp-btn { width: auto; height: 36px; font-size: 16px; border-radius: 8px; }
-  .dp-count { font-size: 9px; min-width: 13px; line-height: 1.4; top: -5px; right: -4px; }
-
-  #command { order: 4; flex: none; width: 100%; min-width: 0; max-width: none; gap: 4px; }
-  #wave-preview { max-height: 19px; gap: 3px; }   /* one chip row on phones */
-  .wp-chip { font-size: 10px; padding: 0 5px; gap: 3px; }
-  .wp-chip i { width: 8px; height: 8px; }
-  #send-wave { padding: 11px 6px; font-size: 13.5px; }
-  #send-wave kbd, #cmd-row kbd { display: none; }
-  #cmd-row { gap: 4px; justify-content: space-between; }
-  .btn.tiny { padding: 8px 8px; font-size: 12px; }
-  .hud-check { font-size: 0; gap: 0; }   /* switch only — the word doesn't fit the rail */
-
-  /* selection card floats over the battlefield, only when it has something to say */
-  #dock-sel {
-    display: none;
-    position: fixed;
-    left: calc(10px + env(safe-area-inset-left));
-    bottom: calc(10px + env(safe-area-inset-bottom));
-    width: 236px;
-    z-index: 12;
-    background: var(--glass);
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
-    box-shadow: var(--shadow);
-  }
-  #dock-sel.has-sel { display: flex; }
-  #btn-cancel-place { bottom: 10px; }
-
-  /* keep the floating card small — it is sitting on the battlefield */
-  #dock-sel { padding: 7px 8px; gap: 5px; }
-  .ds-head canvas { width: 30px; height: 30px; }
-  .ds-name { font-size: 13.5px; }
-  /* 10px, not 11. The card is only 180px wide here, and a deep-endless hero
-     reads "⚔ 36.2k · ⚡ 1.94/s · ◎ 140 · ☠ 48.2k" — at 11px that ran 17px long
-     and the kill count was ellipsed off the end. */
-  .ds-stats { font-size: 10px; letter-spacing: -0.2px; margin-top: 2px; }
-  .btn.upg-mini { padding: 4px 6px 4px 8px; }
-  .um-name { font-size: 11px; }
-  .um-sub { font-size: 10px; }
-  .ds-placing { font-size: 12px; }
-  .ds-actions .btn { font-size: 11.5px; padding: 6px 9px; }
-
   /* slimmer vitals so they steal less of the battlefield */
   #hud-stats { top: 8px; left: 10px; gap: 4px; }
   .stat { padding: 5px 11px; font-size: 13px; gap: 6px; }
@@ -1455,11 +1310,10 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
   #hud-wave { font-size: 12px; }
   #wave-bar { width: 84px; height: 4px; }
   .stat.lvlname { display: none; }
-  /* system buttons stay over the map, clear of the side dock */
   #hud-sys { top: 8px; right: 48px; gap: 4px; }
   .icon-btn { width: 34px; height: 34px; }
   .icon-btn svg { width: 17px; height: 17px; }
-  #btn-fs { top: 8px; right: calc(var(--dockw) + 10px); }
+  #btn-fs { top: 8px; right: 10px; }
   html.touch #hud-sys { right: 10px; }   /* no fullscreen button to clear */
   #banner { top: 44px; font-size: 20px; }
   #toasts { top: 48px; left: 10px; }

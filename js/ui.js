@@ -1963,10 +1963,6 @@
      0.87 — so a group of that shape scales in with nothing left over. */
   const PANEL_W = 400;
   const PAD = 12;
-  /* Below this the block would be too small to be worth it and touch layouts
-     take over. There is no height bound: a short window just gets a wider
-     margin either side, which is the point. */
-  const wideLayout = () => matchMedia('(min-width: 900px) and (min-height: 500px)').matches;
 
   /* The scale the panel group is drawn at: the smaller of the two fits, so it
      is contained rather than cropped. Separate from fitCanvas and watched by a
@@ -1984,45 +1980,43 @@
       Math.min(side / PANEL_W, need ? (half - 8) / need : Infinity).toFixed(4));
   }
 
+  /* One path, no branch. There is no window size at which a different
+     arrangement takes over — a window the block's shape does not match gets a
+     margin, and that is the whole of it. */
   function fitCanvas() {
     if (!UI.canvas) return;
-    const wrap = $('#stage');
     const root = document.documentElement;
+    const W = root.clientWidth - PAD, H = root.clientHeight - PAD;
+    const aspect = G.W / G.H;
+    const playing = $('#dock').classList.contains('playing');
 
-    if (wideLayout()) {
-      const W = root.clientWidth - PAD, H = root.clientHeight - PAD;
-      const aspect = G.W / G.H;
-      const playing = $('#dock').classList.contains('playing');
+    /* Between battles there is no column, so the block is just the map and it
+       takes the window; the menu's backdrop gets the rest. */
+    const frac = playing ? COL_FRAC : 0;
+    const ratio = aspect * (1 + frac);
+    /* The one place the window is consulted: how big the block can be drawn.
+       Its shape does not depend on this. */
+    const blockW = Math.min(W, H * ratio);
+    const mapH = blockW / ratio, mapW = mapH * aspect, side = blockW - mapW;
 
-      /* Between battles there is no column, so the block is just the map and it
-         takes the window; the menu's backdrop gets the rest. */
-      const frac = playing ? COL_FRAC : 0;
-      const ratio = aspect * (1 + frac);
-      /* The one place the window is consulted: how big the block can be. Its
-         shape does not depend on this. */
-      const blockW = Math.min(W, H * ratio);
-      const mapH = blockW / ratio, mapW = mapH * aspect, side = blockW - mapW;
+    /* Half the column each. The panels do not reflow into their half — they
+       are laid out at PANEL_W and scaled into it, so they hold their shape at
+       every window size. */
+    const half = mapH / 2;
+    root.style.setProperty('--mapw', Math.round(mapW) + 'px');
+    root.style.setProperty('--sidew', Math.round(side) + 'px');
+    root.style.setProperty('--halfh', Math.round(half) + 'px');
+    root.style.setProperty('--panelw', PANEL_W + 'px');
+    /* The vitals and the system buttons sit on the map rather than in the
+       column, so they scale with the map rather than with the panels. Floored
+       so they stay legible and tappable on a small block, capped so they do not
+       swell on a 4K one. 1280 is the narrowest battlefield's own width, which
+       makes 1 the size they were drawn at. */
+    root.style.setProperty('--uiscale', Math.max(0.62, Math.min(1.1, mapW / 1280)).toFixed(3));
+    fitPanels();
 
-      /* Half the column each. The panels do not reflow into their half — they
-         are laid out at PANEL_W and scaled into it, so they hold their shape at
-         every window size. */
-      const half = mapH / 2;
-      root.style.setProperty('--mapw', Math.round(mapW) + 'px');
-      root.style.setProperty('--sidew', Math.round(side) + 'px');
-      root.style.setProperty('--halfh', Math.round(half) + 'px');
-      root.style.setProperty('--panelw', PANEL_W + 'px');
-      fitPanels();
-
-      UI.canvas.style.width = Math.round(mapW) + 'px';
-      UI.canvas.style.height = Math.round(mapH) + 'px';
-      return;
-    }
-
-    for (const v of ['--sidew', '--mapw', '--halfh', '--panelw', '--pscale']) root.style.removeProperty(v);
-    const availW = wrap.clientWidth - PAD, availH = wrap.clientHeight - PAD;
-    const scale = Math.min(availW / G.W, availH / G.H);
-    UI.canvas.style.width = G.W * scale + 'px';
-    UI.canvas.style.height = G.H * scale + 'px';
+    UI.canvas.style.width = Math.round(mapW) + 'px';
+    UI.canvas.style.height = Math.round(mapH) + 'px';
   }
 
   /* ---------- main loop ---------- */
