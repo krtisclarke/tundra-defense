@@ -763,14 +763,29 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
   font-size: 30px; filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.6));
 }
 .lvl-body { padding: 11px 13px 6px; flex: 1 1 auto; display: flex; flex-direction: column; }
-.lvl-row { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; }
+/* two lines reserved: "21. Abyssal Approach" wraps where "23. Leviathan Trench"
+   does not, and a title one line taller than its neighbour's put everything
+   below it out of step with the rest of the row */
+.lvl-row { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; min-height: 38px; }
 .lvl-name { font-weight: 800; font-size: 15.5px; }
 .lvl-stars { color: var(--gold); font-size: 12px; letter-spacing: 1px; white-space: nowrap; }
 .dim-star { color: rgba(255, 255, 255, 0.15); }
-/* off the dim grey: this is the one line that says what the battlefield is */
-.lvl-tag { font-size: 12.5px; color: #b9cadb; line-height: 1.45; min-height: 34px; margin-top: 4px; }
-/* pushed to the foot of the body, so the slack lands above them */
-.lvl-meta { display: flex; gap: 6px; margin: 10px 0 4px; flex-wrap: wrap; margin-top: auto; }
+/* Off the dim grey: this is the one line that says what the battlefield is.
+   Three lines reserved, not two — a locked card's reason ("Beat Penguin Village
+   on Easy first.") runs to three at this width, and a card whose text is one
+   line taller than its neighbour's pushes everything below it out of step with
+   the rest of the row. */
+.lvl-tag { font-size: 12.5px; color: #b9cadb; line-height: 1.45; min-height: 54px; margin-top: 4px; }
+/* Directly under the tagline, NOT pushed to the foot of the body. Pushing them
+   down put the slack between the text and the badges, so a card with one row of
+   badges sat them 60px lower than a card with three and the rows across a
+   tier never lined up. Everything is top-aligned now and the buttons are
+   bottom-aligned, so the only thing that varies is one band of space between
+   them. */
+/* two rows' worth reserved, so the band of space under the badges is the same
+   in every card instead of running from 10px to 39 depending on how many a
+   battlefield happens to have earned */
+.lvl-meta { display: flex; gap: 6px; margin: 9px 0 4px; flex-wrap: wrap; min-height: 53px; align-content: flex-start; }
 .badge {
   font-size: 11.5px; font-weight: 750;
   background: rgba(255, 255, 255, 0.09);
@@ -1554,7 +1569,12 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
   .lvl-thumb { }
   .lvl-body { padding: 8px 10px 3px; }
   .lvl-name { font-size: 13px; }
-  .lvl-tag { font-size: 11px; min-height: 30px; }
+  /* the same reservations as the full-size card, restated at this font: two
+     lines of title and three of tagline. Left at their old values these
+     overrode the ones above and the rows went ragged again down here. */
+  .lvl-row { min-height: 32px; }
+  .lvl-tag { font-size: 11px; min-height: 48px; }
+  .lvl-meta { min-height: 48px; }
   .diff-card { width: 168px; padding: 14px 10px 12px; }
   .diff-icon { font-size: 30px; }
   .diff-name { font-size: 16px; margin: 5px 0 7px; }
