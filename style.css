@@ -281,6 +281,13 @@ html.touch #btn-fs { display: none; }
 }
 .ds-stats {
   font-size: 12.5px; color: #c4d4e4; font-weight: 650; margin-top: 3px;
+  /* Pinned, not "normal": the ☠ and ⚔ glyphs push an auto line-height to 21px
+     for a 12.5px font, and those five wasted pixels are the difference between
+     the card fitting and the card scrolling. */
+  line-height: 1.3;
+  /* the tightening is worth ~7px over a full line, which is what a wide-range
+     hero in deep endless needs — "⚔ 12.4k · ⚡ 0.47/s · ◎ 244 · ☠ 48.2k" */
+  letter-spacing: -0.2px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .ds-upgs { display: flex; gap: 6px; flex: none; }
@@ -327,7 +334,8 @@ html.touch #btn-fs { display: none; }
 /* Never wraps: a second row of buttons is 25px the card does not have. The
    sell price is the wide one, so it is the one allowed to shrink and ellipse. */
 .ds-actions { display: flex; gap: 6px; flex: none; flex-wrap: nowrap; }
-.ds-actions .btn { padding: 5px 9px; white-space: nowrap; }
+/* #dock-sel for specificity — .btn.tiny sets its own padding and was winning */
+#dock-sel .ds-actions .btn { padding: 4px 9px; line-height: 1.35; white-space: nowrap; }
 .ds-actions .btn.danger { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 
 /* build palette (center): two rows like a keyboard.
@@ -934,14 +942,25 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
   color: var(--gold);
   margin: 2px 0 10px;
 }
-#hero-row, .hero-row { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-bottom: 18px; }
+/* A grid, not a wrapping row of fixed-width cards. With nine champions the old
+   208px card gave three per row and a picker taller than the screen; auto-fit
+   packs five across a full-width panel and folds down cleanly on narrow ones. */
+#hero-row, .hero-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(152px, 1fr));
+  gap: 10px;
+  margin-bottom: 18px;
+}
 .hero-card {
-  width: 208px;
+  min-width: 0;
   background: var(--panel2);
   border: 1px solid var(--line);
   border-bottom: 3px solid rgba(255, 209, 102, 0.45);
   border-radius: 14px;
-  padding: 14px 14px 12px;
+  padding: 12px 10px 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   cursor: pointer;
   text-align: center;
   transition: transform 0.14s ease, box-shadow 0.18s ease, border-color 0.18s, background 0.18s;
@@ -955,11 +974,14 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
 .hero-card.locked { cursor: default; }
 .hero-card.locked:hover { transform: none; }
 .hero-card.locked canvas { filter: grayscale(0.85) brightness(0.75); }
-.hero-card canvas { width: 52px; height: 52px; }
-.hc-name { font-weight: 800; font-size: 15.5px; color: var(--gold); margin: 4px 0 2px; }
-.hc-blurb { font-size: 12px; color: var(--dim); line-height: 1.45; min-height: 34px; }
-.hc-abil { font-size: 12px; font-weight: 700; margin: 6px 0; }
-.hc-state { font-size: 11.5px; color: var(--dim); margin-top: 4px; }
+.hero-card canvas { width: 48px; height: 48px; flex: none; }
+.hc-name { font-weight: 800; font-size: 14px; color: var(--gold); margin: 3px 0 2px; line-height: 1.2; }
+/* the blurbs run to two or three lines at this width; a shared floor keeps the
+   cards in a row the same height without capping the longest one */
+.hc-blurb { font-size: 11.5px; color: var(--dim); line-height: 1.4; min-height: 48px; }
+.hc-abil { font-size: 11.5px; font-weight: 700; margin: 5px 0; line-height: 1.3; }
+.hc-state { font-size: 11px; color: var(--dim); margin-top: 4px; }
+.hero-card .btn { margin-top: auto; width: 100%; }
 .hero-card.sel .hc-state { color: var(--good); font-weight: 700; }
 
 /* hero panel (in the dock) */
@@ -1012,7 +1034,9 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
 @keyframes heroPulse {
   50% { box-shadow: 0 0 18px rgba(255, 209, 102, 0.6); }
 }
-.ds-hero-note { flex: none; font-size: 11.5px; color: var(--dim); line-height: 1.35; padding: 1px 2px; }
+/* no vertical padding: with the XP bar in it this block was the one pixel that
+   armed the card's scrollbar */
+.ds-hero-note { flex: none; font-size: 11.5px; color: var(--dim); line-height: 1.35; padding: 0 2px; }
 .ds-hero-note b { color: var(--gold); }
 /* Each line is exactly one line. See the note in renderDockSel: this block sits
    between the head and the action row inside a card of fixed height. */

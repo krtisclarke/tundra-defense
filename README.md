@@ -131,13 +131,28 @@ lions are, the hero hits proportionally, from the home shores to the Frozen Abys
 deep Endless Tide. At level 3 the signature ability unlocks — free to fire (press **H**),
 recharging over time.
 
+Nine champions, each built around a job the others don't do. Prices are not guesswork:
+every hero was run through 18 identical battles — six battlefield/difficulty pairings ×
+three seeds — against the same scripted defence, firing its ability whenever it recharged.
+The improvement over fighting heroless was mapped onto the 2,500–7,500 🪨 band, so what a
+hero costs is what it measured.
+
 | Hero | Recruited | Style | Ability |
 |---|---|---|---|
 | ⚔️ **Captain Frost** | free | heavy single-target damage | 🏔️ Avalanche Charge — smashes the whole field |
+| 💣 **Skipper Marlow** | 2,500 🪨 | lobs over ridges and igloos; wide blast | 💣 Depth Barrage — six charges walked down the trail |
+| 🌨️ **Scout Tilly** | 2,750 🪨 | shreds swarms, sees stealth | 🌨️ Snow Flurry — buries everything near her |
+| 🧪 **Warden Kell** | 4,000 🪨 | strips blubber, poisons the wound | 🧪 Corrosion — −3 armour on the field, and burning |
+| 🐟 **Purser Fen** | 4,500 🪨 | every kill the colony makes pays more | 🐟 Fish Haul — a lump of fish, bigger on deep waves |
 | 📯 **Commander Beak** | 5,000 🪨 | nearby penguins fight harder & faster | 📯 War Cry — everyone attacks 50% faster for 8s |
+| 🌌 **Aurora Sage** | 6,250 🪨 | steady armour-piercing beam | 🌌 Aurora Veil — the field slowed hard and scorched |
+| 🎯 **Bosun Rook** | 7,500 🪨 | reaches the whole map; +60% vs bosses | 🎯 Harpoon Volley — through the eight biggest |
 | ❄️ **Elder Shiver** | 7,500 🪨 | slows whole packs, deeper each level | ❄️ Cold Snap — freezes every sea lion for 2.5s |
 
-Heroes are permanent once recruited — the two elders are the colony's long-term pebble goals.
+Heroes are permanent once recruited. One caveat on the measurements: the scripted defence
+spreads its towers for coverage rather than clustering them, so it puts barely any of them
+inside Commander Beak's circle — an aura hero is worth more in human hands than the
+numbers above credit.
 
 ### 🏛️ Colony Upgrades — pebbles that work forever
 

@@ -1528,7 +1528,9 @@
       stats.push(`⚔ ${d < 10000 ? Math.round(d * 10) / 10 : short(d)}`);
     }
     if (c.rate) stats.push(`⚡ ${Math.round(c.rate * t.buff.rate * 100) / 100}/s`);
-    if (c.range && c.range < 5000) stats.push(`◎ ${Math.round(c.range * t.buff.range)}`);
+    // ∞ rather than nothing for the map-wide reaches (Harpoon Sniper, Bosun
+    // Rook) — an absent range chip read as "this one has no range at all"
+    if (c.range) stats.push(`◎ ${c.range >= 5000 ? '∞' : Math.round(c.range * t.buff.range)}`);
     /* A vendor's headline number is what it will ACTUALLY pay next wave, not
        its sticker income — with other vendors on the map those differ, and the
        gap is the whole thing a player needs to see before buying another. */

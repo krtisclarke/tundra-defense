@@ -202,22 +202,10 @@
       const A = G.HEROES[t.type].ability;
       if (this.heroLevel < A.unlock) return { ok: false, msg: `${A.name} unlocks at level ${A.unlock}.` };
       if (this.time < this.heroReadyAt) return { ok: false, msg: `${A.name} is recharging.` };
-      if (t.type === 'hero_frost') {
-        const dmg = Math.round(30 * G.heroStrength(this.level, this.wave));
-        for (const e of [...this.enemies]) {
-          if (!e.dead) this.damageEnemy(e, dmg, null, { pure: true });
-        }
-        this.effects.push({ kind: 'boom', x: G.W / 2, y: G.H / 2, r: 420, life: 0.4, max: 0.4 });
-      } else if (t.type === 'hero_beak') {
-        this.frenzyUntil = Math.max(this.frenzyUntil, this.time + 8);
-        this.effects.push({ kind: 'storm', x: t.x, y: t.y, r: 320, life: 0.6, max: 0.6 });
-      } else if (t.type === 'hero_shiver') {
-        for (const e of this.enemies) {
-          if (e.dead) continue;
-          e.stunUntil = Math.max(e.stunUntil, this.time + (e.boss ? 1 : 2.5));
-        }
-        this.effects.push({ kind: 'storm', x: G.W / 2, y: G.H / 2, r: 620, life: 0.6, max: 0.6 });
-      }
+      /* Each hero's ability lives beside its definition in data.js rather than
+         in a growing if/else here — with nine champions that chain was going to
+         become the one place every new hero had to remember to edit. */
+      if (typeof A.fire === 'function') A.fire(this, t, G.heroStrength(this.level, this.wave));
       this.heroReadyAt = this.time + A.cd;
       return { ok: true, name: A.name };
     }

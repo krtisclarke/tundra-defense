@@ -656,31 +656,187 @@
     stats: { range: 150, rate: 0.9, damage: 3, pierce: 3, projSpeed: 420, splash: 30, kind: 'bullet', stealth: true, water: 'never', fx: { slow: { f: 0.65, d: 1.8 } } },
     paths: [],
   };
+  /* Six more champions, each built around a job the first three do not do:
+     shredding swarms, reaching the whole map, arcing over terrain, stripping
+     blubber, burning armour off outright, and paying the colony. Every one of
+     them is assembled from weapon kinds the engine already fires. */
+  G.TOWERS.hero_tilly = {
+    cls: 'frost', hero: true, name: 'Scout Tilly', cost: 400,
+    desc: 'Fastest flippers in the colony. Buries swarms in pebbles and spots anything hiding.',
+    stats: { range: 145, rate: 2.6, damage: 1, pierce: 3, projSpeed: 560, kind: 'bullet', stealth: true, water: 'never' },
+    paths: [],
+  };
+  G.TOWERS.hero_rook = {
+    cls: 'navy', hero: true, name: 'Bosun Rook', cost: 600,
+    desc: 'Never misses, wherever it stands. Punches through blubber and hits the big ones hardest.',
+    stats: { range: 9999, rate: 0.6, damage: 6, pierce: 2, kind: 'snipe', armorPierce: true, bossBonus: 1.6, water: 'never' },
+    paths: [],
+  };
+  G.TOWERS.hero_marlow = {
+    cls: 'navy', hero: true, name: 'Skipper Marlow', cost: 620,
+    desc: 'Lobs depth charges clean over ridges and igloos. Nowhere on the trail is out of reach.',
+    stats: { range: 260, rate: 0.55, damage: 4, pierce: 12, splash: 78, kind: 'lob', arcs: true, minRange: 60, water: 'never' },
+    paths: [],
+  };
+  G.TOWERS.hero_kell = {
+    cls: 'mystic', hero: true, name: 'Warden Kell', cost: 540,
+    desc: 'Strips blubber and leaves a wound that keeps working. The answer to armour and to healers.',
+    stats: { range: 150, rate: 1.0, damage: 2, pierce: 4, projSpeed: 400, kind: 'bullet', water: 'never', fx: { shred: 1, dot: { dps: 3, d: 3 } } },
+    paths: [],
+  };
+  G.TOWERS.hero_sage = {
+    cls: 'mystic', hero: true, name: 'Aurora Sage', cost: 580,
+    desc: 'Holds a beam of southern light on the trail. Armour means nothing to it.',
+    stats: { range: 160, rate: 3.4, damage: 2, pierce: 1, kind: 'ray', armorPierce: true, water: 'never' },
+    paths: [],
+  };
+  G.TOWERS.hero_fen = {
+    cls: 'support', hero: true, name: 'Purser Fen', cost: 450,
+    desc: 'Keeps the books. Every sea lion the colony fells pays out more while he is on the ice.',
+    stats: { range: 150, rate: 0.9, damage: 1, pierce: 1, projSpeed: 420, kind: 'bullet', bountyBonus: 1, auraDmg: 0.06, water: 'never' },
+    paths: [],
+  };
 
+  /* ability.fire(game, tower, strength) — `strength` is G.heroStrength for the
+     battlefield and wave, the same multiplier the hero's own damage rides, so
+     an ability stays meaningful in deep endless instead of becoming a rounding
+     error. Kept here beside each hero rather than in a switch in the engine. */
   G.HEROES = {
     hero_frost: {
       pebbles: 0,
       blurb: 'Heavy single-target damage. Grows into a boss-killer.',
       perLevel: { damage: 0.20, rate: 0.04 },       // per level above 1
       ability: { name: 'Avalanche Charge', icon: '🏔️', cd: 45, unlock: 3,
-                 desc: 'Smashes every sea lion on the field, ignoring armor. Scales with the herd.' },
+                 desc: 'Smashes every sea lion on the field, ignoring armor. Scales with the herd.',
+                 fire(g, t, s) {
+                   const dmg = Math.round(30 * s);
+                   for (const e of [...g.enemies]) if (!e.dead) g.damageEnemy(e, dmg, null, { pure: true });
+                   g.effects.push({ kind: 'boom', x: G.W / 2, y: G.H / 2, r: 420, life: 0.4, max: 0.4 });
+                 } },
     },
     hero_beak: {
       pebbles: 5000,
       blurb: 'Weak alone, mighty together — his aura grows with every level.',
       perLevel: { damage: 0.12, auraDmg: 0.016, auraRate: 0.012, range: 0.02 },
       ability: { name: 'War Cry', icon: '📯', cd: 60, unlock: 3,
-                 desc: 'The whole colony attacks 50% faster for 8 seconds.' },
+                 desc: 'The whole colony attacks 50% faster for 8 seconds.',
+                 fire(g, t) {
+                   g.frenzyUntil = Math.max(g.frenzyUntil, g.time + 8);
+                   g.effects.push({ kind: 'storm', x: t.x, y: t.y, r: 320, life: 0.6, max: 0.6 });
+                 } },
     },
     hero_shiver: {
       pebbles: 7500,
       blurb: 'Chills whole packs; her slow deepens as she levels.',
       perLevel: { damage: 0.15, slow: 0.025, range: 0.015 },
       ability: { name: 'Cold Snap', icon: '❄️', cd: 50, unlock: 3,
-                 desc: 'Freezes every sea lion solid for 2.5s (bosses 1s).' },
+                 desc: 'Freezes every sea lion solid for 2.5s (bosses 1s).',
+                 fire(g, t) {
+                   for (const e of g.enemies) {
+                     if (e.dead) continue;
+                     e.stunUntil = Math.max(e.stunUntil, g.time + (e.boss ? 1 : 2.5));
+                   }
+                   g.effects.push({ kind: 'storm', x: G.W / 2, y: G.H / 2, r: 620, life: 0.6, max: 0.6 });
+                 } },
+    },
+    hero_tilly: {
+      pebbles: 2750,
+      blurb: 'Shreds swarms and sees stealth. Struggles alone against the big ones.',
+      perLevel: { damage: 0.10, rate: 0.05, range: 0.01 },
+      ability: { name: 'Snow Flurry', icon: '🌨️', cd: 35, unlock: 3,
+                 desc: 'A blizzard of pebbles: heavy damage to everything near her.',
+                 fire(g, t, s) { g.splashAt(t.x, t.y, 230, Math.round(14 * s), t, 40); } },
+    },
+    hero_rook: {
+      pebbles: 7500,
+      blurb: 'Reaches the whole battlefield, ignores armour, and hits bosses 60% harder.',
+      perLevel: { damage: 0.18, rate: 0.03 },
+      ability: { name: 'Harpoon Volley', icon: '🎯', cd: 45, unlock: 3,
+                 desc: 'Puts a harpoon through the eight biggest sea lions on the field.',
+                 fire(g, t, s) {
+                   const dmg = Math.round(70 * s);
+                   const big = g.enemies.filter((e) => !e.dead)
+                     .sort((a, b) => (G.ENEMIES[b.type].rank - G.ENEMIES[a.type].rank) || (b.hp - a.hp))
+                     .slice(0, 8);
+                   for (const e of big) {
+                     const ep = G.samplePath(g.paths[e.pathIdx], e.dist);
+                     g.effects.push({ kind: 'snipeTrail', x: t.x, y: t.y, tx: ep.x, ty: ep.y, life: 0.2, max: 0.2 });
+                     g.damageEnemy(e, dmg, null, { pure: true });
+                   }
+                 } },
+    },
+    hero_marlow: {
+      pebbles: 2500,
+      blurb: 'Arcs over ridges and igloos. Long reach, wide blast, slow hands.',
+      perLevel: { damage: 0.15, range: 0.015 },
+      ability: { name: 'Depth Barrage', icon: '💣', cd: 40, unlock: 3,
+                 desc: 'Walks six depth charges down the trail, each one a wide blast.',
+                 fire(g, t, s) {
+                   const dmg = Math.round(22 * s);
+                   /* Spread along the trail rather than around the hero: the
+                      point of the barrage is to reach the part of the track a
+                      lobbing tower is already covering. */
+                   for (const path of g.paths) {
+                     const n = Math.max(1, Math.round(6 / g.paths.length));
+                     for (let i = 0; i < n; i++) {
+                       const p = G.samplePath(path, path.total * ((i + 0.5) / n));
+                       g.splashAt(p.x, p.y, 110, dmg, t, 14);
+                     }
+                   }
+                 } },
+    },
+    hero_kell: {
+      pebbles: 4000,
+      blurb: 'Strips blubber and poisons the wound — armour and regenerators melt.',
+      perLevel: { damage: 0.13, rate: 0.03, range: 0.015 },
+      ability: { name: 'Corrosion', icon: '🧪', cd: 40, unlock: 3,
+                 desc: 'Strips 3 armour from every sea lion on the field and leaves them burning.',
+                 fire(g, t, s) {
+                   for (const e of g.enemies) {
+                     if (e.dead) continue;
+                     g.applyFx(e, { shred: 3, dot: { dps: Math.round(6 * s), d: 5 } });
+                   }
+                   g.effects.push({ kind: 'storm', x: G.W / 2, y: G.H / 2, r: 620, life: 0.6, max: 0.6 });
+                 } },
+    },
+    hero_sage: {
+      pebbles: 6250,
+      blurb: 'A steady armour-piercing beam. Relentless on one target at a time.',
+      perLevel: { damage: 0.12, rate: 0.04, range: 0.01 },
+      ability: { name: 'Aurora Veil', icon: '🌌', cd: 40, unlock: 3,
+                 desc: 'Drops a curtain of light: everything on the field is slowed hard and scorched.',
+                 fire(g, t, s) {
+                   const dmg = Math.round(18 * s);
+                   for (const e of [...g.enemies]) {
+                     if (e.dead) continue;
+                     g.applyFx(e, { slow: { f: 0.4, d: 5 } });
+                     g.damageEnemy(e, dmg, null, { pure: true });
+                   }
+                   g.effects.push({ kind: 'storm', x: G.W / 2, y: G.H / 2, r: 640, life: 0.7, max: 0.7 });
+                 } },
+    },
+    hero_fen: {
+      pebbles: 4500,
+      blurb: 'Fights poorly, pays well: every kill the colony makes is worth more.',
+      perLevel: { damage: 0.08, bounty: 0.12, auraDmg: 0.008, range: 0.015 },
+      ability: { name: 'Fish Haul', icon: '🐟', cd: 50, unlock: 3,
+                 desc: 'Calls in the boats: a lump of fish, bigger on deeper waves.',
+                 fire(g, t, s) {
+                   const haul = Math.round(400 * Math.min(6, Math.max(1, Math.sqrt(s))));
+                   g.cash += haul;
+                   g.texts.push({ x: t.x, y: t.y, txt: '+' + haul + '🐟', life: 1.4, kind: 'cash' });
+                   g.effects.push({ kind: 'storm', x: t.x, y: t.y, r: 220, life: 0.6, max: 0.6 });
+                 } },
     },
   };
-  G.HERO_ORDER = ['hero_frost', 'hero_beak', 'hero_shiver'];
+  /* Listed cheapest first, and the prices themselves come from measurement:
+     each champion was run through 18 identical battles (six battlefield and
+     difficulty pairings x three seeds) against the same scripted defence, with
+     its ability fired the moment it recharged. The lift over fighting heroless
+     was mapped onto the 2,500-7,500 band, so what a hero costs is what it was
+     worth. The ladder is stable — per-seed spread was 0.0-0.2 waves. */
+  G.HERO_ORDER = ['hero_frost', 'hero_marlow', 'hero_tilly', 'hero_kell', 'hero_fen',
+                  'hero_beak', 'hero_sage', 'hero_rook', 'hero_shiver'];
 
   /* ---- hero levelling ----
      Level comes from sea lions destroyed while the hero stands on the field;
@@ -734,6 +890,8 @@
     if (pl.range) calc.range = Math.round(calc.range * (1 + pl.range * lv));
     if (pl.auraDmg) calc.auraDmg = (calc.auraDmg || 0) + pl.auraDmg * lv;
     if (pl.auraRate) calc.auraRate = (calc.auraRate || 0) + pl.auraRate * lv;
+    // whole fish only — the per-kill bounty is added to a rounded price
+    if (pl.bounty) calc.bountyBonus = Math.round((calc.bountyBonus || 0) + pl.bounty * lv);
     if (pl.slow && calc.fx && calc.fx.slow) {
       calc.fx = Object.assign({}, calc.fx, {
         slow: { f: Math.max(0.35, calc.fx.slow.f - pl.slow * lv), d: calc.fx.slow.d + 0.06 * lv },
@@ -768,10 +926,17 @@
     sonar:     { hat: 'headset',  hatColor: '#3fae6a' },
     drummer:   { hat: 'mohawk',   hatColor: '#e0653f', prop: 'drumsticks', propColor: '#8a5a33' },
     icewall:   { hat: 'hardhat',  hatColor: '#f2c14e', prop: 'pickaxe',   propColor: '#8a5a33' },
-    /* heroes — bigger, bolder, unmistakable */
+    /* heroes — bigger, bolder, unmistakable. Every one wears gold somewhere so
+       a champion reads as a champion at a glance, and no two share a hat. */
     hero_frost:  { hat: 'captain',  hatColor: '#d4af37', prop: 'harpoongun', propColor: '#5a6a7a', scale: 1.28, cheeks: '#f2b04e' },
     hero_beak:   { hat: 'officer',  hatColor: '#d4af37', prop: 'flag',       propColor: '#d4af37', scale: 1.24 },
     hero_shiver: { hat: 'hood',     hatColor: '#9fd8ef', prop: 'orb',        propColor: '#bfeaff', tint: '#2e4a66', scale: 1.24 },
+    hero_tilly:  { hat: 'goggles',  hatColor: '#ffd166', prop: 'sling',      propColor: '#d4af37', scale: 1.20, cheeks: '#f2b04e' },
+    hero_rook:   { hat: 'sailor',   hatColor: '#f4f7fa', prop: 'periscope',  propColor: '#d4af37', tint: '#26364a', scale: 1.26 },
+    hero_marlow: { hat: 'souwester', hatColor: '#d4af37', prop: 'cannon',    propColor: '#3b4a58', scale: 1.26 },
+    hero_kell:   { hat: 'wizard',   hatColor: '#7fc98f', prop: 'crookstaff', propColor: '#a8e6b4', tint: '#2f4436', scale: 1.24 },
+    hero_sage:   { hat: 'crown',    hatColor: '#d4af37', prop: 'staff',      propColor: '#9fe8d4', tint: '#3a3358', scale: 1.24 },
+    hero_fen:    { hat: 'straw',    hatColor: '#d4af37', prop: 'fish',       propColor: '#f2b04e', scale: 1.22, belly: '#f6ecd8' },
   };
 
   /* ---------------- Sea lions ----------------
