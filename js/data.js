@@ -1423,23 +1423,29 @@
      covers base stats and upgrade bonuses alike without touching 120 tiers by
      hand.
 
-     Damage is back at full: every penguin hits for its printed number again.
-     What stays nerfed is everything around the hit — 15% shorter reach and 15%
-     slower fire — so a penguin covers less trail and gets fewer swings at what
-     crosses it, but each swing lands as it always did.
+     Every multiplier is 1 today: a penguin hits, reaches and fires exactly as
+     its printed numbers say. The hook stays because this is the one place a
+     global change belongs, and balance here gets retuned often.
 
-     The 20% aura cut used to live here too. It moved into the aura values
+     The 20% aura cut used to live here. It moved into the aura values
      themselves, because a multiplier applied at compute time made every
      printed percentage a lie: "Helpers hit 35% harder" really meant 28%, and
      no screen in the game could tell you that. Aura numbers in this file are
      now the numbers the player is promised.
 
-     The 0.75 damage cut came out because it overshot. Measured on a scripted
-     learner: with it, battlefield 1 on Easy squeaked home with 20 lives and
-     Medium collapsed at wave 17. Without it, Easy finishes with 160 (the
-     un-nerfed game manages 190) and Medium runs the full 40 waves. That is the
-     intended shape — noticeably harder than before, still winnable. */
-  G.NERF = { damage: 1, rate: 0.85, range: 0.85 };
+     The 0.75 damage cut came out first, for overshooting. The 0.85 reach and
+     fire-rate cuts have now followed it, for the same reason one step later.
+     Measured on the scripted learner, over three seeds: with them, Medium lost
+     every battlefield tried — battlefield 1 died on the final wave, 5 on wave
+     30 and 3 collapsed at wave 18 on nine penguins — and even Easy came home
+     on a third of its lives. Without them, the same learner wins Medium with
+     ~90-130 lives spare and Easy without being touched.
+
+     Undoing them does not put the difficulty back where it started. The
+     terrain obstacles and line of sight stay, and they are the honest half of
+     that change: they make a battlefield hard by denying firing ground rather
+     than by quietly shaving every printed stat. */
+  G.NERF = { damage: 1, rate: 1, range: 1 };
 
   /* Fish Vendor stacking. The richest stall earns full price and each one
      after it takes this fraction of the one before, so the total converges and
