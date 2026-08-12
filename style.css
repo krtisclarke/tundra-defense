@@ -1209,13 +1209,13 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
        tiles and their contents are one drawing that scales with the column
        rather than fixed furniture rattling around in a growing box. */
     container-type: inline-size;
-    grid-template-columns: repeat(2, 1fr);
-    /* The row height is the tile's shape worked out in the open — two columns
-       of (column width less margin, padding and gap), at 27:20. An auto row
-       cannot do it: the tile's height comes from its width, so the row and the
-       tile end up defining each other and the row collapses to 12px, which is
-       what had them overlapping. */
-    grid-auto-rows: calc((var(--sidew, 400px) - 30px) / 2.7);
+    grid-template-columns: repeat(3, 1fr);
+    /* The row height is the tile's shape worked out in the open — three columns
+       of (column width less margin, padding, borders and two gaps), at 27:20.
+       An auto row cannot do it: the tile's height comes from its width, so the
+       row and the tile end up defining each other and the row collapses to
+       12px, which is what had them overlapping. */
+    grid-auto-rows: calc((var(--sidew, 400px) - 38px) / 4.05);
     align-content: start;
     margin: 0 0 4px 8px;
     padding: 8px;
@@ -1245,7 +1245,7 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 1.4cqw;
+    gap: 0.97cqw;
     padding: 0;
     /* Enough class colour to sort the tray at a glance, not so much that the
        penguin has to fight it: a wash from the top, over the dark panel. */
@@ -1257,23 +1257,26 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
       rgba(9, 15, 26, 0.72);
     border: 1px solid color-mix(in srgb, var(--cls) 40%, transparent);
     border-bottom: 3px solid color-mix(in srgb, var(--cls) 78%, transparent);
-    border-radius: 4.6cqw;
+    border-radius: 3.2cqw;
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
   }
-  /* All against the tray's width, which is what cqw means here: at the nominal
-     400px column these are a 52px icon, a 14px price and an 11px key — the
-     sizes they were drawn at. */
-  #palette .slot canvas { width: 13.3cqw; height: auto; margin: 0; }
+  /* All against the tray's width, which is what cqw means here. Written as a
+     share of the tile — 30% for the icon, 11% for the price, 8% for the key —
+     and divided by the 0.32 of the tray one tile of three occupies, so the
+     tile's internal proportions survive a change to the column count. The text
+     takes a larger share of a tile than it did at two across, because a third
+     of a column is a smaller tile and the price still has to be read. */
+  #palette .slot canvas { width: 9.7cqw; height: auto; margin: 0; }
   #palette .slot-cost {
-    font-size: 3.6cqw; line-height: 1.05; letter-spacing: 0;
+    font-size: 3.55cqw; line-height: 1.05; letter-spacing: 0;
     color: var(--gold); font-weight: 800;
   }
   #palette .slot-key {
-    position: absolute; top: 1.6cqw; left: 1.9cqw; transform: none;
-    font-size: 2.8cqw; line-height: 1; padding: 0.7cqw 1.3cqw; border-radius: 1.4cqw;
+    position: absolute; top: 1.1cqw; left: 1.3cqw; transform: none;
+    font-size: 2.4cqw; line-height: 1; padding: 0.5cqw 1cqw; border-radius: 1cqw;
     background: rgba(0, 0, 0, 0.45); border-color: transparent; color: var(--text);
   }
-  #palette .slot-lock { font-size: 5.5cqw; }
+  #palette .slot-lock { font-size: 4.2cqw; }
   #palette .slot:hover { transform: translateY(-2px); }
   /* A locked penguin should read as locked at a glance rather than as a
      slightly dimmer coloured tile: it loses the class colour entirely. */
