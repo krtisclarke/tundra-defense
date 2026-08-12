@@ -234,7 +234,9 @@ html.touch #btn-fs { display: none; }
 /* The sidebar wrapper is a grouping device for the wide L layout only. Here it
    dissolves, so its children are flex items of #dock just as they always were,
    and the order below restores the arrangement the markup used to imply. */
-#sidebar { display: contents; }
+/* Both are pass-through everywhere except the wide layout, where the four
+   panels have to be one scalable group inside one grid cell. */
+#panel-fit, #sidebar { display: contents; }
 #dock-sel { order: 1; }
 #palette { order: 2; }
 #dock-hero { order: 3; }
@@ -349,39 +351,29 @@ html.touch #btn-fs { display: none; }
 #dock-sel .ds-actions .btn { padding: 4px 9px; line-height: 1.35; white-space: nowrap; }
 .ds-actions .btn.danger { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 
-/* build palette (center): two rows like a keyboard.
-   Everything flexes so the dock tracks the browser width. */
+/* build palette: one grid of twenty penguins, ten across here — two classes to
+   a row, told apart by the coloured edge under each tile rather than by a box
+   around each five. The grid is the whole layout mechanism: give it a different
+   shaped container and it lays the same twenty out to suit. */
 #palette {
   flex: 1 1 0;               /* the only panel that grows — slots get the slack */
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  align-content: center;
   gap: 5px;
   min-width: 0;
 }
-.pal-row { display: flex; gap: 10px; width: 100%; }
-.pal-group {
-  flex: 1 1 0;
-  min-width: 0;
-  display: flex;
-  gap: 4px;
-  padding: 4px 6px;
-  border-radius: 11px;
-  background: rgba(255, 255, 255, 0.025);
-  border: 1px solid var(--line);
-  border-bottom: 2px solid var(--cls);
-}
 .slot {
   position: relative;
-  flex: 1 1 0;
-  /* No floor of its own. A fixed 42px min-width meant two five-slot groups
-     could not shrink to the width the dock had spare, and the build tray
-     spilled out past the dock's edge. The price text is nowrap, so it sets a
-     natural floor (~26px) that keeps a slot readable, and the icon scales with
-     the slot (see .slot canvas). */
+  /* No floor of its own. A fixed 42px min-width meant the tray could not shrink
+     to the width the dock had spare, and it spilled out past the dock's edge.
+     The price text is nowrap, so it sets a natural floor (~26px) that keeps a
+     slot readable, and the icon scales with the slot (see .slot canvas). */
   min-width: 0;
   max-width: 92px;
   border: 1px solid var(--line);
+  /* the class, which used to be a box around every five */
+  border-bottom: 2px solid var(--cls, var(--line));
   border-radius: 9px;
   padding: 3px 1px;
   text-align: center;
@@ -1208,158 +1200,121 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
   .dp-btn { width: 40px; height: 40px; font-size: 17px; }
 }
 
-/* ============ WIDE LAYOUT: the map in the corner, controls in an L ============
-   The map keeps a fixed aspect (1.60-1.74) but a window rarely matches it, so
-   a centred map left dead bars either side — 142px each at 16:10, 238px at
-   16:9. Here the map is pinned to the top-left instead, the build tray runs
-   along the bottom under it, and the leftover width down the right holds the
-   selection card, the hero, the boosts and the wave controls. Nothing is
-   centred, so nothing is wasted.
+/* ============ WIDE LAYOUT: the map, and one column beside it ============
+   One arrangement at every window size, and it is a block of fixed proportions
+   rather than a set of pieces that rearrange: the map, and to its right a
+   column whose top half is the build tray and whose bottom half is the four
+   panels. Nothing ever moves to a different place. Only the block's size
+   changes, and the block is centred in whatever window it is given.
 
-   #app becomes a two-column grid; #dock dissolves so its panels can be placed
-   into it directly. The sidebar's exact width is set from JS (--sidew) once the
-   map has been fitted, because the map's size depends only on the height left
-   over from the tray — so the width it does not use can be handed to the
-   sidebar with no circularity. */
+   The block's shape is bounded — between 16:9 and 19.5:9 for a 16:10
+   battlefield, which is the same thing as saying the column is 11% to 36% of
+   the map's width. It is written that way round because the battlefields are
+   not all one shape: tier 3 is already 1.74:1, and a literal 16:9 block would
+   leave it a 51px column where tier 1 got 199. Tying the column to the map
+   instead keeps it the same width on every battlefield, which is the point.
+
+   A window inside that band is filled exactly. A window narrower than the band
+   (a full-screen 16:10 laptop) gets an even margin above and below; wider than
+   it (a window dragged out long and thin) gets one either side. Either way the
+   remainder is a frame around the block, not a hole inside it.
+
+   #app becomes a four-track grid in each direction — a 1fr gutter, the map, the
+   column, a 1fr gutter — so the block centres on both axes without anything
+   being positioned by hand. #dock dissolves so its panels can be placed
+   directly. All four measurements come from fitCanvas. */
 @media (min-width: 1100px) and (min-height: 620px) {
   #app {
     display: grid;
-    grid-template-columns: 1fr var(--sidew, 320px);
-    grid-template-rows: 1fr auto;
+    grid-template-columns: 1fr var(--mapw, 1fr) var(--sidew, 0px) 1fr;
+    grid-template-rows: 1fr var(--halfh, 1fr) var(--halfh, 1fr) 1fr;
   }
-  #stage {
-    grid-column: 1; grid-row: 1;
-    justify-content: flex-start;      /* map hugs the left edge */
-    align-items: flex-start;
-    padding: 8px 0 0 8px;
-  }
+  #stage { grid-column: 2; grid-row: 1 / span 4; padding: 0; }
   #dock.playing { display: contents; }
 
-  /* Build tray: full width under the map, and only the tray. Its height is the
-     height the map could not use (--trayh from fitCanvas), so the column below
-     the map is always exactly filled. */
+  /* Build tray: the top half of the column, two penguins across, scrolling for
+     the rest. Two across is fixed on purpose — the tiles grow and shrink with
+     the column instead of the count changing, so the tray looks the same shape
+     at every window size. */
   #palette {
-    grid-column: 1; grid-row: 2;
-    height: var(--trayh, 150px);
-    min-width: 0;
-    margin: 0 0 8px 8px;
-    padding: 7px 10px;
+    grid-column: 3; grid-row: 2;
+    min-width: 0; min-height: 0;
+    grid-template-columns: repeat(2, 1fr);
+    grid-auto-rows: min-content;
+    align-content: start;
+    margin: 0 0 4px 8px;
+    padding: 7px 8px;
     background: linear-gradient(180deg, rgba(18, 28, 45, 0.97), rgba(11, 18, 30, 0.99));
     border: 1px solid var(--line-strong);
     border-radius: 14px;
-    justify-content: center;
-    gap: 7px;
-  }
-  /* shallow tray: the two rows sit side by side, so all four class groups run
-     across in one band and the map keeps the height */
-  #palette.one-row { flex-direction: row; align-items: center; gap: 10px; }
-  #palette.one-row .pal-row { width: auto; flex: 1 1 0; }
-  .pal-row { gap: 8px; }
-  #palette .slot { max-width: 120px; }
-
-  /* ---- rail-only: no bottom band, the tray moves into the column ----
-     Whether the band is worth having is a question of geometry, not taste. The
-     map keeps a fixed aspect, so once the rail is as narrow as it goes the map
-     is width-limited and there is height under it nobody can use — on a 16:10
-     laptop that is 159px, and the band turns it into a roomy tray. On a 16:9
-     desktop or a phone the map is height-limited instead: the leftover is
-     almost nothing, and a band there is pure cost, so the tray goes in the
-     column and the map takes the full height. fitCanvas measures both and
-     picks; this is the second arrangement. */
-  #app.rail-only { grid-template-rows: 1fr auto; }
-  #app.rail-only #stage { grid-row: 1 / span 2; }
-  #app.rail-only #palette {
-    grid-column: 2; grid-row: 1;
-    height: auto; min-height: 0;
-    flex: 1 1 auto;
-    flex-direction: column;
-    justify-content: flex-start;
-    margin: 8px 8px 0 6px;
-    /* takes whatever the column has spare, and scrolls when it has none —
-       so the rail never shows a gap and never hides a penguin it could fit */
+    gap: 6px;
     overflow-y: auto;
     scrollbar-width: none;
   }
-  #app.rail-only #palette::-webkit-scrollbar { display: none; }
-  /* Four class groups stacked, five penguins across each. The groups share
-     whatever height the column has spare rather than sitting at the top with a
-     void beneath them — the slack ends up inside the panels as breathing room,
-     which is what the wave strip does with its own leftover. */
-  #app.rail-only .pal-row { flex-direction: column; width: 100%; gap: 7px; flex: 1 1 auto; }
-  #app.rail-only .pal-group { flex: 1 1 0; min-height: 62px; align-items: center; }
-  #app.rail-only .slot { max-width: none; }
-  #app.rail-only .slot canvas { width: 40px; }   /* room here for a bigger icon */
-  #app.rail-only #sidebar {
-    grid-row: 2;
-    padding-top: 8px;
-    border-left: 1px solid var(--line-strong);
-  }
+  #palette::-webkit-scrollbar { display: none; }
+  #palette .slot { max-width: none; }
 
-  /* right-hand column: everything that is not the tray */
+  /* The four panels: the bottom half of the column, and they never scroll.
+     They are laid out once at a nominal 260px wide and then scaled to whatever
+     the half actually is — so the arrangement inside them is identical at every
+     window size, which no amount of reflowing can promise. --pscale is the
+     smaller of the two fits, so the group is contained rather than cropped, and
+     it is centred in the half. */
+  #panel-fit {
+    grid-column: 3; grid-row: 3;
+    min-width: 0; min-height: 0;
+    margin: 4px 0 0 8px;
+    display: grid;
+    place-content: center;
+    overflow: hidden;
+  }
   #sidebar {
-    grid-column: 2; grid-row: 1 / span 2;
+    width: var(--panelw, 320px);
+    transform: scale(var(--pscale, 1));
+    transform-origin: center center;
     display: flex;
     flex-direction: column;
     gap: 8px;
-    min-width: 0;
-    padding: 8px 8px 8px 6px;
+    padding: 8px;
     background: linear-gradient(180deg, rgba(18, 28, 45, 0.97), rgba(11, 18, 30, 0.99));
-    border-left: 1px solid var(--line-strong);
-    box-shadow: -8px 0 30px rgba(0, 0, 0, 0.45);
-    /* scrolls rather than hides: see the note on #command below */
-    overflow-x: hidden; overflow-y: auto; scrollbar-width: none;
+    border: 1px solid var(--line-strong);
+    border-radius: 14px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
+    overflow: visible;
   }
-  #sidebar::-webkit-scrollbar { display: none; }
   #sidebar > * { width: 100%; max-width: none; min-width: 0; flex: none; }
-  /* In the rail, height is cheap and width is dear — the exact opposite of the
-     bottom dock, where a stat line that wrapped pushed the sell button out of
-     the card. Here the column has height to spare and every pixel of width it
-     gives up is a pixel the map gains, so the stat line takes a second line and
-     the card takes the extra 20px. That alone closed the rail from 296px to
-     250px: with the line held to one row nothing narrower than 276 fit. */
-  #dock-sel { order: 1; height: auto; min-height: 172px; }
+  /* One panel, four sections — not four panels. Each box was carrying its own
+     border, background, corner radius and 16px of padding, which is 55px of
+     height spent drawing lines between things that are already in order and
+     already labelled. The group is the box now; the sections are separated by
+     a hairline. That height goes back into the scale, so everything inside
+     ends up larger, not smaller. */
+  #sidebar > * + * { border-top: 1px solid var(--line); padding-top: 8px; }
+  #sidebar > * { background: none; border: 0; border-radius: 0; padding: 0; }
+  /* Fixed, not min-height: the group is scaled as a whole, so a card that grew
+     when you clicked a penguin would rescale everything in the column with it —
+     the boosts and the wave controls would visibly resize on every click. 128
+     is the tallest this card gets at PANEL_W, swept over every tower and hero
+     at both wave depths, one notch clear of the 125 the worst of them (a plain
+     Pebble Flinger, both upgrade names running to two lines) actually needs. */
+  #dock-sel { order: 1; height: 128px; }
+  /* Two lines allowed for both: "Commander Beak · ★ Lv 20" is the longest thing
+     the card ever shows, and the nominal width does not have to widen to keep
+     it on one row. */
   #sidebar .ds-stats,
   #sidebar .ds-name {
     white-space: normal;
     display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
     overflow: hidden;
   }
-  /* "Commander Beak · ★ Lv 20" is the longest thing the card ever shows, and
-     holding it to one line was on its own worth 30px of rail — which is 30px
-     of map. It wraps here instead.
-
-     Same trade, taken further: the two upgrade buttons sat side by side, so
-     each got half the card less a 24px key gutter — about 79px of text, and
-     "Attunement" needs 76 of them. That single word was setting the width of
-     the whole rail. Stacked, each button has the full card and the rail closes
-     from 262px to 200px, which is 62px of map width and 39px of map height. It
-     costs 52px of column height, and the column had 370px doing nothing. */
-  #sidebar .ds-upgs { flex-direction: column; }
-  #sidebar .btn.upg-mini { height: 46px; }
-  /* and for the same reason the sell price may take its own line rather than
-     forcing the card wide enough to sit beside the targeting button */
-  #sidebar .ds-actions { flex-wrap: wrap; }
-  #sidebar .ds-actions .btn.danger { flex: 1 1 100%; }
   #dock-hero { order: 2; }
   #dock-powers { order: 3; }
-  /* The command block takes the column's leftover height and hands it to the
-     wave strip, which everywhere else has to hide enemy types to fit two rows.
-     Given the room it lists the whole wave, and Send Wave still sits at the
-     bottom of the column where it is easiest to reach.
-
-     min-height is the block's own content — the strip's one row, the button and
-     the speed row — because it used to be allowed to shrink past it. On a
-     620px window with the worst card in the rail that pushed the speed and
-     pause row 14px out through the bottom, where #sidebar's overflow hid it.
-     Now the column scrolls in that case instead, and this block sticks to the
-     foot of it: Send Wave is the one control that must never need scrolling
-     to. On any window tall enough — which is nearly all of them — nothing
-     scrolls, nothing sticks and none of this shows. */
-  #command {
-    order: 4; flex: 1 1 auto; min-height: 112px;
-    position: sticky; bottom: 0;
-    background: linear-gradient(180deg, rgba(11, 18, 30, 0) 0, rgba(11, 18, 30, 0.99) 12px);
-  }
+  /* The command block sits last and takes the group's leftover height, which
+     goes to the wave strip: everywhere else it has to hide enemy types to fit
+     two rows, and given the room it lists the whole wave. Nothing here needs a
+     sticky Send Wave or a scrolling column any more — the group is a fixed
+     shape scaled to fit, so it cannot run out of room. */
+  #command { order: 4; flex: 1 1 auto; min-height: 112px; }
   #command #wave-preview {
     flex: 1 1 auto;
     max-height: none;
@@ -1406,11 +1361,13 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
     box-shadow: -8px 0 30px rgba(0, 0, 0, 0.45);
   }
 
-  /* penguin tray fills the free height and scrolls if it must */
+  /* penguin tray fills the free height and scrolls if it must. Three
+     finger-size penguins per row here, the rest reached by scrolling. */
   #palette {
     flex: 1 1 auto;
     order: 1;
-    justify-content: flex-start;
+    grid-template-columns: repeat(3, 1fr);
+    align-content: flex-start;
     gap: 4px;
     min-height: 0;
     overflow-y: auto;
@@ -1421,11 +1378,8 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
     overscroll-behavior: contain;
   }
   #palette::-webkit-scrollbar { display: none; }
-  .pal-row { flex-direction: column; gap: 5px; width: 100%; }
-  /* three finger-size penguins per row; the tray scrolls smoothly for the rest.
-     pan-y intentionally overrides the base .slot touch-action: none — vertical
+  /* pan-y intentionally overrides the base .slot touch-action: none — vertical
      strokes must stay with the browser here (tray scroll fires pointercancel). */
-  .pal-group { flex: none; display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 3px; width: 100%; }
   .slot { width: auto; min-width: 0; max-width: none; padding: 4px 1px 3px; border-radius: 8px; touch-action: pan-y; }
   .slot canvas { width: 34px; height: 34px; }
   .slot-cost { font-size: 10.5px; line-height: 1.15; letter-spacing: -0.3px; }

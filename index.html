@@ -53,14 +53,15 @@
       <button id="btn-cancel-place" title="Cancel placement">✕ cancel</button>
     </div>
 
-    <!-- Command dock. The build tray and everything else are separated by
-         #sidebar so a wide window can put the tray under the map and stack the
-         rest down the right. In every other layout #sidebar is display:contents
-         and these five panels behave as one flex row exactly as before — the
-         CSS sets their order explicitly rather than relying on this markup. -->
+    <!-- Command dock. The build tray is separated from the other four panels by
+         #sidebar, and #panel-fit wraps those four so the wide layout can scale
+         them as one group inside half a column. In every other layout both are
+         display:contents and these five panels behave as one flex row exactly
+         as before — the CSS sets their order explicitly rather than relying on
+         this markup. -->
     <div id="dock">
       <div id="palette"></div>
-      <div id="sidebar">
+      <div id="panel-fit"><div id="sidebar">
         <div id="dock-sel"></div>
         <div id="dock-hero" style="display:none"></div>
         <div id="dock-powers" title=""></div>
@@ -75,7 +76,7 @@
             </label>
           </div>
         </div>
-      </div>
+      </div></div>
     </div>
   </div>
 

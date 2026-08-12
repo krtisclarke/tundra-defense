@@ -937,47 +937,49 @@
   }
 
   /* ---------- command dock: palette ---------- */
+  /* One flat grid of twenty penguins, not four bordered class boxes. The class
+     was being carried by a box — a border, a tinted panel and 11px of chrome
+     around every five penguins — when each penguin's own tile was already
+     tinted with it; the tile keeps the tint and takes the coloured edge the box
+     used to have, and the boxes go.
+
+     The point is not the 44px of chrome. It is that four fixed boxes could only
+     ever stack, so the tray needed 313px of height whatever shape its container
+     was — which is why a short window collapsed it to a sliver. A plain grid
+     reflows instead: five across in a narrow column, ten across in a wide one,
+     as many rows as that leaves. The class stays legible because the twenty are
+     still in class order, five apiece. */
   function buildPalette() {
     const pal = $('#palette');
     pal.innerHTML = '';
-    // two rows of two class groups — mirrors a physical keyboard's rows
-    for (let half = 0; half < 2; half++) {
-      const rowEl = el('div', 'pal-row');
-      for (let r = half * 2; r < half * 2 + 2; r++) {
-        const clsKey = Object.keys(G.CLASSES)[r];
-        const color = G.CLASSES[clsKey].color;
-        const group = el('div', 'pal-group');
-        group.style.setProperty('--cls', color);
-        for (let c = 0; c < 5; c++) {
-          const id = G.TOWER_ORDER[r * 5 + c];
-          const def = G.TOWERS[id];
-          const slot = el('div', 'slot');
-          slot.dataset.type = id;
-          slot.style.background = `linear-gradient(165deg, ${color}2c, ${color}10 60%, transparent)`;
-          const cv = document.createElement('canvas');
-          cv.width = 38; cv.height = 38;
-          G.drawTowerIcon(cv, id);
-          slot.appendChild(el('kbd', 'slot-key', HOTKEY_ROWS[r][c]));
-          slot.appendChild(cv);
-          /* No 🐟 on the tray price. A four-figure cost plus the emoji cannot
-             fit a slot at the width the dock can spare, and the gold number
-             already reads as a price — the tooltip and guide still spell it
-             out with the icon. */
-          slot.appendChild(el('span', 'slot-cost', String(G.scaleCost(def.cost, UI.game.diffId))));
-          if (G.towerNeed(UI.profile, id)) {   // tower drip: not recruited yet
-            slot.classList.add('locked');
-            slot.appendChild(el('span', 'slot-lock', '🔒'));
-          }
-          slot.addEventListener('mouseenter', () => showTooltip(slot, id));
-          slot.addEventListener('mouseleave', hideTooltip);
-          slot.addEventListener('click', () => armTower(id));
-          attachTrayDrag(slot, id);
-          group.appendChild(slot);
-        }
-        rowEl.appendChild(group);
+    G.TOWER_ORDER.forEach((id, i) => {
+      const r = Math.floor(i / 5), c = i % 5;      // five penguins per class
+      const color = G.CLASSES[Object.keys(G.CLASSES)[r]].color;
+      const def = G.TOWERS[id];
+      const slot = el('div', 'slot');
+      slot.dataset.type = id;
+      slot.style.setProperty('--cls', color);
+      slot.style.background = `linear-gradient(165deg, ${color}2c, ${color}10 60%, transparent)`;
+      const cv = document.createElement('canvas');
+      cv.width = 38; cv.height = 38;
+      G.drawTowerIcon(cv, id);
+      slot.appendChild(el('kbd', 'slot-key', HOTKEY_ROWS[r][c]));
+      slot.appendChild(cv);
+      /* No 🐟 on the tray price. A four-figure cost plus the emoji cannot
+         fit a slot at the width the dock can spare, and the gold number
+         already reads as a price — the tooltip and guide still spell it
+         out with the icon. */
+      slot.appendChild(el('span', 'slot-cost', String(G.scaleCost(def.cost, UI.game.diffId))));
+      if (G.towerNeed(UI.profile, id)) {   // tower drip: not recruited yet
+        slot.classList.add('locked');
+        slot.appendChild(el('span', 'slot-lock', '🔒'));
       }
-      pal.appendChild(rowEl);
-    }
+      slot.addEventListener('mouseenter', () => showTooltip(slot, id));
+      slot.addEventListener('mouseleave', hideTooltip);
+      slot.addEventListener('click', () => armTower(id));
+      attachTrayDrag(slot, id);
+      pal.appendChild(slot);
+    });
   }
 
   // why this penguin can't be built yet (colony rank) — null when usable
@@ -1937,39 +1939,40 @@
     fitCanvas();
   }
   /* ---- wide layout geometry ----
-     The map keeps a fixed aspect, so a centred map always left dead bars either
-     side. Here it is pinned top-left and the two leftovers are handed to real
-     panels: the width the map does not use becomes the sidebar, the height it
-     does not use becomes the build tray.
+     There is one arrangement and only one: the map on the left, the control
+     column on the right. The map keeps a fixed aspect and a window almost never
+     matches it, so on some window shapes a second strip of controls under the
+     map would buy the map a few percent — but it would also mean the interface
+     rearranging itself as the window is dragged, and a layout that stays put is
+     worth more than the percent. So the only quantity to decide here is the
+     column's width, and the map takes what is left.
 
-     Both are solved in one pass rather than by CSS auto-sizing, because letting
-     the tray size itself from its content makes the three quantities circular —
-     tray height sets map height sets map width sets sidebar width. Starting
-     from the SMALLEST the tray can be gives the map its largest possible
-     height, and everything else follows from that with no feedback. */
-  /* Both floors were measured, not guessed: each was narrowed until something
-     in it actually broke, swept against the worst content the game produces —
-     a maxed Sun Priest's 15,295 sell price, a deep-endless stat line, and
-     "Commander Beak · ★ Lv 20", which is the longest string the card can hold.
-     The rail is clean at 200 and starts clipping the hero's ability line at
-     195; the tray band is clean at 62 and drops a row at 58. Both sit one
-     notch off the cliff. Every pixel saved here is a pixel of battlefield.
-     ("🔒 Attunement" held the rail at 262 until the upgrade buttons stopped
-     sharing a row — see the stacking rule in the wide-layout CSS.) */
-  const SIDEBAR_MIN = 200, SIDEBAR_MAX = 460;
-  /* When the tray moves into the column the column has a second job, and 200
-     does not do it: five penguins across leaves a 27px slot for a 40px icon
-     and clips the price under it. Measured the same way — clean at 240, the
-     price overflows at 230. */
-  const RAIL_TRAY_MIN = 240;
-  const TRAY_MIN = 66;
+     The column is a share of the map's width, not a pixel count, so it grows
+     and shrinks with the battlefield. The two bounds are the block's shape
+     written the other way round: on a 16:10 battlefield a column of 11% of the
+     map makes the pair 16:9, and 36% makes it 19.5:9. Expressed against the map
+     they also hold on the 1.67 and 1.74 battlefields, where a literal 16:9
+     block would have left almost no column at all.
+
+     The narrow end is 17:9 rather than the 16:9 it could be. At 16:9 the column
+     is only 11% of the map — 150px on a full-screen 16:10 laptop — and since
+     the panels are drawn at 320 and scaled into it, that puts their text at
+     7px. 17:9 makes the column 18% and the text 11px. Both ends stay inside
+     16:9-19.5:9; the cost is a slightly deeper margin above and below. */
+  const COL_MIN = (17 / 9) / 1.6 - 1;      /* 0.181 — the narrow end */
+  const COL_MAX = (19.5 / 9) / 1.6 - 1;    /* 0.354 — the wide end   */
+  /* The panels are laid out at this width and then scaled, so it is the only
+     width their contents ever see — every measurement about wrapping, clipping
+     and sell prices is settled once, here, instead of at every window size.
+
+     320 is chosen for shape, not for the content's floor (which is nearer 200).
+     The group has to be scaled into half a column, and it wastes whatever it
+     does not match: at 260 it comes out 260x563, far narrower in proportion
+     than the half it has to fill, so it fits on height and leaves a third of
+     the width dark. At 320 it is 320x510 — 0.63, and half a column on a window
+     of the shape people actually use is 0.64. */
+  const PANEL_W = 320;
   const PAD = 12;
-  /* what the card, hero, boosts and wave controls stack to in the column, and
-     the least tray worth putting above them — two class groups showing.
-     The card is no longer a fixed 172px: with the upgrade buttons stacked it
-     runs to 251 on its worst tower, and this figure has to assume that one is
-     selected or the tray goes to a sliver exactly when you are using it. */
-  const RAIL_PANELS_H = 650, TRAY_RAIL_MIN = 150;
   const wideLayout = () => matchMedia('(min-width: 1100px) and (min-height: 620px)').matches;
 
   function fitCanvas() {
@@ -1978,63 +1981,49 @@
     const root = document.documentElement;
 
     if (wideLayout()) {
-      const W = root.clientWidth, H = root.clientHeight, aspect = G.W / G.H;
-      /* Between battles there is no dock, so the sidebar column collapses and
-         the menu's backdrop gets the whole window. */
+      const W = root.clientWidth - PAD, H = root.clientHeight - PAD;
+      const aspect = G.W / G.H;
       const playing = $('#dock').classList.contains('playing');
-      /* Two arrangements of the same three pieces, and geometry picks between
-         them: size the map under each and keep the bigger one. The two are not
-         symmetric, because a column holding the tray as well needs 40px more
-         width than one holding only the four panels — so this has to be
-         measured rather than reasoned about from the window's aspect alone.
 
-         Band: the tray runs under the map, the column is as narrow as it goes,
-         and the map takes whatever height the tray leaves. Always available.
-         Rail-only: no band, the map takes the full height and the tray goes up
-         the column beside it — worth it on a 16:9 desktop or a phone, where the
-         map is height-limited and the strip under it would be 0-39px of nothing
-         a tray could use. Only available when the column can still hold a tray
-         once the four panels have taken their share; on a short wide window it
-         could not, and the tray was squeezed to a 29px sliver. */
-      const railFor = (h, floor) => Math.max(floor, Math.min(SIDEBAR_MAX, W - h * aspect - PAD));
-      const fit = (floor, trayBand) => {
-        const maxH = H - (trayBand ? TRAY_MIN + PAD : PAD);
-        const side = railFor(maxH, floor);
-        const w = Math.min(W - side - PAD, maxH * aspect);
-        return { side, w, h: w / aspect, area: w * (w / aspect) };
-      };
-      const band = fit(SIDEBAR_MIN, true);
-      const rail = fit(RAIL_TRAY_MIN, false);
-      /* Ties go to the band: where the two produce the same map — a 16:10
-         laptop, where the map is width-limited either way — only the band
-         spends the height left under it. */
-      const railOnly = playing && H - RAIL_PANELS_H >= TRAY_RAIL_MIN && rail.area > band.area;
+      /* Between battles there is no column, so the map simply takes the window
+         and the menu's backdrop gets the rest. */
+      let mapH = H, side = 0;
+      if (playing) {
+        /* Grow the map to the full height and give the column what is left. If
+           that leaves the column under its share, the window is a narrower
+           shape than the block can be: shrink the block until the pair is at
+           the 16:9 end, which centres it with a margin above and below. If it
+           leaves the column over its share, the window is longer than the block
+           can be: the map stops growing at the 19.5:9 end and the extra becomes
+           a margin either side. In between — which is most windows people
+           actually use — the block fills the window exactly. */
+        let frac = (W - H * aspect) / (H * aspect);
+        if (frac < COL_MIN) { frac = COL_MIN; mapH = W / (aspect * (1 + COL_MIN)); }
+        else if (frac > COL_MAX) frac = COL_MAX;
+        side = frac * mapH * aspect;
+      }
+      const mapW = mapH * aspect;
 
-      /* Between battles there is no column and no tray, so the map simply takes
-         the window. */
-      const pick = !playing ? { side: 0, w: Math.min(W - PAD, (H - PAD) * aspect) }
-        : railOnly ? rail : band;
-      const side = pick.side, mapW = pick.w, mapH = mapW / aspect;
-
-      $('#app').classList.toggle('rail-only', railOnly);
+      /* Half the column each. The panels do not reflow into their half — they
+         are laid out at PANEL_W and scaled into it, so they hold their shape at
+         every window size. */
+      const half = mapH / 2;
+      root.style.setProperty('--mapw', Math.round(mapW) + 'px');
       root.style.setProperty('--sidew', Math.round(side) + 'px');
-      root.style.setProperty('--trayh', playing && !railOnly ? Math.round(H - mapH - PAD) + 'px' : '0px');
-      /* In the band, four class groups across one row when it is shallow and
-         the usual two-by-two when the map left it height to spare. In the
-         column they always stack. The two-by-two needs 137px — a 64px row
-         twice, plus the gap and the band's own padding — and 140 keeps it a
-         notch clear; the rows are a fixed height, so this does not drift with
-         the window's width. */
-      $('#palette').classList.toggle('one-row', !railOnly && H - mapH - PAD < 140);
+      root.style.setProperty('--halfh', Math.round(half) + 'px');
+      root.style.setProperty('--panelw', PANEL_W + 'px');
+      /* scrollHeight is a layout figure, so the transform already on the group
+         does not disturb it — this is the height the panels want at PANEL_W. */
+      const need = $('#sidebar').scrollHeight;
+      root.style.setProperty('--pscale',
+        Math.min(side / PANEL_W, need ? (half - 8) / need : Infinity).toFixed(4));
+
       UI.canvas.style.width = Math.round(mapW) + 'px';
       UI.canvas.style.height = Math.round(mapH) + 'px';
       return;
     }
 
-    root.style.removeProperty('--sidew');
-    root.style.removeProperty('--trayh');
-    $('#palette').classList.remove('one-row');
-    $('#app').classList.remove('rail-only');
+    for (const v of ['--sidew', '--mapw', '--halfh', '--panelw', '--pscale']) root.style.removeProperty(v);
     const availW = wrap.clientWidth - PAD, availH = wrap.clientHeight - PAD;
     const scale = Math.min(availW / G.W, availH / G.H);
     UI.canvas.style.width = G.W * scale + 'px';
