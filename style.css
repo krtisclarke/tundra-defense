@@ -1473,11 +1473,25 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
     display: grid; grid-template-columns: 1fr auto; gap: 8px;
     align-items: stretch;
   }
-  #command #send-wave { min-height: 96px; font-size: 22px; }
+  /* The type fills these rather than sitting in the middle of them: at 96px
+     tall a 20px glyph left most of the button empty. Send Wave stacks its
+     shortcut under the label, and the auto switch stacks over its word, so both
+     use the height instead of running out of width. */
+  #command #send-wave {
+    min-height: 96px; font-size: 26px; line-height: 1.05;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  }
+  #command #send-wave kbd { font-size: 13px; }
   #command #cmd-row { gap: 8px; align-items: stretch; }
-  #command #cmd-row .btn.tiny { min-width: 64px; font-size: 20px; padding: 6px 10px; }
-  #command .hud-check { font-size: 16px; gap: 8px; }
-  #command .hud-check .switch { transform: scale(1.5); transform-origin: center; }
+  #command #cmd-row .btn.tiny { min-width: 64px; font-size: 34px; padding: 6px 10px; }
+  /* min-width because a transform does not widen the layout box: the switch is
+     drawn 1.7x but still measures its original 32px, so without this the word
+     under it set the column and both spilled out of the row by 6px. */
+  #command .hud-check {
+    flex-direction: column; gap: 7px; font-size: 19px; justify-content: center;
+    min-width: 60px;
+  }
+  #command .hud-check .switch { transform: scale(1.7); transform-origin: center; }
   #command #wave-preview {
     grid-column: 1 / -1;
     max-height: none;
