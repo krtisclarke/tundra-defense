@@ -1951,15 +1951,25 @@
      in it actually broke, swept against the worst content the game produces —
      a maxed Sun Priest's 15,295 sell price, a deep-endless stat line, and
      "Commander Beak · ★ Lv 20", which is the longest string the card can hold.
-     The rail is clean at 262 and clips "🔒 Attunement" at 256; the tray band is
-     clean at 62 and drops a row at 58. Both sit one notch off the cliff.
-     Every pixel saved here is a pixel of battlefield. */
-  const SIDEBAR_MIN = 262, SIDEBAR_MAX = 460;
+     The rail is clean at 200 and starts clipping the hero's ability line at
+     195; the tray band is clean at 62 and drops a row at 58. Both sit one
+     notch off the cliff. Every pixel saved here is a pixel of battlefield.
+     ("🔒 Attunement" held the rail at 262 until the upgrade buttons stopped
+     sharing a row — see the stacking rule in the wide-layout CSS.) */
+  const SIDEBAR_MIN = 200, SIDEBAR_MAX = 460;
+  /* When the tray moves into the column the column has a second job, and 200
+     does not do it: five penguins across leaves a 27px slot for a 40px icon
+     and clips the price under it. Measured the same way — clean at 240, the
+     price overflows at 230. */
+  const RAIL_TRAY_MIN = 240;
   const TRAY_MIN = 66;
   const PAD = 12;
   /* what the card, hero, boosts and wave controls stack to in the column, and
-     the least tray worth putting above them — two class groups showing */
-  const RAIL_PANELS_H = 570, TRAY_RAIL_MIN = 150;
+     the least tray worth putting above them — two class groups showing.
+     The card is no longer a fixed 172px: with the upgrade buttons stacked it
+     runs to 251 on its worst tower, and this figure has to assume that one is
+     selected or the tray goes to a sliver exactly when you are using it. */
+  const RAIL_PANELS_H = 650, TRAY_RAIL_MIN = 150;
   const wideLayout = () => matchMedia('(min-width: 1100px) and (min-height: 620px)').matches;
 
   function fitCanvas() {
@@ -1972,35 +1982,50 @@
       /* Between battles there is no dock, so the sidebar column collapses and
          the menu's backdrop gets the whole window. */
       const playing = $('#dock').classList.contains('playing');
-      /* Two arrangements of the same three pieces, and geometry picks. Give the
-         map the full height first: if that leaves a strip under it too thin to
-         be a build tray, there is no band worth having — put the tray in the
-         column and let the map keep the height (a 16:9 desktop gains 5% of map
-         that way, a phone 30%). If the strip is deep enough to hold the tray,
-         the map could not have used that height anyway, so spend it. */
-      const railFor = (h) => Math.max(SIDEBAR_MIN, Math.min(SIDEBAR_MAX, W - h * aspect - PAD));
-      const fullH = H - PAD;
-      const railOnlyW = Math.min(W - railFor(fullH) - PAD, fullH * aspect);
-      const leftover = H - railOnlyW / aspect - PAD;
-      /* ...and only if the column can actually hold a tray once the four panels
-         below have taken their share. On a short wide window it could not: the
-         tray was squeezed to 29px, which scrolls but shows a sliver of one
-         penguin. Below that the band wins, because down there the tray has the
-         whole width to lay out in. */
-      const railOnly = playing && leftover < TRAY_MIN && H - RAIL_PANELS_H >= TRAY_RAIL_MIN;
+      /* Two arrangements of the same three pieces, and geometry picks between
+         them: size the map under each and keep the bigger one. The two are not
+         symmetric, because a column holding the tray as well needs 40px more
+         width than one holding only the four panels — so this has to be
+         measured rather than reasoned about from the window's aspect alone.
 
-      const maxMapH = H - (playing && !railOnly ? TRAY_MIN + PAD : PAD);
-      const side = playing ? railFor(maxMapH) : 0;
-      const mapW = Math.min(W - side - PAD, maxMapH * aspect);
-      const mapH = mapW / aspect;
+         Band: the tray runs under the map, the column is as narrow as it goes,
+         and the map takes whatever height the tray leaves. Always available.
+         Rail-only: no band, the map takes the full height and the tray goes up
+         the column beside it — worth it on a 16:9 desktop or a phone, where the
+         map is height-limited and the strip under it would be 0-39px of nothing
+         a tray could use. Only available when the column can still hold a tray
+         once the four panels have taken their share; on a short wide window it
+         could not, and the tray was squeezed to a 29px sliver. */
+      const railFor = (h, floor) => Math.max(floor, Math.min(SIDEBAR_MAX, W - h * aspect - PAD));
+      const fit = (floor, trayBand) => {
+        const maxH = H - (trayBand ? TRAY_MIN + PAD : PAD);
+        const side = railFor(maxH, floor);
+        const w = Math.min(W - side - PAD, maxH * aspect);
+        return { side, w, h: w / aspect, area: w * (w / aspect) };
+      };
+      const band = fit(SIDEBAR_MIN, true);
+      const rail = fit(RAIL_TRAY_MIN, false);
+      /* Ties go to the band: where the two produce the same map — a 16:10
+         laptop, where the map is width-limited either way — only the band
+         spends the height left under it. */
+      const railOnly = playing && H - RAIL_PANELS_H >= TRAY_RAIL_MIN && rail.area > band.area;
+
+      /* Between battles there is no column and no tray, so the map simply takes
+         the window. */
+      const pick = !playing ? { side: 0, w: Math.min(W - PAD, (H - PAD) * aspect) }
+        : railOnly ? rail : band;
+      const side = pick.side, mapW = pick.w, mapH = mapW / aspect;
 
       $('#app').classList.toggle('rail-only', railOnly);
       root.style.setProperty('--sidew', Math.round(side) + 'px');
       root.style.setProperty('--trayh', playing && !railOnly ? Math.round(H - mapH - PAD) + 'px' : '0px');
       /* In the band, four class groups across one row when it is shallow and
          the usual two-by-two when the map left it height to spare. In the
-         column they always stack. */
-      $('#palette').classList.toggle('one-row', !railOnly && H - mapH - PAD < 118);
+         column they always stack. The two-by-two needs 137px — a 64px row
+         twice, plus the gap and the band's own padding — and 140 keeps it a
+         notch clear; the rows are a fixed height, so this does not drift with
+         the window's width. */
+      $('#palette').classList.toggle('one-row', !railOnly && H - mapH - PAD < 140);
       UI.canvas.style.width = Math.round(mapW) + 'px';
       UI.canvas.style.height = Math.round(mapH) + 'px';
       return;

@@ -1306,8 +1306,10 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
     background: linear-gradient(180deg, rgba(18, 28, 45, 0.97), rgba(11, 18, 30, 0.99));
     border-left: 1px solid var(--line-strong);
     box-shadow: -8px 0 30px rgba(0, 0, 0, 0.45);
-    overflow: hidden;
+    /* scrolls rather than hides: see the note on #command below */
+    overflow-x: hidden; overflow-y: auto; scrollbar-width: none;
   }
+  #sidebar::-webkit-scrollbar { display: none; }
   #sidebar > * { width: 100%; max-width: none; min-width: 0; flex: none; }
   /* In the rail, height is cheap and width is dear — the exact opposite of the
      bottom dock, where a stat line that wrapped pushed the sell button out of
@@ -1315,7 +1317,7 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
      gives up is a pixel the map gains, so the stat line takes a second line and
      the card takes the extra 20px. That alone closed the rail from 296px to
      250px: with the line held to one row nothing narrower than 276 fit. */
-  #dock-sel { order: 1; height: 172px; }
+  #dock-sel { order: 1; height: auto; min-height: 172px; }
   #sidebar .ds-stats,
   #sidebar .ds-name {
     white-space: normal;
@@ -1324,14 +1326,40 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
   }
   /* "Commander Beak · ★ Lv 20" is the longest thing the card ever shows, and
      holding it to one line was on its own worth 30px of rail — which is 30px
-     of map. It wraps here instead. */
+     of map. It wraps here instead.
+
+     Same trade, taken further: the two upgrade buttons sat side by side, so
+     each got half the card less a 24px key gutter — about 79px of text, and
+     "Attunement" needs 76 of them. That single word was setting the width of
+     the whole rail. Stacked, each button has the full card and the rail closes
+     from 262px to 200px, which is 62px of map width and 39px of map height. It
+     costs 52px of column height, and the column had 370px doing nothing. */
+  #sidebar .ds-upgs { flex-direction: column; }
+  #sidebar .btn.upg-mini { height: 46px; }
+  /* and for the same reason the sell price may take its own line rather than
+     forcing the card wide enough to sit beside the targeting button */
+  #sidebar .ds-actions { flex-wrap: wrap; }
+  #sidebar .ds-actions .btn.danger { flex: 1 1 100%; }
   #dock-hero { order: 2; }
   #dock-powers { order: 3; }
   /* The command block takes the column's leftover height and hands it to the
      wave strip, which everywhere else has to hide enemy types to fit two rows.
      Given the room it lists the whole wave, and Send Wave still sits at the
-     bottom of the column where it is easiest to reach. */
-  #command { order: 4; flex: 1 1 auto; min-height: 0; }
+     bottom of the column where it is easiest to reach.
+
+     min-height is the block's own content — the strip's one row, the button and
+     the speed row — because it used to be allowed to shrink past it. On a
+     620px window with the worst card in the rail that pushed the speed and
+     pause row 14px out through the bottom, where #sidebar's overflow hid it.
+     Now the column scrolls in that case instead, and this block sticks to the
+     foot of it: Send Wave is the one control that must never need scrolling
+     to. On any window tall enough — which is nearly all of them — nothing
+     scrolls, nothing sticks and none of this shows. */
+  #command {
+    order: 4; flex: 1 1 auto; min-height: 112px;
+    position: sticky; bottom: 0;
+    background: linear-gradient(180deg, rgba(11, 18, 30, 0) 0, rgba(11, 18, 30, 0.99) 12px);
+  }
   #command #wave-preview {
     flex: 1 1 auto;
     max-height: none;
