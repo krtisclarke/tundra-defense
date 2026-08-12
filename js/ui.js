@@ -1233,8 +1233,10 @@
     box.innerHTML = '<div class="dp-label">hero</div>';
     const chip = el('button', 'hero-chip');
     chip.id = 'hero-chip';
+    /* 160, not 40: the chip is a portrait filling its half of the panel now,
+       up to 165px, and drawTowerIcon draws to the canvas's own size. */
     const cv = document.createElement('canvas');
-    cv.width = 40; cv.height = 40;
+    cv.width = 160; cv.height = 160;
     G.drawTowerIcon(cv, g.heroType);
     chip.appendChild(cv);
     chip.appendChild(el('span', 'hero-lv', ''));
