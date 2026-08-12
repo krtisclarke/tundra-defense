@@ -1271,9 +1271,22 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
     overflow: hidden;
   }
   #sidebar > * { width: 100%; max-width: none; min-width: 0; flex: none; }
-  /* the selection card is the tall one — give it the slack and let it keep the
-     fixed height it needs, upgrades and all */
-  #dock-sel { order: 1; height: 152px; }
+  /* In the rail, height is cheap and width is dear — the exact opposite of the
+     bottom dock, where a stat line that wrapped pushed the sell button out of
+     the card. Here the column has height to spare and every pixel of width it
+     gives up is a pixel the map gains, so the stat line takes a second line and
+     the card takes the extra 20px. That alone closed the rail from 296px to
+     250px: with the line held to one row nothing narrower than 276 fit. */
+  #dock-sel { order: 1; height: 172px; }
+  #sidebar .ds-stats,
+  #sidebar .ds-name {
+    white-space: normal;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  /* "Commander Beak · ★ Lv 20" is the longest thing the card ever shows, and
+     holding it to one line was on its own worth 30px of rail — which is 30px
+     of map. It wraps here instead. */
   #dock-hero { order: 2; }
   #dock-powers { order: 3; }
   /* The command block takes the column's leftover height and hands it to the

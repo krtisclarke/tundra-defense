@@ -1947,9 +1947,16 @@
      tray height sets map height sets map width sets sidebar width. Starting
      from the SMALLEST the tray can be gives the map its largest possible
      height, and everything else follows from that with no feedback. */
-  const SIDEBAR_MIN = 296, SIDEBAR_MAX = 460;   // floor fits the upgrade card
-  const TRAY_MIN = 74;                          // one row of build slots
-  const PAD = 16;
+  /* Both floors were measured, not guessed: each was narrowed until something
+     in it actually broke, swept against the worst content the game produces —
+     a maxed Sun Priest's 15,295 sell price, a deep-endless stat line, and
+     "Commander Beak · ★ Lv 20", which is the longest string the card can hold.
+     The rail is clean at 262 and clips "🔒 Attunement" at 256; the tray band is
+     clean at 62 and drops a row at 58. Both sit one notch off the cliff.
+     Every pixel saved here is a pixel of battlefield. */
+  const SIDEBAR_MIN = 262, SIDEBAR_MAX = 460;
+  const TRAY_MIN = 66;
+  const PAD = 12;
   const wideLayout = () => matchMedia('(min-width: 1100px) and (min-height: 620px)').matches;
 
   function fitCanvas() {
