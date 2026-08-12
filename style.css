@@ -1215,7 +1215,7 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
        An auto row cannot do it: the tile's height comes from its width, so the
        row and the tile end up defining each other and the row collapses to
        12px, which is what had them overlapping. */
-    grid-auto-rows: calc((var(--sidew, 400px) - 38px) / 4.05);
+    grid-auto-rows: calc((var(--sidew, 400px) - 38px) / 3.75);
     align-content: start;
     margin: 0 0 4px 8px;
     padding: 8px;
@@ -1238,14 +1238,17 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
      rattling around in it. At the nominal 400px column a tile is 187 wide and
      these work out to a 52px icon, 14px price and 11px key — the sizes they
      were designed at. */
+  /* The penguin IS the tile: the icon takes the whole height and the price and
+     the key ride over it in the corners, rather than the icon being a thumbnail
+     with a caption underneath. The tile went from 27:20 to 5:4 for the same
+     reason — the icon is square, so a wider tile is just margin either side of
+     it. That trades one row of the tray for a penguin two and a half times the
+     size it was. */
   #palette .slot {
     max-width: none;
     min-height: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 0.97cqw;
+    display: block;
+    overflow: hidden;
     padding: 0;
     /* Enough class colour to sort the tray at a glance, not so much that the
        penguin has to fight it: a wash from the top, over the dark panel. */
@@ -1266,17 +1269,29 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
      tile's internal proportions survive a change to the column count. The text
      takes a larger share of a tile than it did at two across, because a third
      of a column is a smaller tile and the price still has to be read. */
-  #palette .slot canvas { width: 9.7cqw; height: auto; margin: 0; }
+  #palette .slot canvas {
+    display: block; height: 100%; width: auto; margin: 0 auto;
+  }
+  /* the price as a small card in the corner, dark enough to stay readable over
+     whatever part of the penguin ends up behind it */
   #palette .slot-cost {
-    font-size: 3.55cqw; line-height: 1.05; letter-spacing: 0;
+    position: absolute; left: 1.1cqw; bottom: 1.1cqw;
+    font-size: 3.2cqw; line-height: 1; letter-spacing: 0;
     color: var(--gold); font-weight: 800;
+    background: rgba(6, 11, 20, 0.78);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 1.1cqw;
+    padding: 0.7cqw 1.2cqw;
   }
   #palette .slot-key {
-    position: absolute; top: 1.1cqw; left: 1.3cqw; transform: none;
-    font-size: 2.4cqw; line-height: 1; padding: 0.5cqw 1cqw; border-radius: 1cqw;
-    background: rgba(0, 0, 0, 0.45); border-color: transparent; color: var(--text);
+    position: absolute; top: 1.1cqw; left: 1.1cqw; transform: none;
+    font-size: 2.4cqw; line-height: 1; padding: 0.5cqw 1cqw; border-radius: 1.1cqw;
+    background: rgba(6, 11, 20, 0.7); border-color: transparent; color: var(--text);
   }
-  #palette .slot-lock { font-size: 4.2cqw; }
+  #palette .slot-lock {
+    position: absolute; right: 1.4cqw; top: 50%; transform: translateY(-50%);
+    font-size: 4.6cqw;
+  }
   #palette .slot:hover { transform: translateY(-2px); }
   /* A locked penguin should read as locked at a glance rather than as a
      slightly dimmer coloured tile: it loses the class colour entirely. */

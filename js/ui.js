@@ -964,8 +964,12 @@
          background wins over any stylesheet rule, and every locked penguin was
          coming out as brightly coloured as a usable one. */
       slot.style.setProperty('--cls', color);
+      /* 128, not 38: the tile shows this at its full height now rather than as
+         a 26px thumbnail with the price under it, and drawTowerIcon scales
+         everything off the canvas width, so the bitmap has to be big enough to
+         still be sharp at 117px on a 4K panel. */
       const cv = document.createElement('canvas');
-      cv.width = 38; cv.height = 38;
+      cv.width = 128; cv.height = 128;
       G.drawTowerIcon(cv, id);
       slot.appendChild(el('kbd', 'slot-key', HOTKEY_ROWS[r][c]));
       slot.appendChild(cv);
