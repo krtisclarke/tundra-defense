@@ -2521,8 +2521,18 @@
      frames. There is no way for the player or the device to opt out of that. */
   const FRAME_MS = 1000 / 60;
 
+  /* Truthiness, not `!= null`. UI.rafId starts life as 0 (see the UI object at
+     the top of this file), and `0 != null` is true — so this guard decided the
+     loop was already running before it had ever run once, and returned. From
+     the moment the loop learned to stop, it could never be started.
+
+     What kept the game moving at all was the 15Hz backstop below, which exists
+     for webviews that starve requestAnimationFrame. Measured against a 60Hz
+     display: 7 frames a second, 88% of them dropped. That is the skipping —
+     not the drag, not the renderer. A real handle is always a positive
+     integer, so this reads 0, null and undefined alike as "not running". */
   function startLoop() {
-    if (UI.rafId != null) return;
+    if (UI.rafId) return;
     UI.lastTime = performance.now();
     UI.rafId = requestAnimationFrame(loop);
   }
@@ -2534,7 +2544,7 @@
      Anything that gives us a game to run starts it again. */
   function loop(now) {
     const g = UI.game;
-    if (!g) { UI.rafId = null; return; }
+    if (!g) { UI.rafId = 0; return; }
     /* Stop once there is nothing left that can change on screen. A finished
        battle is the state a phone is most likely to be left sitting in —
        someone wins and puts it down — and it used to redraw the whole
@@ -2544,11 +2554,17 @@
        hidden. Hiding pauses the battle, so the battery saving is the same, but a
        webview that misreports its visibility can then only ever cost a paused
        game the player can see and resume — not a loop that refuses to restart. */
-    if ((g.paused || g.over) && UI.idleDrawn) { UI.rafId = null; return; }
+    if ((g.paused || g.over) && UI.idleDrawn) { UI.rafId = 0; return; }
     UI.rafId = requestAnimationFrame(loop);
-    // 1ms of slack: frame times jitter, and an exact compare drops every other
-    // frame on a 60Hz screen instead of none.
-    if (now - UI.lastTime < FRAME_MS - 1) return;
+    /* Six tenths of a frame of slack, not one millisecond.
+       A 60Hz display does not hand out clean 16.667s — measured here, the gaps
+       run 15.6 to 17.7 — so a threshold of 15.667 rejected the short ones. A
+       rejected frame does not advance lastTime, so the next one renders with a
+       doubled step: one in six frames arrived as a 33ms lurch. That is judder
+       manufactured by the frame limiter itself.
+       10ms clears every real 60Hz frame and still halves a 120Hz one, which is
+       the only thing the cap was ever for. */
+    if (now - UI.lastTime < FRAME_MS * 0.6) return;
     const dt = Math.min(0.1, (now - UI.lastTime) / 1000) || 0.016;
     UI.lastTime = now;
     step(dt, now);
