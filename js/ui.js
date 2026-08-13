@@ -8,6 +8,26 @@
     if (html != null) e.innerHTML = html;
     return e;
   };
+  /* Write markup into an element ONLY when it actually differs from what is
+     already there.
+
+     updateHud() is a blunt redraw-everything-from-state pass running about
+     eight times a second, which is why every number in the HUD stays live with
+     no bookkeeping. That is fine for text, and quietly fatal for markup: an
+     element rebuilt between a finger going down and coming up is no longer in
+     the document when the browser looks for the common ancestor of the two, so
+     NO CLICK IS FIRED AT ALL. That is why tapping the speaker glyph never
+     muted, and why the `space` chip inside Send Wave never sent a wave — the
+     button was replaced underneath the press. Hitting the padding worked
+     because there the target is the button itself, which is never rebuilt.
+
+     A string compare is the whole fix and it keeps the blunt-redraw design:
+     nothing has to know when state changed, only whether the output did. */
+  const setHTML = (node, html) => {
+    if (!node || node._html === html) return;
+    node._html = html;
+    node.innerHTML = html;
+  };
   // in-match currency is fish 🐟 (recruiting); pebbles 🪨 are the meta-currency
   const fmt = (n) => '🐟' + Math.round(n).toLocaleString();
   const num = (n) => Math.round(n).toLocaleString();   // a count, not a fish price
@@ -264,11 +284,20 @@
       if (carrying && g && g.placingType === id) {
         const pos = canvasPos(ev);
         const placed = g.placeTower(id, pos.x, pos.y);
-        if (placed) { sfx.place(); buzz(12); }
-        else { sfx.error(); buzz(30); }
-        // carried penguins are one-shot: no sticky armed state to cancel after
-        g.placingType = null;
-        g.mouse = { x: -999, y: -999 };
+        if (placed) {
+          sfx.place(); buzz(12);
+          g.placingType = null;
+          g.mouse = { x: -999, y: -999 };
+        } else {
+          /* A bad spot keeps the penguin in hand rather than sending it back to
+             the tray. Letting go over a rock or the trail used to mean starting
+             the whole drag again, which is most of a fiddly placement's misery.
+             Held is exactly the state tap-to-arm leaves behind, so the ghost
+             stays under the finger with its red X and the next touch anywhere
+             on the map tries again — no new machinery, and the cancel button is
+             already the way out. No fish are ever spent on a failed drop. */
+          sfx.error(); buzz(30);
+        }
         syncCancelBtn(); renderDockSel(); updateHud();
       } else if (showing) {
         armTooltipDismiss();
@@ -893,22 +922,22 @@
     const btn = $('#send-wave');
     if (g.over) {
       btn.disabled = true;
-      btn.innerHTML = g.over === 'win' ? '🏆 Victory' : '💔 Defeated';
+      setHTML(btn, g.over === 'win' ? '🏆 Victory' : '💔 Defeated');
     } else if (g.waveInProgress) {
       btn.disabled = true;
       const remaining = g.enemies.length + g.spawnQueue.length;
-      btn.innerHTML = `${remaining} sea lion${remaining === 1 ? '' : 's'} left`;
+      setHTML(btn, `${remaining} sea lion${remaining === 1 ? '' : 's'} left`);
     } else if (g.autoStart && g.nextWaveIn != null) {
       btn.disabled = true;
-      btn.innerHTML = 'Auto-sending…';
+      setHTML(btn, 'Auto-sending…');
     } else {
       btn.disabled = false;
-      btn.innerHTML = 'Send Wave <kbd>space</kbd>';
+      setHTML(btn, 'Send Wave <kbd>space</kbd>');
     }
     $('#btn-speed').textContent = g.speed + '×';
     $('#btn-pause').textContent = g.paused ? '▶' : '⏸';
     $('#btn-pause').classList.toggle('attention', g.paused);
-    $('#btn-mute').innerHTML = UI.profile.muted ? ICON_SOUND_OFF : ICON_SOUND_ON;
+    setHTML($('#btn-mute'), UI.profile.muted ? ICON_SOUND_OFF : ICON_SOUND_ON);
 
     // palette affordability + armed state (locked slots keep their look)
     for (const slot of document.querySelectorAll('#palette .slot')) {
@@ -1344,10 +1373,10 @@
     chip.classList.toggle('poor', !placed && g.cash < cost);
     chip.querySelector('.hero-lv').textContent = placed ? 'Lv ' + g.heroLevel : '🐟' + cost;
     const ready = placed && g.heroLevel >= H.ability.unlock && g.time >= g.heroReadyAt && !g.over;
-    if (!placed) ab.innerHTML = `${H.ability.icon} place your hero`;
-    else if (g.heroLevel < H.ability.unlock) ab.innerHTML = `${H.ability.icon} unlocks at lvl ${H.ability.unlock}`;
-    else if (g.time < g.heroReadyAt) ab.innerHTML = `${H.ability.icon} ${Math.ceil(g.heroReadyAt - g.time)}s`;
-    else ab.innerHTML = `${H.ability.icon} <b>${H.ability.name}</b> <kbd>H</kbd>`;
+    if (!placed) setHTML(ab, `${H.ability.icon} place your hero`);
+    else if (g.heroLevel < H.ability.unlock) setHTML(ab, `${H.ability.icon} unlocks at lvl ${H.ability.unlock}`);
+    else if (g.time < g.heroReadyAt) setHTML(ab, `${H.ability.icon} ${Math.ceil(g.heroReadyAt - g.time)}s`);
+    else setHTML(ab, `${H.ability.icon} <b>${H.ability.name}</b> <kbd>H</kbd>`);
     ab.disabled = !ready;
     ab.classList.toggle('ready', ready);
   }
@@ -1592,7 +1621,7 @@
       box.innerHTML = '';
       box.appendChild(el('div', 'ds-placing', IS_TOUCH
         ? `<b style="color:${color}">${def.name}</b> — drag onto the map to place.<br>
-           <span class="dim">Lift your finger where you want it.</span>`
+           <span class="dim">A spot that won't take it keeps it in hand — tap to try again.</span>`
         : `<b style="color:${color}">${def.name}</b> — click the map to place.<br>
            <span class="dim">Hold <kbd>Shift</kbd> for more · <kbd>Esc</kbd> cancel</span>`));
       return;

@@ -156,6 +156,14 @@ html.touch #btn-cancel-place.show { display: block; }
   z-index: 30;
 }
 html.touch #btn-fs { display: none; }
+/* Glyphs and key chips inside a button are decoration, never targets. The
+   button itself takes the press, so a child being replaced mid-press cannot
+   swallow the click. setHTML() in ui.js is the real fix for that; this is the
+   belt to its braces, and it costs nothing. */
+.icon-btn svg,
+.btn kbd,
+.btn b,
+.dp-count { pointer-events: none; }
 .icon-btn {
   display: inline-flex;
   align-items: center;
@@ -386,7 +394,15 @@ html.touch #btn-fs { display: none; }
   -webkit-user-select: none;
   user-select: none;
   -webkit-touch-callout: none;
-  touch-action: none;
+  /* pan-y, not none: a vertical stroke belongs to the browser so the tray can
+     be scrolled with a finger on a tile, and only the gaps between tiles used
+     to scroll. The horizontal axis stays ours, which is the whole drag-out
+     gesture (it fires when the finger crosses the column's left edge), and the
+     machinery for the browser winning a stroke is already here — the
+     pointercancel handler drops a stolen carry, and touchmove reclaims the
+     gesture once the description card is up. This line was deleted along with
+     the second layout in 27ad637; the JS comments never stopped describing it. */
+  touch-action: pan-y;
   transition: transform 0.1s ease, box-shadow 0.15s ease, filter 0.15s;
 }
 /* 34px, not the bitmap's own 38. Two rows of icon + price have to clear the
@@ -1464,6 +1480,14 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
      that shrink with it end up as unhittable dots. They keep their size and the
      box scrolls for the rest. Two across rather than three because the button
      is then 78 wide rather than 50, which is 28px on a phone rather than 18. */
+  /* This box scrolls UP AND DOWN only. It used to drift sideways as well, which
+     was never intended: `overflow-y: auto` on its own promotes the other axis
+     from visible to auto, and the count badges hung 6px outside their button's
+     top right corner, so there was exactly 6px of sideways travel to find.
+     Pinning the other axis is the fix. Padding is NOT — these buttons are a
+     fixed square (aspect-ratio on a fixed row height), so narrowing the content
+     box does not narrow them, it just pushes them out of it and makes the
+     overflow worse. The badge moves inside the button instead, below. */
   #dock-powers .dp-grid {
     flex: 1 1 auto; min-height: 0;
     grid-template-columns: repeat(2, 1fr);
@@ -1471,6 +1495,7 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
     align-content: start;
     gap: 7px;
     overflow-y: auto;
+    overflow-x: hidden;
     scrollbar-width: none;
   }
   #dock-powers .dp-grid::-webkit-scrollbar { display: none; }
@@ -1487,7 +1512,14 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
      the glyph spilled 3px out of its own line — visible as a clipped icon on a
      small block. The extra leading contains it and the glyph is unchanged. */
   #dock-powers .dp-btn .dp-icon { font-size: 62cqw; line-height: 1.25; }
-  #dock-powers .dp-count { font-size: 17cqw; min-width: 0; padding: 0 6cqw; }
+  /* Inside the button's corner, not hanging off it. Out there the badge was
+     both the reason the row could drift sideways and the thing that got
+     clipped: there is no scrolling above the top edge, so the first row's
+     counts were simply cut in half. */
+  #dock-powers .dp-count {
+    font-size: 17cqw; min-width: 0; padding: 0 6cqw;
+    top: 2cqw; right: 2cqw;
+  }
   /* Send Wave does not need the whole width — the speed, pause and auto
      controls ride beside it instead of costing another row underneath. */
   /* Sized for a finger, not for the desktop it looks generous on. Everything
