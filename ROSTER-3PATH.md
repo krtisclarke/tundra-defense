@@ -23,7 +23,7 @@ Tiers 1 and 2 sharpen the numbers. **Every capstone changes how the penguin play
 3. **Stonebreaker** — 🐟850 — *Capstone:* +3 damage; hits on armored sea lions land double, and the victim flinches (0.3s) with every strike.
 
 **Path 2 — Reach** *(the swarm shredder)*
-1. **Keen Eyes** — 🐟90 — +30% range.
+1. **Keen Eyes** — 🐟90 — +30% range, sees stealth.
 2. **Piercing Throw** — 🐟210 — pebbles pierce 2 extra sea lions.
 3. **Ricochet** — 🐟700 — *Capstone:* pebbles bounce off their victim into 2 more nearby sea lions.
 
@@ -443,9 +443,12 @@ unchanged, so the fish economy doesn't move.
 
 **The overlap purge.** Before, nine towers bought "sees stealth" as a tier-1 filler,
 and most paths were the same +damage/+speed ladder wearing different hats. Detection
-is now a *choice* with an owner: the Shadow Diver is born with it, the Hunter and
-Avionics paths buy it, Scout Tilly lends it to Frostline, and the Sonar Station remains
-the colony-wide answer. If you skip all of those, stealth is genuinely scary again.
+is now a *choice* with an owner — but every class keeps exactly one cheap stage-one
+answer, so no class is ever blind: Frostline's Keen Eyes (🐟90, the cheapest upgrade
+in the game), Navy's Night Scope and Thermal Visor, the Shadow Diver born with it for
+Mystic, and Support's Watchtower plus the Sonar Station itself. Scout Tilly still
+lends her eyes to Frostline as a luxury, not a requirement. Nine copies down to a
+deliberate handful — skip them all, and stealth is genuinely scary again.
 
 **Capstones change behaviour, not numbers.** Every third tier now does something the
 tower could not do at all before — ricochets, freeze meters, icy wakes, drift mines,
