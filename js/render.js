@@ -2571,6 +2571,12 @@
   function drawZones(ctx, game, t) {
     if (!game.zones || !game.zones.length) return;
     ctx.save();
+    /* The dash pattern and its offset are the same for every patch, so they are
+       set once rather than per zone — a deep endless board can hold well over a
+       hundred live zones, and this loop runs every frame. */
+    ctx.lineWidth = 1.4;
+    ctx.setLineDash([5, 5]);
+    ctx.lineDashOffset = -t * 9;   // a slow shimmer, so a live patch reads as live
     for (const z of game.zones) {
       const life = Math.max(0, Math.min(1, (z.until - game.time) / (z.life || 1)));
       const tone = ZONE_TONES[z.tone] || ZONE_TONES.ice;
@@ -2578,14 +2584,9 @@
       ctx.fillStyle = tone.fill;
       ctx.beginPath(); ctx.arc(z.x, z.y, z.r, 0, TAU); ctx.fill();
       ctx.strokeStyle = tone.edge;
-      ctx.lineWidth = 1.4;
-      // a slow shimmer, so a live patch is distinguishable from map decoration
-      ctx.setLineDash([5, 5]);
-      ctx.lineDashOffset = -t * 9;
       ctx.beginPath(); ctx.arc(z.x, z.y, z.r - 1, 0, TAU); ctx.stroke();
-      ctx.setLineDash([]);
     }
-    ctx.restore();
+    ctx.restore();   // takes the dash and the alpha back with it
   }
 
   function drawSpikes(ctx, game, t) {
