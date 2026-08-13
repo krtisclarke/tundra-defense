@@ -28,9 +28,9 @@ Tiers 1 and 2 sharpen the numbers. **Every capstone changes how the penguin play
 3. **Ricochet** — 🐟700 — *Capstone:* pebbles bounce off their victim into 2 more nearby sea lions.
 
 **Path 3 — Trick Shot** *(the beach bully)*
-1. **Skipping Stones** — 🐟100 — pebbles skip once off the ice: +1 pierce.
+1. **Follow-Through** — 🐟100 — the throw doesn't stop at the first hide it hits: +1 pierce.
 2. **Sandy Pebbles** — 🐟240 — grit in the eyes: hits slow sea lions 15% for 1s.
-3. **Beach Bully** — 🐟780 — *Capstone:* every 4th pebble knocks its target a step back down the trail, interrupting its march.
+3. **Beach Bully** — 🐟780 — *Capstone:* every pebble has a 1-in-4 chance to knock its target a step back down the trail. *(knockback)*
 
 ### 🐧 Snowball Roller — 🐟300 · Starter
 *Rolls heavy snowballs that plow straight through the pack.*
@@ -44,12 +44,12 @@ Tiers 1 and 2 sharpen the numbers. **Every capstone changes how the penguin play
 **Path 2 — Chill** *(the crowd controller)*
 1. **Slush Coating** — 🐟200 — snowballs slow targets 30%.
 2. **Deeper Chill** — 🐟380 — slow strengthened to 45% and lasts longer.
-3. **Deep Freeze** — 🐟1,100 — *Capstone:* every hit builds frost on the victim; the third hit freezes it solid for 1.5s.
+3. **Deep Freeze** — 🐟1,100 — *Capstone:* every hit builds frost on the victim; the third hit freezes it solid for 1.5s. *(freeze meter)*
 
 **Path 3 — Momentum** *(the lane groomer)*
 1. **Groomed Lanes** — 🐟190 — rolls 40% faster.
 2. **Wide Track** — 🐟400 — +25% range, +3 pierce.
-3. **Icy Wake** — 🐟1,200 — *Capstone:* snowballs polish the trail behind them into ice for 3s — sea lions on the wake are slowed 30%, no hit required.
+3. **Icy Wake** — 🐟1,200 — *Capstone:* snowballs polish the trail behind them into ice for 3s — sea lions on the wake are slowed 30%, no hit required. *(ground zone)*
 
 ### 🐧 Ice Shard Gunner — 🐟260 · Rank 3
 *Blasts a ring of ice shards in all directions. Loves choke points.*
@@ -58,17 +58,17 @@ Tiers 1 and 2 sharpen the numbers. **Every capstone changes how the penguin play
 **Path 1 — Barrage** *(volume of fire)*
 1. **Faster Firing** — 🐟150 — +50% attack speed.
 2. **Shard Storm** — 🐟400 — 12 shards per volley.
-3. **Hailfield** — 🐟1,200 — *Capstone:* each volley frosts the ground in its ring for 2s — sea lions crossing it are slowed 25%.
+3. **Hailfield** — 🐟1,200 — *Capstone:* each volley frosts the ground in its ring for 2s — sea lions crossing it are slowed 25%. *(ground zone)*
 
 **Path 2 — Edge** *(the precision cut)*
 1. **Razor Shards** — 🐟170 — +1 damage.
 2. **Long Splinters** — 🐟330 — +35% range, faster shards.
-3. **Brittle Ice** — 🐟950 — *Capstone:* shards leave targets brittle — the next hit from ANY penguin deals +50% damage.
+3. **Brittle Ice** — 🐟950 — *Capstone:* shards crack the hide — for 2s the victim takes +25% damage from every penguin on the field. *(vulnerability mark)*
 
 **Path 3 — Fortress** *(the chokepoint keeper)*
 1. **Dense Volley** — 🐟160 — +4 shards per volley.
 2. **Cold Snap Ring** — 🐟350 — shards chill 20% for 1s.
-3. **Shard Bulwark** — 🐟1,100 — *Capstone:* every few seconds a ring of ice spikes erupts around the gunner — sea lions shoving through take damage and are slowed.
+3. **Shard Bulwark** — 🐟1,100 — *Capstone:* every few seconds the gunner studs the trail inside its ring with ice spikes that bite and chill whatever tramples them. *(the Ice Wall Builder's spike system, aimed)*
 
 ### 🐧 Glacier Cannon — 🐟490 · Rank 5
 *Lobs exploding chunks of glacier. Great against clumps.*
@@ -77,17 +77,17 @@ Tiers 1 and 2 sharpen the numbers. **Every capstone changes how the penguin play
 **Path 1 — Payload** *(raw explosion power)*
 1. **Bigger Chunks** — 🐟300 — +2 damage.
 2. **Shattering Ice** — 🐟650 — +30 blast radius, +8 blast targets.
-3. **Calving Crater** — 🐟1,800 — *Capstone:* blasts leave an ice crater for 4s — sea lions inside take 3 dmg/s and are slowed 20%.
+3. **Calving Crater** — 🐟1,800 — *Capstone:* blasts leave an ice crater for 4s — sea lions inside take 3 dmg/s and are slowed 20%. *(ground zone)*
 
 **Path 2 — Artillery** *(rate and precision)*
 1. **Spotter Chick** — 🐟250 — +25% range.
 2. **Rapid Reload** — 🐟550 — +55% attack speed.
-3. **Cluster Ice** — 🐟1,500 — *Capstone:* the chunk cracks apart at its peak — two seeking sub-chunks explode where the pack is thickest.
+3. **Cluster Ice** — 🐟1,500 — *Capstone:* the chunk cracks apart on impact — two smaller chunks fly on to the nearest sea lions and burst again.
 
 **Path 3 — Seismic** *(the disruptor)*
 1. **Heavy Mounting** — 🐟280 — +20 blast radius.
 2. **Tremor Rounds** — 🐟600 — survivors of a blast are slowed 25%.
-3. **Icequake** — 🐟1,700 — *Capstone:* blasts throw a shockwave — sea lions near the impact are knocked a step back and stunned 0.4s.
+3. **Icequake** — 🐟1,700 — *Capstone:* blasts throw a shockwave — sea lions near the impact are knocked a step back and stunned 0.4s. *(knockback)*
 
 ### 🐧 Slush Thrower — 🐟280 · Rank 2
 *Sprays sticky slush that drastically slows sea lions.*
@@ -101,12 +101,12 @@ Tiers 1 and 2 sharpen the numbers. **Every capstone changes how the penguin play
 **Path 2 — Volume** *(the hybrid controller)*
 1. **Faster Pumping** — 🐟180 — +50% attack speed.
 2. **Chilling Bite** — 🐟300 — slush now deals 1 damage.
-3. **Brain Freeze** — 🐟900 — *Capstone:* slush can stun (0.4s), and a stunned sea lion sheds 1 armor until it recovers.
+3. **Brain Freeze** — 🐟900 — *Capstone:* slush freezes brains — hits stun (0.4s), and a stunned sea lion sheds 1 armor for good.
 
 **Path 3 — Trapper** *(zone denial)*
 1. **Extra Goop** — 🐟170 — splash 50% wider.
 2. **Slow Drip** — 🐟320 — slows last twice as long.
-3. **Quagmire** — 🐟950 — *Capstone:* slush pools on the trail and stacks. A sea lion wading through three stacks is rooted to the spot for 1s.
+3. **Quagmire** — 🐟950 — *Capstone:* slush pools into puddles that outlast the throw (4s) — anything wading one is slowed 60%, and a sea lion already slushed by the spray is stuck fast for 1s. *(ground zone)*
 
 ### ⭐ Frostline Heroes
 | Hero | Price | The pitch |
@@ -135,7 +135,7 @@ Tiers 1 and 2 sharpen the numbers. **Every capstone changes how the penguin play
 **Path 3 — Hunter** *(the utility sniper)*
 1. **Night Scope** — 🐟280 — sees stealth sea lions.
 2. **Spotter's Eye** — 🐟550 — +4 damage, and the sniper always calls the strongest target on the field.
-3. **Marked Prey** — 🐟2,200 — *Capstone:* the harpooned target is marked for 4s — every penguin in the colony hits it 30% harder.
+3. **Marked Prey** — 🐟2,200 — *Capstone:* the harpooned target is marked for 4s — every penguin in the colony hits it 30% harder. *(vulnerability mark)*
 
 ### 🐧 Torpedo Sub — 🐟360 · Rank 4 · 🌊 water only
 *Fires homing torpedoes that never miss.*
@@ -144,7 +144,7 @@ Tiers 1 and 2 sharpen the numbers. **Every capstone changes how the penguin play
 **Path 1 — Warhead** *(area denial)*
 1. **Heavy Torpedoes** — 🐟280 — +3 damage.
 2. **Blast Charges** — 🐟620 — torpedoes explode (45 radius).
-3. **Oil Slick** — 🐟1,700 — *Capstone:* blasts leave a slick on the water for 3s — sea lions in it are slowed 30% and take +50% from burns.
+3. **Oil Slick** — 🐟1,700 — *Capstone:* blasts leave a slick on the water for 3s — anything crossing it is slowed 30% and smoulders for 2 dmg/s. *(ground zone)*
 
 **Path 2 — Sonar** *(the precision hunter)*
 1. **Periscope** — 🐟220 — +30% range.
@@ -163,7 +163,7 @@ Tiers 1 and 2 sharpen the numbers. **Every capstone changes how the penguin play
 **Path 1 — Ordnance** *(bigger blasts)*
 1. **Bigger Barrels** — 🐟350 — +3 damage.
 2. **Shockwave** — 🐟700 — +30 blast radius.
-3. **Tsunami Charge** — 🐟2,000 — *Capstone:* the blast throws a wave that shoves surviving sea lions back down the trail.
+3. **Tsunami Charge** — 🐟2,000 — *Capstone:* the blast throws a wave that shoves surviving sea lions a stride back down the trail. *(knockback)*
 
 **Path 2 — Crew** *(rate and coverage)*
 1. **Extra Hands** — 🐟300 — +50% attack speed.
@@ -182,7 +182,7 @@ Tiers 1 and 2 sharpen the numbers. **Every capstone changes how the penguin play
 **Path 1 — Gunnery** *(the strafe specialist)*
 1. **Heavy Rounds** — 🐟400 — +1 damage.
 2. **Dual Cannons** — 🐟900 — fires two shots at once.
-3. **Gun Run** — 🐟2,400 — *Capstone:* locks onto its target for 2 seconds of focused fire at double rate before breaking off.
+3. **Gun Run** — 🐟2,400 — *Capstone:* drops low and rakes the lane — every round punches through 3 sea lions in a row (+3 pierce, +1 damage).
 
 **Path 2 — Avionics** *(the utility flyer)*
 1. **Thermal Visor** — 🐟350 — sees stealth sea lions.
@@ -192,7 +192,7 @@ Tiers 1 and 2 sharpen the numbers. **Every capstone changes how the penguin play
 **Path 3 — Ace** *(aerial superiority)*
 1. **Combat Trim** — 🐟380 — +25% attack speed.
 2. **High Patrol** — 🐟700 — +20% range, +1 damage.
-3. **Strafing Dive** — 🐟2,100 — *Capstone:* every 6s, dives the trail — a line of hits straight down the lane — then resumes orbit on the far side.
+3. **Strafing Dive** — 🐟2,100 — *Capstone:* screams into a low, fast pass — orbit speed doubled, +30% range, and every round bursts on impact (small blast).
 
 ### 🐧 Artillery Emperor — 🐟850 · Rank 14
 *An emperor penguin with a howitzer. Massive range, massive shells, blind up close.*
@@ -201,12 +201,12 @@ Tiers 1 and 2 sharpen the numbers. **Every capstone changes how the penguin play
 **Path 1 — Shells** *(the devastating payload)*
 1. **HE Shells** — 🐟500 — +4 damage.
 2. **Siege Shells** — 🐟1,000 — +4 more damage, +25 blast radius.
-3. **Cratered Earth** — 🐟2,800 — *Capstone:* shells leave craters for 4s — 4 dmg/s and 25% slow to anything crossing them.
+3. **Cratered Earth** — 🐟2,800 — *Capstone:* shells leave craters for 4s — 4 dmg/s and 25% slow to anything crossing them. *(ground zone)*
 
 **Path 2 — Logistics** *(support artillery)*
 1. **Loader Team** — 🐟450 — +50% attack speed.
 2. **Forward Observer** — 🐟700 — smaller blind zone, +10% range.
-3. **Firebase** — 🐟2,200 — *Capstone:* shells burn the ground (3 dmg/s), and the Emperor's presence steadies the line — penguins near him attack 8% faster.
+3. **Firebase** — 🐟2,200 — *Capstone:* shells leave the impact burning for 3s — 3 dmg/s to anything crossing it — and the Emperor steadies the line: penguins near him attack 8% faster. *(ground zone)*
 
 **Path 3 — Barrage** *(sustained pressure)*
 1. **Drilled Crew** — 🐟480 — +35% attack speed.
@@ -230,7 +230,7 @@ Tiers 1 and 2 sharpen the numbers. **Every capstone changes how the penguin play
 **Path 1 — Radiance** *(explosive bolts)*
 1. **Brighter Bolts** — 🐟250 — +2 damage.
 2. **Arc Lightning** — 🐟600 — +6 pierce, faster bolts.
-3. **Solar Flare** — 🐟1,700 — *Capstone:* bolts explode at the end of their flight and leave a shimmering aurora trail that burns for 3 dmg/s.
+3. **Solar Flare** — 🐟1,700 — *Capstone:* bolts burst on impact and leave a patch of aurora fire on the ground for 2s — 3 dmg/s to anything crossing it. *(ground zone)*
 
 **Path 2 — Attunement** *(the rapid caster)*
 1. **Focused Mind** — 🐟220 — +40% attack speed.
@@ -254,12 +254,12 @@ Tiers 1 and 2 sharpen the numbers. **Every capstone changes how the penguin play
 **Path 2 — Coven** *(speed and coverage)*
 1. **Cursed Sight** — 🐟240 — +20% range.
 2. **Double Hex** — 🐟520 — +2 pierce, +40% attack speed.
-3. **Winter's Grasp** — 🐟1,300 — *Capstone:* cursed sea lions are slowed 35% and take +15% damage from every source while the curse holds.
+3. **Winter's Grasp** — 🐟1,300 — *Capstone:* cursed sea lions are slowed 35% and take +15% damage from every source while the curse holds. *(vulnerability mark)*
 
 **Path 3 — Plague Bearer** *(spreading corruption)*
 1. **Festering Touch** — 🐟260 — curses last 2s longer.
 2. **Miasma** — 🐟500 — curses splash to sea lions pressed against the target.
-3. **Corrupted Ground** — 🐟1,500 — *Capstone:* a sea lion that dies cursed leaves a stain on the trail for 3s — anything crossing it catches the curse fresh.
+3. **Corrupted Ground** — 🐟1,500 — *Capstone:* a sea lion that dies cursed leaves a stain on the trail for 3s — anything crossing it catches the curse fresh. *(ground zone)*
 
 ### 🐧 Blizzard Caller — 🐟800 · Rank 13
 *Summons howling storms that batter and slow everything nearby.*
@@ -268,17 +268,17 @@ Tiers 1 and 2 sharpen the numbers. **Every capstone changes how the penguin play
 **Path 1 — Tempest** *(stronger storms)*
 1. **Biting Winds** — 🐟400 — +2 storm damage.
 2. **Widening Gyre** — 🐟800 — +35% storm radius.
-3. **Whiteout** — 🐟2,200 — *Capstone:* storms freeze for 0.8s, and thawing sea lions are vulnerable — +20% damage taken for 2s.
+3. **Whiteout** — 🐟2,200 — *Capstone:* storms freeze for 0.8s, and thawing sea lions are vulnerable — +20% damage taken for 2s. *(vulnerability mark)*
 
 **Path 2 — Frequency** *(permanent pressure)*
 1. **Restless Sky** — 🐟380 — +50% storm frequency.
 2. **Hailstones** — 🐟750 — +3 damage.
-3. **Endless Winter** — 🐟1,900 — *Capstone:* storms roll almost without pause, and their chill stacks — the third storm to catch a sea lion freezes it solid.
+3. **Endless Winter** — 🐟1,900 — *Capstone:* storms roll almost without pause (+80% frequency), and every storm locks the pack in place for a blink (0.4s).
 
 **Path 3 — Eye of the Storm** *(zone mastery)*
 1. **Stormsight** — 🐟350 — +25% range.
 2. **Low Pressure** — 🐟700 — storm slow deepened to 50%.
-3. **The Anchored Eye** — 🐟2,100 — *Capstone:* plants a standing storm over the deadliest stretch of trail in reach — bigger, longer, and it does not move while sea lions still march.
+3. **The Anchored Eye** — 🐟2,100 — *Capstone:* the storm leaves its footprint frozen on the trail — a lingering squall (4s) that keeps slowing 40% after the storm itself has passed. *(ground zone)*
 
 ### 🐧 Shadow Diver — 🐟470 · Rank 8
 *A ninja penguin. Flings icicle shuriken fast, and always sees stealth.*
@@ -292,12 +292,12 @@ Tiers 1 and 2 sharpen the numbers. **Every capstone changes how the penguin play
 **Path 2 — Sabotage** *(the debuff specialist)*
 1. **Numbing Strikes** — 🐟260 — hits slow sea lions 25%.
 2. **Deep Reach** — 🐟480 — +35% range.
-3. **Death Mark** — 🐟1,500 — *Capstone:* shuriken mark the victim for 3s — it takes +25% damage from every source.
+3. **Death Mark** — 🐟1,500 — *Capstone:* shuriken mark the victim for 3s — it takes +25% damage from every source. *(vulnerability mark)*
 
 **Path 3 — Ghost** *(evasion and disruption)*
 1. **Silent Steps** — 🐟270 — +30% attack speed.
 2. **Umbral Blades** — 🐟500 — +1 damage, +1 pierce.
-3. **Decoy Dive** — 🐟1,600 — *Capstone:* every 8s, plants an ice decoy on the trail — sea lions stop to maul it for a moment before it shatters.
+3. **Decoy Dive** — 🐟1,600 — *Capstone:* every 8s, plants a glittering ice-double of itself on the trail — the next three sea lions to reach it each stop dead for half a second as it cracks beneath them. *(the spike-pile system, holding instead of hurting)*
 
 ### 🐧 Sun Priest — 🐟2,400 · Rank 16
 *The legendary penguin who bottled the midnight sun. Melts everything.*
@@ -306,7 +306,7 @@ Tiers 1 and 2 sharpen the numbers. **Every capstone changes how the penguin play
 **Path 1 — Corona** *(raw power)*
 1. **Focused Beam** — 🐟1,400 — +3 damage.
 2. **Solar Lance** — 🐟3,200 — the beam burns through 4 sea lions.
-3. **Supernova Focus** — 🐟8,000 — *Capstone:* the beam ramps while it holds one target — +1 damage per tick, without limit, resetting when it switches.
+3. **Supernova Focus** — 🐟8,000 — *Capstone:* the beam ramps while it holds one target — +1 damage per tick, up to +15, resetting when it switches.
 
 **Path 2 — Zenith** *(the boss-slayer)*
 1. **All-Seeing Light** — 🐟1,200 — sees stealth, +25% range.
@@ -316,7 +316,7 @@ Tiers 1 and 2 sharpen the numbers. **Every capstone changes how the penguin play
 **Path 3 — Eclipse** *(area pressure)*
 1. **Wide Lens** — 🐟1,300 — +2 damage, +15% range.
 2. **Twin Mirrors** — 🐟3,000 — the beam splits to a second target at 60% power.
-3. **Scorched Path** — 🐟7,500 — *Capstone:* the ground ignites where the beam sweeps — a burning line (5 dmg/s, 3s) follows its aim across the field.
+3. **Scorched Path** — 🐟7,500 — *Capstone:* the ground catches light where the beam lands — each struck spot burns (5 dmg/s) for 3s, so a sweeping beam writes a line of fire across the trail. *(ground zone)*
 
 ### ⭐ Mystic Heroes
 | Hero | Price | The pitch |
@@ -379,12 +379,12 @@ Tiers 1 and 2 sharpen the numbers. **Every capstone changes how the penguin play
 **Path 2 — Decrypt** *(speed and global reveal)*
 1. **Signal Boost** — 🐟300 — helpers attack 8% faster.
 2. **Echo Location** — 🐟650 — circle covers 20% more ground.
-3. **Full Decloak** — 🐟1,600 — *Capstone:* stealth in the circle is revealed to EVERY penguin on the field, and revealed sea lions take +10% damage.
+3. **Full Decloak** — 🐟1,600 — *Capstone:* stealth in the circle is revealed to EVERY penguin on the field, and revealed sea lions take +10% damage. *(vulnerability mark)*
 
 **Path 3 — Overwatch** *(information warfare)*
 1. **Target Feed** — 🐟320 — helpers hit 8% harder.
 2. **Priority Uplink** — 🐟680 — helpers shoot 10% further and 8% faster.
-3. **Fire Control** — 🐟1,700 — *Capstone:* the station calls the shot — helpers in the circle concentrate fire on the strongest sea lion each can reach.
+3. **Fire Control** — 🐟1,700 — *Capstone:* the station guides every shot from above — helpers in the circle fire clean over ridges, wrecks and igloos. Nothing on the map gives cover.
 
 ### 🐧 War Drummer — 🐟700 · Rank 11
 *Pounds a walrus-hide drum: helpers inside its circle attack 16% faster.*
@@ -467,6 +467,32 @@ already sitting there: Scout Tilly shares her eyes with Frostline (which is what
 scout is *for*), and Warden Kell's Corrosion now counts as a mystic curse so the new
 Conduit and Plague Bearer paths have something to amplify. No growth curves, prices
 or abilities moved.
+
+**What's new under the hood — and what deliberately isn't.** Every one of the 180
+upgrades was audited against the engine as it exists. 149 run on machinery already in
+the game — the fx system (slow, stun, rot, armor shred), splash, pierce, chains,
+volleys, auras, spikes and the income hooks. The rest run on a small set of shared
+systems, each built once and reused, tagged inline where they appear:
+
+- **Ground zones** *(10 capstones)* — craters, slicks, wakes, aurora fire, corrupt
+  stains, squalls, quagmires. One system: a patch on the trail with a lifetime and an
+  effect, checked against sea lions the same way spike piles already are.
+- **Vulnerability marks** *(6 capstones)* — "takes +N% damage from every source."
+  One new field on a sea lion and one multiply where damage is dealt.
+- **Knockback** *(3 capstones)* — a sea lion's progress is a distance along the
+  trail; knockback subtracts from it. It has simply never been used before.
+- **The freeze meter** *(1 capstone)* — a hit counter on the victim. The Snowball
+  Roller keeps it because "the third hit freezes" was the whole fantasy.
+- **Repurposed spike piles** *(2 capstones)* — the Drift Mines and the ice decoy are
+  the Ice Wall Builder's pile system doing new tricks: exploding on contact, or
+  holding a sea lion instead of hurting it.
+
+Two one-line additions ride along: a crit roll (Killing Frost — the game's first
+random damage, deliberate and capstone-priced) and a ramp counter (Supernova Focus,
+capped at +15 so deep-endless numbers cannot run away). Everything else that sounded
+grander than the engine — pebbles that "skip," beams that scorch lines nothing walks
+on, decoys sea lions would have to *attack* in a game where sea lions only march —
+was rewritten to promise exactly what the player will see.
 
 **What this means for the flyout panel.** The selection panel shows two full paths
 today; it will need to show three, with the locked path visibly greyed once two are
