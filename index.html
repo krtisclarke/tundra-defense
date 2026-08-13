@@ -53,6 +53,14 @@
       <div id="banner"></div>
       <div id="tooltip"></div>
 
+      <!-- The penguin you tapped, in a column down the left. It lives out here
+           rather than in the dock because everything in the dock is scaled to
+           about a third on a phone, which is how a 10px sell button ended up
+           one pixel under an upgrade button. Out here it is drawn at its own
+           size, so the upgrade descriptions fit inside it and nothing has to be
+           hovered to be read. -->
+      <div id="selpanel" hidden></div>
+
       <!-- touch: cancel an armed penguin (replaces right-click) -->
       <button id="btn-cancel-place" title="Cancel placement">✕ cancel</button>
     </div>
@@ -66,7 +74,6 @@
     <div id="dock">
       <div id="palette"></div>
       <div id="panel-fit"><div id="sidebar">
-        <div id="dock-sel"></div>
         <div id="dock-hero" style="display:none"></div>
         <div id="dock-powers" title=""></div>
         <div id="command">

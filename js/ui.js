@@ -758,6 +758,11 @@
     $('#dock').classList.remove('playing');
     fitCanvas();          // and its departure gives the whole window back
     hideTooltip();
+    /* Explicitly, not via renderDockSel: that returns early once UI.game is
+       null, so the flyout would have stayed on screen over the menu. */
+    const sel = $('#selpanel');
+    sel.hidden = true; sel.innerHTML = '';
+    sellArmedFor = null; clearTimeout(sellTimer);
     G.music.play('menu');
     buildLevelSelect();
     show('#screen-levels');
@@ -950,7 +955,7 @@
     /* upgrade buttons light up the moment they become affordable — the card
        itself only re-renders on selection changes, so without this the
        poor/can state would freeze at whatever the cash was back then */
-    for (const b of document.querySelectorAll('#dock-sel .btn.upg-mini[data-cost]')) {
+    for (const b of document.querySelectorAll('#selpanel .btn.upg-buy[data-cost]')) {
       const can = g.cash >= +b.dataset.cost;
       if (can && !b.classList.contains('can')) {
         b.classList.add('flash');   // one pulse right as it crosses the line
@@ -1608,12 +1613,42 @@
   }
 
   /* ---------- command dock: selection card ---------- */
+  /* Which penguin the sell button is currently asking about, and the timer that
+     un-asks. Module-level rather than per-render so any re-render — buying an
+     upgrade, the 0.3s selection poll, picking a different penguin — drops a
+     half-armed sell rather than leaving it primed under a finger. */
+  let sellArmedFor = null, sellTimer = null;
+
   function renderDockSel() {
     const g = UI.game;
-    const box = $('#dock-sel');
+    const box = $('#selpanel');
     if (!g) return;
-    // on compact layouts the card only takes space when it has something to say
-    box.classList.toggle('has-sel', !!(g.selected || g.placingType));
+    sellArmedFor = null;                 // a fresh render is never mid-confirm
+
+    /* Closed is the resting state. The old card lived in the column and so was
+       always on screen saying something, which is why it had to be a fixed
+       height and why its contents were squeezed to fit. Out here it can simply
+       not be there, and take whatever room it needs when it is. */
+    if (!g.selected && !g.placingType) {
+      box.hidden = true;
+      box.innerHTML = '';
+      return;
+    }
+    box.hidden = false;
+    box.classList.toggle('placing', !!g.placingType);
+    /* Start below the vitals rather than on top of them. Lives and fish are
+       exactly what you are reading while you decide whether to buy an upgrade,
+       and the panel is wide enough to cover all three counters. Measured rather
+       than guessed at, because the vitals are scaled by the block's own factor
+       and sit at the top of the MAP, not the top of the window. */
+    const hud = $('#hud-stats');
+    const below = hud && hud.offsetParent !== null ? hud.getBoundingClientRect().bottom : 0;
+    const top = Math.max(8, Math.round(below) + 8);
+    box.style.top = top + 'px';
+    /* The ceiling has to be set with the top, not left to CSS. A panel taller
+       than the space under the vitals will happily overflow UPWARDS out of its
+       own box and cover them again — which is exactly what it did. */
+    box.style.maxHeight = Math.max(120, window.innerHeight - top - 8) + 'px';
 
     if (g.placingType) {
       const def = G.TOWERS[g.placingType];
@@ -1628,14 +1663,6 @@
     }
 
     const t = g.selected;
-    if (!t) {
-      box.innerHTML = `
-        <div class="ds-empty">
-          <div class="ds-lvl">${g.level.name}</div>
-          <div class="dim">Click a penguin to manage it,<br>or press a key to build.</div>
-        </div>`;
-      return;
-    }
 
     const def = G.TOWERS[t.type];
     const color = def.hero ? '#ffd166' : G.CLASSES[def.cls].color;
@@ -1675,6 +1702,12 @@
     if (!['income', 'aura'].includes(c.kind))
       stats.push(`<span title="Sea lions destroyed by this penguin">☠ <b class="ds-kills">${short(t.kills || 0)}</b></span>`);
     head.appendChild(el('div', '', `<div class="ds-name" style="color:${color}">${def.name}${def.hero ? ` · <span class="hero-tag">★ Lv ${g.heroLevel}</span>` : ''}</div><div class="ds-stats">${stats.join(' · ')}</div>`));
+    /* An explicit way out. Tapping the map closes the panel too, but on a phone
+       the map is mostly covered by the thing you are trying to dismiss. */
+    const shut = el('button', 'ds-close', '✕');
+    shut.title = 'Close (Esc)';
+    shut.onclick = () => { g.selected = null; renderDockSel(); };
+    head.appendChild(shut);
     box.appendChild(head);
 
     /* The falloff has to be explained somewhere, and the stat line has room
@@ -1725,40 +1758,59 @@
       tgt0.title = 'Cycle targeting: first / last / strong / close';
       tgt0.onclick = () => cycleTarget();
       act0.appendChild(tgt0);
-      const sell0 = el('button', 'btn tiny danger', `<kbd>X</kbd> sell ${fmt(t.invested * G.SELL_RATE)}`);
-      sell0.onclick = () => sellSelected();
-      act0.appendChild(sell0);
       box.appendChild(act0);
+      box.appendChild(makeSellButton(t));
       return;
     }
 
+    /* Both paths in full, every tier with its description, in the panel itself.
+       The old card had room for two names and a price, so what each upgrade
+       actually DID lived in a floating card you had to hover — which a finger
+       cannot do. There is room here, so the game just says it. */
     const upgRow = el('div', 'ds-upgs');
     for (let p = 0; p < 2; p++) {
       const path = def.paths[p];
       const tier = t.up[p];
       const key = p === 0 ? 'Q' : 'W';
+      const locked = tier === 2 && t.up[1 - p] >= 3;
+      const col = el('div', 'ds-path');
+
+      /* Same markup the floating card uses, so the two never drift apart and
+         there is one set of styles for a tier row in the whole game.
+
+         Tiers you already own collapse to their name. A phone in landscape has
+         about 360px of panel to give and the full six descriptions want 590 —
+         and what you have already bought is the one thing you do not need the
+         description of. The tier you can buy next and the ones beyond it keep
+         theirs, because those are the decision. */
+      const rows = path.tiers.map((x, i) => {
+        const state = i < tier ? 'own' : i === tier ? 'next' : 'later';
+        const cost = `<span class="tt-cost">${fmt(G.scaleCost(x.cost, g.diffId))}</span>`;
+        return `<div class="tt-tier ${state}">
+          <span class="tt-tier-dot">${i < tier ? '●' : i === tier ? '▸' : '○'}</span>
+          <span><b>${x.name}</b> ${i < tier ? '' : cost}
+          ${i < tier ? '' : `<br><span class="tt-tier-desc">${x.desc}</span>`}</span></div>`;
+      }).join('');
+      col.appendChild(el('div', 'ds-path-head', `${path.name}${locked ? ' · locked' : tier >= 3 ? ' · mastered' : ''}`));
+      col.appendChild(el('div', 'tt-tiers', rows));
+
       let btn;
       if (tier >= 3) {
-        btn = el('button', 'btn upg-mini done', `<kbd>${key}</kbd><span class="um-name">★ ${path.name}</span><span class="um-sub">mastered</span>`);
+        btn = el('button', 'btn upg-buy done', '★ mastered');
         btn.disabled = true;
-      } else if (tier === 2 && t.up[1 - p] >= 3) {
-        btn = el('button', 'btn upg-mini done', `<kbd>${key}</kbd><span class="um-name">🔒 ${path.name}</span><span class="um-sub">path locked</span>`);
+      } else if (locked) {
+        btn = el('button', 'btn upg-buy done', '🔒 path locked');
         btn.disabled = true;
       } else {
         const u = path.tiers[tier];
         const uCost = G.scaleCost(u.cost, g.diffId);
-        /* No description inside the button — it lives in a floating card on
-           hover, exactly like the build tray. That keeps every selection card
-           the same height, which is what stops the dock (and the map with it)
-           from jumping when you click a penguin. */
-        btn = el('button', 'btn upg-mini' + (g.cash < uCost ? ' poor' : ' can'),
-          `<kbd>${key}</kbd><span class="um-name">${u.name}</span><span class="um-sub">${'●'.repeat(tier)}${'○'.repeat(3 - tier)} · <b>${fmt(uCost)}</b></span>`);
+        btn = el('button', 'btn upg-buy' + (g.cash < uCost ? ' poor' : ' can'),
+          `<kbd>${key}</kbd> ${u.name} · <b>${fmt(uCost)}</b>`);
         btn.dataset.cost = uCost;   // updateHud re-checks this as fish come in
         btn.onclick = () => buyUpgrade(t, p);
-        hoverTip(btn, () => showUpgradeTip(btn, t.type, p, tier));
-        attachLongPress(btn, () => showUpgradeTip(btn, t.type, p, tier));
       }
-      upgRow.appendChild(btn);
+      col.appendChild(btn);
+      upgRow.appendChild(col);
     }
     box.appendChild(upgRow);
 
@@ -1769,10 +1821,36 @@
       tgt.onclick = () => cycleTarget();
       act.appendChild(tgt);
     }
-    const sell = el('button', 'btn tiny danger', `<kbd>X</kbd> sell ${fmt(t.invested * G.SELL_RATE)}`);
-    sell.onclick = () => sellSelected();
-    act.appendChild(sell);
     box.appendChild(act);
+
+    box.appendChild(makeSellButton(t));
+  }
+
+  /* Selling is destructive, refunds only 70% and has no undo, and it used to be
+     a 10px-tall button one pixel beneath the upgrade you were aiming for — that
+     is how penguins got sold by accident. It gets its own row at the bottom of
+     the panel now, well clear of anything else, and it asks first: one press
+     arms it for three seconds, a second press sells. The X hotkey is left as a
+     direct sell, because a deliberate keypress is not a mistap. */
+  function makeSellButton(t) {
+    const price = () => `+${fmt(t.invested * G.SELL_RATE)}`;
+    const idle = `<kbd>X</kbd> Sell · ${price()}`;
+    const sell = el('button', 'btn sell-btn', idle);
+    const disarm = () => {
+      if (sellArmedFor !== t) return;
+      sellArmedFor = null;
+      sell.classList.remove('armed');
+      setHTML(sell, idle);
+    };
+    sell.onclick = () => {
+      if (sellArmedFor === t) { clearTimeout(sellTimer); sellArmedFor = null; sellSelected(); return; }
+      sellArmedFor = t;
+      sell.classList.add('armed');
+      setHTML(sell, `Sell this penguin? · ${price()}`);
+      clearTimeout(sellTimer);
+      sellTimer = setTimeout(disarm, 3000);
+    };
+    return sell;
   }
 
   function buyUpgrade(t, p) {
@@ -2033,6 +2111,20 @@
       if (id) armTower(id);
     });
 
+    /* The panel stays up until you go somewhere else. Pressing inside it does
+       nothing — that is where the upgrade buttons are — and the map is left to
+       its own handler, which already picks a different penguin or clears the
+       selection depending on what you hit. Everything else, the tray included,
+       counts as leaving. Capture phase so it runs before the thing you pressed
+       re-renders the panel out from under this check. */
+    document.addEventListener('pointerdown', (ev) => {
+      const g = UI.game;
+      if (!g || !g.selected) return;
+      if (ev.target.closest('#selpanel') || ev.target.closest('canvas#game')) return;
+      g.selected = null;
+      renderDockSel();
+    }, true);
+
     $('#send-wave').onclick = trySend;
     $('#btn-speed').onclick = cycleSpeed;
     $('#btn-pause').onclick = togglePause;
@@ -2078,6 +2170,12 @@
      0.87 — so a group of that shape scales in with nothing left over. */
   const PANEL_W = 400;
   const PAD = 12;
+  /* How the column divides between the build tray on top and the panels under
+     it. It was a straight half each. The selection card used to be 170 of the
+     panels' 519 nominal units, and it has moved to the flyout, so the panels
+     need about two-thirds of what they did and the tray takes the difference —
+     which is a couple more rows of penguins visible without scrolling. */
+  const TRAY_SHARE = 0.62;
 
   /* The panel group is drawn at PANEL_W and scaled by width alone, and given
      the height its half works out to in those same nominal units. So it fills
@@ -2089,9 +2187,9 @@
   function fitPanels() {
     const root = document.documentElement;
     const side = parseFloat(root.style.getPropertyValue('--sidew'));
-    const half = parseFloat(root.style.getPropertyValue('--halfh'));
+    const half = parseFloat(root.style.getPropertyValue('--panelsh'));
     if (!side || !half) return;
-    const cellW = side - 8, cellH = half - 4;      /* the half, less its margins */
+    const cellW = side - 8, cellH = half - 4;      /* the cell, less its margins */
     const scale = cellW / PANEL_W;
     root.style.setProperty('--pscale', scale.toFixed(4));
     root.style.setProperty('--panelh', Math.round(cellH / scale) + 'px');
@@ -2116,13 +2214,15 @@
     const blockW = Math.min(W, H * ratio);
     const mapH = blockW / ratio, mapW = mapH * aspect, side = blockW - mapW;
 
-    /* Half the column each. The panels do not reflow into their half — they
-       are laid out at PANEL_W and scaled into it, so they hold their shape at
-       every window size. */
-    const half = mapH / 2;
+    /* The column used to split in half, because the top half was the tray and
+       the bottom half was four panels. The selection card has since left for a
+       flyout on the left, so the bottom needs less and the tray gets the rest.
+       The panels do not reflow into their share — they are laid out at PANEL_W
+       and scaled into it, so they hold their shape at every window size. */
     root.style.setProperty('--mapw', Math.round(mapW) + 'px');
     root.style.setProperty('--sidew', Math.round(side) + 'px');
-    root.style.setProperty('--halfh', Math.round(half) + 'px');
+    root.style.setProperty('--trayh', Math.round(mapH * TRAY_SHARE) + 'px');
+    root.style.setProperty('--panelsh', Math.round(mapH * (1 - TRAY_SHARE)) + 'px');
     root.style.setProperty('--panelw', PANEL_W + 'px');
     /* The vitals and the system buttons sit on the map rather than in the
        column, so they scale with the map rather than with the panels. Floored

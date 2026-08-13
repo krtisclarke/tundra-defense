@@ -249,47 +249,135 @@ html.touch #btn-fs { display: none; }
 /* Both are pass-through everywhere except the wide layout, where the four
    panels have to be one scalable group inside one grid cell. */
 #panel-fit, #sidebar { display: contents; }
-#dock-sel { order: 1; }
 #palette { order: 2; }
 #dock-hero { order: 3; }
 #dock-powers { order: 4; }
 #command { order: 5; }
 
-/* selection card (left) */
-#dock-sel {
-  /* Wide enough for the worst card the game can produce, which is what sets
-     this number: a fully-upgraded Sun Priest on Hard sells for 20,930, and at
-     226px that price wrapped the button row onto a second line, the stat line
-     onto a second line, and the two together pushed 29px of card out through
-     the bottom. The other number setting this width is a deep-endless hero:
-     "⚔ 36.2k · ⚡ 1.94/s · ◎ 140 · ☠ 48.2k" is a real wave-200 stat line.
-     The build tray gives up the width — its slots shrink, this content cannot. */
-  flex: 0 1 290px;
-  min-width: 210px;
-  max-width: 320px;
-  background: var(--panel2);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  /* 5px, not 6: the three rows plus their gaps came to exactly one pixel more
-     than the card, which is enough to arm the scrollbar on a card that is
-     never meant to scroll. */
-  padding: 5px 9px;
+/* ---- the selected penguin, as a column down the left of the map ----
+   It is position:fixed and outside #sidebar on purpose. Everything in the dock
+   is drawn at 400px and then scaled into the column — about 0.36 on a phone —
+   so no rule applied INSIDE the dock can make a control bigger than a third of
+   what it says. That is how the sell button ended up 10px tall and one pixel
+   under the upgrade button, and how penguins got sold by accident. Out here the
+   panel is drawn at its real size, which is also what buys room for the full
+   upgrade descriptions and retires the hover card for them.
+
+   Left, not right, because the right is where the dock already is; and the map
+   is wide, so a column down one edge covers trail the player is not aiming at. */
+#selpanel {
+  position: fixed;
+  left: 12px;
+  /* top and max-height are set from JS when the panel opens, so it starts below
+     the vitals and never grows past the bottom of the window. Both have to come
+     from the same measurement — a max-height left to CSS lets a tall panel
+     overflow upwards out of its own box and cover the vitals anyway. */
+  top: 8px;
+  /* Wide enough for a tier description at a readable size, never more than
+     two-fifths of a phone in landscape. */
+  width: min(330px, 40vw);
+
+  z-index: 45;
+  background: var(--glass);
+  border: 1px solid var(--line-strong);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(7px);
+  padding: 11px 12px;
   display: flex;
   flex-direction: column;
-  /* Never centre this: the dock is a fixed height, so centring split any
-     overflow across BOTH ends and quietly decapitated the penguin's name.
-     Anchored to the top, a long card loses nothing above the fold. */
-  justify-content: flex-start;
-  /* 3px buys the last two pixels of slack. The rows now clear the card's
-     client height outright, so the scrollbar below never arms — it stays only
-     as a safety valve for a font or zoom setting nobody tested. */
-  gap: 3px;
+  gap: 9px;
   overflow-y: auto;
-  overflow-x: hidden;
+  overscroll-behavior: contain;
   scrollbar-width: thin;
+  font-size: 13px;
 }
-#dock-sel::-webkit-scrollbar { width: 5px; }
-#dock-sel::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.16); border-radius: 3px; }
+/* [hidden] must beat display:flex, or the panel is never actually closed */
+#selpanel[hidden] { display: none; }
+#selpanel::-webkit-scrollbar { width: 5px; }
+#selpanel::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.16); border-radius: 3px; }
+/* while placing there is nothing to read, only a line to glance at */
+#selpanel.placing { width: min(300px, 38vw); }
+
+#selpanel .ds-head canvas { width: 52px; height: 52px; }
+#selpanel .ds-name { font-size: 16px; }
+#selpanel .ds-stats { font-size: 12.5px; color: #d3e2f2; margin-top: 3px; }
+/* A real target, not a glyph: 34px square is the smallest thing a thumb hits
+   reliably, and this one sits in the corner where a thumb naturally lands. */
+.ds-close {
+  margin-left: auto;
+  flex: none;
+  width: 34px; height: 34px;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  color: var(--dim);
+  font-size: 15px;
+  cursor: pointer;
+}
+.ds-close:hover { background: rgba(255, 255, 255, 0.13); color: var(--text); }
+
+.ds-path { display: flex; flex-direction: column; gap: 6px; }
+.ds-path + .ds-path { margin-top: 3px; padding-top: 9px; border-top: 1px solid var(--line); }
+.ds-path-head {
+  font-size: 10.5px; font-weight: 800; text-transform: uppercase;
+  letter-spacing: 0.6px; color: var(--dim);
+}
+#selpanel .tt-tiers { margin-bottom: 0; font-size: 12px; }
+/* Full width and finger-sized. These are the two controls the panel exists for,
+   so they get the room the old 20px buttons never had. */
+.btn.upg-buy {
+  width: 100%;
+  min-height: 42px;
+  justify-content: center;
+  font-size: 13px;
+  border-color: var(--line-strong);
+}
+.btn.upg-buy.can { border-color: rgba(87, 212, 136, 0.75); }
+.btn.upg-buy.poor { opacity: 0.6; }
+.btn.upg-buy.done { opacity: 0.5; }
+/* Its own row at the bottom, clear of everything, and it asks before it acts. */
+.sell-btn {
+  width: 100%;
+  min-height: 42px;
+  margin-top: 2px;
+  justify-content: center;
+  font-size: 13px;
+  color: var(--bad);
+  border-color: rgba(229, 109, 119, 0.45);
+}
+.sell-btn.armed {
+  background: rgba(229, 109, 119, 0.9);
+  border-color: var(--bad);
+  color: #1b0d10;
+  font-weight: 800;
+}
+
+/* A phone in landscape has about 340px of panel to give and the full card wants
+   590. Height, not width, is what is scarce — a desktop window shows the whole
+   thing with no scrolling at all — so the trim is keyed on height and takes the
+   least useful thing first: the descriptions of tiers you cannot buy yet. The
+   tier you CAN buy keeps its description, because that is the decision, and the
+   names and prices of the later ones still show where the path leads. */
+@media (max-height: 560px) {
+  #selpanel .tt-tier.later .tt-tier-desc { display: none; }
+  #selpanel .ds-head canvas { width: 42px; height: 42px; }
+  #selpanel .ds-name { font-size: 15px; }
+  #selpanel { gap: 7px; padding: 9px 11px; }
+  .ds-path { gap: 5px; }
+  /* Side by side, so BOTH buy buttons are on screen at once. Stacked, the
+     second one sat 68px below the fold — and an upgrade you have to scroll to
+     find is the problem this panel was built to solve, in a new place. */
+  #selpanel .ds-upgs { flex-direction: row; gap: 8px; }
+  #selpanel .ds-path { flex: 1 1 0; min-width: 0; }
+  #selpanel .ds-path + .ds-path {
+    margin-top: 0; padding-top: 0;
+    border-top: 0; border-left: 1px solid var(--line); padding-left: 8px;
+  }
+  #selpanel .tt-tiers { font-size: 11px; }
+  .btn.upg-buy { font-size: 12px; padding-left: 6px; padding-right: 6px; }
+}
 .ds-empty { text-align: left; }
 .ds-lvl { font-weight: 800; font-size: 15.5px; margin-bottom: 3px; }
 .dim { color: var(--dim); font-size: 12.5px; line-height: 1.45; font-weight: 550; }
@@ -315,7 +403,11 @@ html.touch #btn-fs { display: none; }
   letter-spacing: -0.2px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.ds-upgs { display: flex; gap: 6px; flex: none; }
+/* One path above the other, each the full width. Side by side they were two
+   130px columns, which is fine for a name and a price and hopeless for three
+   tier descriptions — the whole reason the panel moved out of the dock was to
+   have room to read those. */
+.ds-upgs { display: flex; flex-direction: column; gap: 9px; flex: none; }
 .btn.upg-mini {
   flex: 1;
   min-width: 0;              /* let the two buttons share a narrow card evenly */
@@ -359,8 +451,8 @@ html.touch #btn-fs { display: none; }
 /* Never wraps: a second row of buttons is 25px the card does not have. The
    sell price is the wide one, so it is the one allowed to shrink and ellipse. */
 .ds-actions { display: flex; gap: 6px; flex: none; flex-wrap: nowrap; }
-/* #dock-sel for specificity — .btn.tiny sets its own padding and was winning */
-#dock-sel .ds-actions .btn { padding: 4px 9px; line-height: 1.35; white-space: nowrap; }
+/* #selpanel for specificity — .btn.tiny sets its own padding and was winning */
+#selpanel .ds-actions .btn { padding: 7px 11px; line-height: 1.35; white-space: nowrap; }
 .ds-actions .btn.danger { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 
 /* build palette: one grid of twenty penguins, ten across here — two classes to
@@ -1231,7 +1323,7 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
   #app {
     display: grid;
     grid-template-columns: 1fr var(--mapw, 1fr) var(--sidew, 0px) 1fr;
-    grid-template-rows: 1fr var(--halfh, 1fr) var(--halfh, 1fr) 1fr;
+    grid-template-rows: 1fr var(--trayh, 1fr) var(--panelsh, 1fr) 1fr;
   }
   /* Exactly the map's box, not the full window height. Everything that floats
      over the battlefield — the vitals, the system buttons, the banner, the
@@ -1393,13 +1485,15 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
     overflow: hidden;
   }
   #sidebar > * { max-width: none; min-width: 0; }
-  #dock-sel, #command { grid-column: 1 / -1; }
+  #command { grid-column: 1 / -1; }
   #sidebar.no-hero #dock-powers { grid-column: 1 / -1; }
   /* The middle row takes whatever the half has spare, so the group always
      reaches the bottom of its box instead of floating in it — and gives it
      back first when the wave controls need more, which is the whole reason
      they are usable on a phone. It keeps a floor so it cannot vanish. */
-  #sidebar { grid-template-rows: auto minmax(92px, 1fr) auto; }
+  /* One row-group fewer now the selection card has left: the hero and boosts
+     take what is going, and the wave controls sit under them. */
+  #sidebar { grid-template-rows: minmax(92px, 1fr) auto; }
   #dock-hero, #dock-powers { min-height: 0; }
   /* Sections, not four separate panels: one faint fill and a hairline each, so
      they group without four competing borders and four sets of padding. */
@@ -1410,39 +1504,12 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
     padding: 8px 9px;
   }
   #command { background: none; border: 0; padding: 0; }
-  /* Fixed, not min-height: the group is scaled as a whole, so a card that grew
-     when you clicked a penguin would rescale everything in the column with it —
-     the boosts and the wave controls would visibly resize on every click. 128
-     is the tallest this card gets at PANEL_W, swept over every tower and hero
-     at both wave depths, one notch clear of the 125 the worst of them (a plain
-     Pebble Flinger, both upgrade names running to two lines) actually needs.
-     170 now that the head carries a 58px portrait and the buttons are taller;
-     the worst needs 167. The height comes out of the row below, which had it
-     going spare. */
-  #dock-sel { grid-row: 1; height: 170px; display: flex; flex-direction: column; }
-  /* the empty card sat as three lines at the top of a fixed box with the rest
-     of it dark — it centres now, so the box reads as deliberate */
-  #dock-sel .ds-empty { margin: auto 0; }
+  /* The selection card used to live here, as a fixed 170px row that was on
+     screen whether or not it had anything to say. It is a flyout on the left
+     now, so this row is gone entirely and the height it was holding goes to the
+     build tray instead — the tray is the thing a player touches most, and more
+     tiles visible is less scrolling to do at all. */
 
-  /* ---- the selection card, when a penguin is in it ----
-     Three rows that were all left-packed in a 358px card: the head used 188 of
-     it, the action row 176, and the rest was dark. Each row fills now, and the
-     penguin at the head of it is a portrait rather than a 34px stamp. */
-  #dock-sel .ds-head { gap: 11px; align-items: center; }
-  #dock-sel .ds-head canvas { width: 58px; height: 58px; }
-  #dock-sel .ds-head > div { flex: 1 1 auto; }
-  #dock-sel .ds-name { font-size: 16px; }
-  #dock-sel .ds-stats { font-size: 13px; color: #d3e2f2; margin-top: 3px; }
-  /* the two buttons already shared the width; what they lacked was edge and
-     legible sub-text, both of which were sitting at the dim end */
-  #dock-sel .btn.upg-mini { height: 56px; border-color: var(--line-strong); padding-left: 27px; }
-  #dock-sel .um-name { font-size: 13.5px; color: var(--text); }
-  #dock-sel .um-sub { font-size: 12px; color: #b8cade; }
-  #dock-sel .btn.upg-mini.can { border-color: rgba(87, 212, 136, 0.75); }
-  #dock-sel .btn.upg-mini.done { border-color: rgba(255, 255, 255, 0.16); }
-  /* targeting and sell share the row rather than huddling on the left */
-  #dock-sel .ds-actions { gap: 8px; }
-  #dock-sel .ds-actions .btn { flex: 1 1 0; justify-content: center; font-size: 13px; }
   /* Two lines allowed for both: "Commander Beak · ★ Lv 20" is the longest thing
      the card ever shows, and the nominal width does not have to widen to keep
      it on one row. */
@@ -1638,7 +1705,6 @@ html.touch .btn.tiny { padding: 9px 12px; }
 html.touch .btn.small { padding: 9px 13px; }
 /* there is no keyboard to hint at, so reclaim the space in-game */
 html.touch #dock kbd,
-html.touch #dock-sel kbd,
 html.touch #tooltip .tt-key kbd { display: none; }
 html.touch .btn.upg-mini { padding-left: 8px; }
 

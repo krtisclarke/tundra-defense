@@ -2,7 +2,7 @@
    After the first visit, the phone keeps its own copy of every file, so the
    home-screen app works with no server and no internet.
    Bump VERSION whenever game files change so players pick up the update. */
-const VERSION = 'tundra-v56';
+const VERSION = 'tundra-v57';
 const FILES = [
   './',
   'index.html',
