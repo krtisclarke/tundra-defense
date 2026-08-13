@@ -313,10 +313,31 @@
     }, true);
   }
 
+  /* The next tap anywhere clears the card, with a timeout as a backstop.
+     Registered a tick late so the tap that opened the card is not also the tap
+     that closes it.
+
+     Only one dismiss is ever pending. Before, each card armed its own and left
+     it running: an earlier card's four-second backstop would still fire while a
+     later card was up and take that one away early. Cheap to get wrong now that
+     more than one route arms this. */
+  let tipDismiss = null;
   function armTooltipDismiss() {
-    const off = () => { hideTooltip(); document.removeEventListener('pointerdown', off, true); };
-    setTimeout(() => document.addEventListener('pointerdown', off, true), 0);
-    setTimeout(off, 4000);
+    clearTooltipDismiss();
+    const off = () => { clearTooltipDismiss(); hideTooltip(); };
+    tipDismiss = {
+      off,
+      arm: setTimeout(() => document.addEventListener('pointerdown', off, true), 0),
+      bail: setTimeout(off, 4000),
+    };
+  }
+  function clearTooltipDismiss() {
+    if (!tipDismiss) return;
+    const d = tipDismiss;
+    tipDismiss = null;
+    clearTimeout(d.arm);
+    clearTimeout(d.bail);
+    document.removeEventListener('pointerdown', d.off, true);
   }
 
   function toast(msg, kind) {
@@ -1009,8 +1030,7 @@
         slot.classList.add('locked');
         slot.appendChild(el('span', 'slot-lock', '🔒'));
       }
-      slot.addEventListener('mouseenter', () => showTooltip(slot, id));
-      slot.addEventListener('mouseleave', hideTooltip);
+      hoverTip(slot, () => showTooltip(slot, id));
       slot.addEventListener('click', () => armTower(id));
       attachTrayDrag(slot, id);
       pal.appendChild(slot);
@@ -1151,7 +1171,26 @@
     tip.style.left = x + 'px';
     tip.style.top = clampY(r.top - tr.height - 10) + 'px';
   }
-  function hideTooltip() { $('#tooltip').style.display = 'none'; }
+  function hideTooltip() { clearTooltipDismiss(); $('#tooltip').style.display = 'none'; }
+
+  /* Hover opens a card and the matching mouseleave closes it again. That pair
+     is a mouse contract, and on a touchscreen only half of it is honoured: what
+     fires there are the compatibility mouse events a browser sends at the end
+     of a tap, so the card opens, and its mouseleave partner may never arrive at
+     all. Tapping an upgrade was the case that stranded it — buying rebuilds the
+     penguin's panel and destroys the very button the mouseleave was waiting on,
+     leaving the card sitting over the battlefield with nothing able to clear it.
+
+     So on touch the card also arms the next-tap dismiss. Arming here rather
+     than at show time is what keeps dragging a penguin out of the tray intact:
+     the compatibility events only fire once the finger is already up, so there
+     is never a drag in flight to disturb. The long-press routes arm themselves
+     at their own right moment (the tray waits for pointerup precisely so a hold
+     that becomes a drag never arms) and are left alone. */
+  function hoverTip(anchor, showFn) {
+    anchor.addEventListener('mouseenter', () => { showFn(); if (IS_TOUCH) armTooltipDismiss(); });
+    anchor.addEventListener('mouseleave', hideTooltip);
+  }
 
   /* ---------- boosts: bought in the shop, fired from the dock ---------- */
   function buildDockPowers() {
@@ -1164,8 +1203,7 @@
       b.dataset.power = id;
       b.innerHTML = `<span class="dp-icon">${P.icon}</span><span class="dp-count">0</span>`;
       b.onclick = () => usePower(id);
-      b.addEventListener('mouseenter', () => showPowerTip(b, id));
-      b.addEventListener('mouseleave', hideTooltip);
+      hoverTip(b, () => showPowerTip(b, id));
       attachLongPress(b, () => showPowerTip(b, id));
       grid.appendChild(b);
     }
@@ -1281,8 +1319,7 @@
       if (gg.heroTower) { gg.selected = gg.heroTower; gg.placingType = null; syncCancelBtn(); renderDockSel(); }
       else armTower(gg.heroType);
     };
-    chip.addEventListener('mouseenter', () => showTooltip(chip, g.heroType));
-    chip.addEventListener('mouseleave', hideTooltip);
+    hoverTip(chip, () => showTooltip(chip, g.heroType));
     attachLongPress(chip, () => showTooltip(chip, g.heroType));
     attachTrayDrag(chip, g.heroType);
     box.appendChild(chip);
@@ -1689,8 +1726,7 @@
           `<kbd>${key}</kbd><span class="um-name">${u.name}</span><span class="um-sub">${'●'.repeat(tier)}${'○'.repeat(3 - tier)} · <b>${fmt(uCost)}</b></span>`);
         btn.dataset.cost = uCost;   // updateHud re-checks this as fish come in
         btn.onclick = () => buyUpgrade(t, p);
-        btn.addEventListener('mouseenter', () => showUpgradeTip(btn, t.type, p, tier));
-        btn.addEventListener('mouseleave', hideTooltip);
+        hoverTip(btn, () => showUpgradeTip(btn, t.type, p, tier));
         attachLongPress(btn, () => showUpgradeTip(btn, t.type, p, tier));
       }
       upgRow.appendChild(btn);
