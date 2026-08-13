@@ -273,9 +273,16 @@ html.touch #btn-fs { display: none; }
      from the same measurement — a max-height left to CSS lets a tall panel
      overflow upwards out of its own box and cover the vitals anyway. */
   top: 8px;
-  /* Wide enough for a tier description at a readable size, never more than
-     two-fifths of a phone in landscape. */
-  width: min(330px, 40vw);
+  /* The same column as the build tray on the right, mirrored — --sidew is the
+     column the tray is laid out in and the tray takes all but its 8px margin,
+     so this lands on the same width at every window size and the two columns
+     read as a matched pair.
+
+     It used to size itself to fit a tier description, which on a phone in
+     landscape came to 51% of the screen: the card covered the battlefield it
+     was describing. Descriptions moved to hover and long-press instead. */
+  width: calc(var(--sidew, 320px) - 8px);
+  max-width: 46vw;
 
   z-index: 45;
   background: var(--glass);
@@ -283,10 +290,14 @@ html.touch #btn-fs { display: none; }
   border-radius: 14px;
   box-shadow: var(--shadow);
   backdrop-filter: blur(7px);
-  padding: 11px 12px;
+  padding: 9px 9px;
+  /* The card is the container its own contents are measured against, so the
+     narrow-column trims below key on the CARD's width rather than the window's
+     — the same trick the build tray already uses for its tiles. */
+  container-type: inline-size;
   display: flex;
   flex-direction: column;
-  gap: 9px;
+  gap: 7px;
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;
@@ -299,15 +310,24 @@ html.touch #btn-fs { display: none; }
 /* while placing there is nothing to read, only a line to glance at */
 #selpanel.placing { width: min(300px, 38vw); }
 
-#selpanel .ds-head canvas { width: 52px; height: 52px; }
-#selpanel .ds-name { font-size: 16px; }
-#selpanel .ds-stats { font-size: 12.5px; color: #d3e2f2; margin-top: 3px; }
+#selpanel .ds-head canvas { width: 30px; height: 30px; }
+/* Allowed to wrap to two lines here, and nowhere else. This column is about
+   143px wide and "Pebble Flinger" ellipsed to "Peb…" — which is the one thing
+   on the card that must always be readable, because it is how you know which
+   penguin you are looking at. */
+#selpanel .ds-name {
+  font-size: 13.5px; line-height: 1.15;
+  white-space: normal; overflow: visible; text-overflow: clip;
+}
+#selpanel .ds-stats {
+  white-space: normal; font-size: 10.5px; color: #d3e2f2;
+  margin-top: 0; letter-spacing: -0.3px;
+}
 /* A real target, not a glyph: 34px square is the smallest thing a thumb hits
    reliably, and this one sits in the corner where a thumb naturally lands. */
 .ds-close {
-  margin-left: auto;
   flex: none;
-  width: 34px; height: 34px;
+  width: 30px; height: 30px;
   display: flex; align-items: center; justify-content: center;
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid var(--line);
@@ -318,31 +338,63 @@ html.touch #btn-fs { display: none; }
 }
 .ds-close:hover { background: rgba(255, 255, 255, 0.13); color: var(--text); }
 
-.ds-path { display: flex; flex-direction: column; gap: 6px; }
-.ds-path + .ds-path { margin-top: 3px; padding-top: 9px; border-top: 1px solid var(--line); }
+/* One row per upgrade path: which path, how far along, what is next, what it
+   costs. Finger-sized, and no wider than the column. What each upgrade DOES is
+   a hover or a long-press away — printing it here is what made the card cover
+   half the screen. */
+.ds-path {
+  display: flex; flex-direction: column; gap: 2px;
+  width: 100%;
+  text-align: left;
+  padding: 6px 7px;
+  min-height: 42px;
+  border: 1px solid var(--line-strong);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.035);
+  font: inherit; color: var(--text);
+}
+.ds-path.open { cursor: pointer; }
+.ds-path.open:hover { background: rgba(255, 255, 255, 0.075); }
+.ds-path.can { border-color: rgba(87, 212, 136, 0.7); }
+.ds-path.poor { opacity: 0.62; }
 /* The path the rule of two has closed. Dimmed rather than removed: seeing the
    road you did not take is the whole point of there being three of them. */
-.ds-path.shut { opacity: 0.42; }
-.ds-path.shut .tt-tier-desc { display: none; }
+.ds-path.shut { opacity: 0.45; }
 /* The one purchase that cannot be undone — it shuts the third path. */
-.btn.upg-buy.commits { border-color: rgba(212, 175, 55, 0.7); }
-.ds-path-head {
-  font-size: 10.5px; font-weight: 800; text-transform: uppercase;
-  letter-spacing: 0.6px; color: var(--dim);
+.ds-path.commits { border-color: rgba(212, 175, 55, 0.7); }
+.dsp-head { display: flex; align-items: baseline; gap: 4px; }
+.dsp-name {
+  flex: 0 1 auto; min-width: 0;
+  /* No letter-spacing and 9px: "TRICK SHOT" is the longest path name in the
+     game and it has to fit beside the dots and the price in a 143px column. */
+  font-size: 9px; font-weight: 800; text-transform: uppercase;
+  letter-spacing: 0; color: var(--dim);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-#selpanel .tt-tiers { margin-bottom: 0; font-size: 12px; }
-/* Full width and finger-sized. These are the two controls the panel exists for,
-   so they get the room the old 20px buttons never had. */
-.btn.upg-buy {
-  width: 100%;
-  min-height: 42px;
-  justify-content: center;
-  font-size: 13px;
-  border-color: var(--line-strong);
+.dsp-dots { flex: none; display: flex; gap: 3px; margin-left: auto; }
+.dsp-dots i {
+  width: 4px; height: 4px; border-radius: 50%;
+  background: rgba(255, 255, 255, 0.22);
 }
-.btn.upg-buy.can { border-color: rgba(87, 212, 136, 0.75); }
-.btn.upg-buy.poor { opacity: 0.6; }
-.btn.upg-buy.done { opacity: 0.5; }
+.dsp-dots i.on { background: var(--good); }
+/* The upgrade you are buying and what it costs, on one line — the price sits
+   at the end of it rather than on the path-name line above, which needs its
+   whole width for "TRICK SHOT" beside the progress dots. */
+.dsp-next {
+  display: flex; align-items: baseline; gap: 4px;
+  font-size: 12px; font-weight: 700; line-height: 1.2;
+}
+.dsp-up {
+  flex: 1 1 auto; min-width: 0;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+.dsp-cost { flex: none; font-size: 11px; font-weight: 800; color: var(--gold); letter-spacing: -0.2px; }
+.dsp-why { font-size: 11px; font-weight: 700; color: var(--dim); }
+.ds-path.done .dsp-why { color: var(--gold); }
+.ds-path kbd { margin-right: 3px; }
+/* one pulse the moment a row crosses from unaffordable to affordable */
+.ds-path.flash { animation: upgFlash 0.55s ease-out; }
 /* Its own row at the bottom, clear of everything, and it asks before it acts. */
 .sell-btn {
   width: 100%;
@@ -360,50 +412,33 @@ html.touch #btn-fs { display: none; }
   font-weight: 800;
 }
 
-/* A phone in landscape has about 340px of panel to give and the full card wants
-   590. Height, not width, is what is scarce — a desktop window shows the whole
-   thing with no scrolling at all — so the trim is keyed on height and takes the
-   least useful thing first: the descriptions of tiers you cannot buy yet. The
-   tier you CAN buy keeps its description, because that is the decision, and the
-   names and prices of the later ones still show where the path leads. */
+/* A short window gives the card less to work with, so the head shrinks. The
+   rows themselves do not: they are three finger targets and a price, which is
+   the least the card can say and still be usable. */
 @media (max-height: 560px) {
-  #selpanel .tt-tier.later .tt-tier-desc { display: none; }
-  #selpanel .ds-head canvas { width: 42px; height: 42px; }
-  #selpanel .ds-name { font-size: 15px; }
-  #selpanel { gap: 7px; padding: 9px 11px; }
-  .ds-path { gap: 5px; }
+  #selpanel .ds-head canvas { width: 28px; height: 28px; }
+  #selpanel .ds-name { font-size: 12.5px; }
+  #selpanel { gap: 6px; padding: 8px 9px; }
+  #selpanel .ds-path { min-height: 40px; padding: 6px 7px; }
 }
 
-/* Side by side, so ALL THREE buy buttons are on screen at once. Stacked, the
-   later ones sit below the fold — and an upgrade you have to scroll to find is
-   the problem this panel was built to solve, in a new place.
-
-   Added by the panel itself when it measures taller than the room it has (see
-   renderDockSel), not by a height breakpoint: three stacked paths overflow a
-   perfectly ordinary 1280x720 desktop window, which no phone-shaped media
-   query would ever have caught.
-
-   The panel also gets wider. Height is the scarce thing here, not width, and
-   three columns at the old two-column width left every tier name breaking
-   across three lines. */
-#selpanel.compact { width: min(430px, 54vw); }
-#selpanel.compact .ds-upgs { flex-direction: row; gap: 7px; }
-#selpanel.compact .ds-path { flex: 1 1 0; min-width: 0; }
-#selpanel.compact .ds-path + .ds-path {
-  margin-top: 0; padding-top: 0;
-  border-top: 0; border-left: 1px solid var(--line); padding-left: 7px;
-}
-#selpanel.compact .tt-tiers { font-size: 11px; }
-#selpanel.compact .tt-tier.later .tt-tier-desc { display: none; }
-#selpanel.compact .ds-path.shut .tt-tiers { display: none; }
-#selpanel.compact .btn.upg-buy { font-size: 11.5px; padding-left: 5px; padding-right: 5px; }
 .ds-empty { text-align: left; }
 .ds-lvl { font-weight: 800; font-size: 15.5px; margin-bottom: 3px; }
 .dim { color: var(--dim); font-size: 12.5px; line-height: 1.45; font-weight: 550; }
 .ds-placing { font-size: 13.5px; line-height: 1.5; }
-.ds-head { display: flex; align-items: center; gap: 8px; flex: none; min-width: 0; }
-.ds-head canvas { width: 34px; height: 34px; flex: none; }
-.ds-head > div { min-width: 0; }        /* let the text column shrink, not overflow */
+/* Portrait and name on the top line, stats across the full width beneath them.
+   Side by side in a column this narrow the name and the stat line got 33px
+   each: the name rendered as "Pe…" and the stats were not readable at all. */
+.ds-head {
+  display: grid; flex: none; min-width: 0;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  column-gap: 7px; row-gap: 3px;
+}
+.ds-head canvas { width: 34px; height: 34px; flex: none; grid-row: 1; }
+.ds-title { min-width: 0; grid-row: 1; }
+.ds-head .ds-close { grid-row: 1; }
+.ds-head .ds-stats { grid-column: 1 / -1; grid-row: 2; }
 /* Both lines are single-line by decree. The card has a fixed height, so a line
    that wraps does not just look cramped — it pushes the row below it out
    through the bottom of the card. Anything too long ellipses instead. */
@@ -420,13 +455,13 @@ html.touch #btn-fs { display: none; }
   /* the tightening is worth ~7px over a full line, which is what a wide-range
      hero in deep endless needs — "⚔ 12.4k · ⚡ 0.47/s · ◎ 244 · ☠ 48.2k" */
   letter-spacing: -0.2px;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  /* Allowed a second line now it has the card's whole width to itself instead
+     of sharing a row with the name. Two short lines beat one clipped one: at
+     the column's width the range and the kill count were ellipsed away. */
+  white-space: normal; overflow: hidden;
 }
-/* One path above the other, each the full width. Side by side they were two
-   130px columns, which is fine for a name and a price and hopeless for three
-   tier descriptions — the whole reason the panel moved out of the dock was to
-   have room to read those. */
-.ds-upgs { display: flex; flex-direction: column; gap: 9px; flex: none; }
+/* One path row above the next, each the full width of the column. */
+.ds-upgs { display: flex; flex-direction: column; gap: 6px; flex: none; }
 .btn.upg-mini {
   flex: 1;
   min-width: 0;              /* let the two buttons share a narrow card evenly */
@@ -469,7 +504,12 @@ html.touch #btn-fs { display: none; }
 .btn.upg-mini.done { opacity: 0.7; }
 /* Never wraps: a second row of buttons is 25px the card does not have. The
    sell price is the wide one, so it is the one allowed to shrink and ellipse. */
-.ds-actions { display: flex; gap: 6px; flex: none; flex-wrap: nowrap; }
+/* Targeting and sell, side by side on the last row. Sell takes what is left
+   because its label carries the refund; targeting only ever holds one short
+   word and is allowed to stay exactly as wide as that word. */
+.ds-actions { display: flex; gap: 6px; flex: none; flex-wrap: nowrap; align-items: stretch; }
+.ds-actions .ds-target { flex: 0 0 auto; }
+.ds-actions .sell-btn { flex: 1 1 auto; margin-top: 0; min-width: 0; }
 /* #selpanel for specificity — .btn.tiny sets its own padding and was winning */
 #selpanel .ds-actions .btn { padding: 7px 11px; line-height: 1.35; white-space: nowrap; }
 .ds-actions .btn.danger { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
@@ -1565,8 +1605,14 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
      CONTENTS have to take it — otherwise it shows as a band of nothing under a
      54px chip and a 46px grid of boosts, which is where most of the empty space
      in this panel was. The chip and the boost buttons grow into it instead. */
+  /* Row 1, not row 2. The selection card used to be the first track and the
+     commit that moved it to a flyout dropped the track from the template but
+     left these two on grid-row 2 — so the ONLY flexible track, minmax(92px,
+     1fr), had nothing in it and quietly took every spare pixel. That empty band
+     was the blank space above the HERO and BOOSTS labels. Measured: the panels
+     went from 47.9 to 84.4 physical pixels, +76%, with the box itself unmoved. */
   #dock-hero, #dock-powers {
-    grid-row: 2;
+    grid-row: 1;
     display: flex; flex-direction: column; align-items: stretch;
     gap: 7px;
   }
@@ -1637,7 +1683,7 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
      and the speed and pause buttons 10. The row below states what these are in
      nominal units; on a phone they land at 28-30px. */
   #command {
-    grid-row: 3;
+    grid-row: 2;
     display: grid; grid-template-columns: 1fr auto; gap: 8px;
     align-items: stretch;
   }
@@ -1755,3 +1801,15 @@ html.touch .btn.upg-mini { padding-left: 8px; }
 ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.13); border-radius: 5px; border: 2px solid transparent; background-clip: content-box; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.22); border: 2px solid transparent; background-clip: content-box; }
 ::-webkit-scrollbar-track { background: transparent; }
+
+/* A narrow card cannot spend width on hints. Under 200px the keyboard letters
+   on the bottom row go — they are a mouse affordance, and a card this narrow is
+   a phone — and the two buttons tighten so "Sell · +196" fits beside the
+   targeting mode instead of being clipped to "Sel". The path rows keep their
+   letters: those are the controls the card exists for. */
+@container (max-width: 200px) {
+  .ds-actions kbd { display: none; }
+  .ds-actions .btn { font-size: 11px; padding: 7px 6px; }
+  .ds-actions .sell-btn { min-height: 38px; }
+  .ds-actions .ds-target { min-height: 38px; }
+}

@@ -232,7 +232,33 @@
      crosses the column's left edge, and the edge was reported as 0, so the
      finger could never be left of it. The tray is a real element in that
      column and spans its full width, so it is the one to ask. */
-  const columnLeft = () => $('#palette').getBoundingClientRect().left;
+  /* Where the dock column starts, and where the canvas sits. Both are read on
+     EVERY pointermove of a drag — the tray handler asks whether the finger has
+     left the column, and canvasPos turns the finger into map coordinates — and
+     both were a fresh getBoundingClientRect, which forces the browser to settle
+     layout then and there. A finger fires 60-120 moves a second, so that was up
+     to 240 forced reflows a second, interleaved with hoverAt writing
+     cv.style.cursor: a read-write-read-write cycle, which is the shape that
+     makes dragging feel like it is skipping.
+
+     Neither rect moves while a drag is happening. They are cached and thrown
+     away whenever the layout could actually have changed. */
+  let rectCache = null;
+  const invalidateRects = () => { rectCache = null; };
+  function rects() {
+    if (!rectCache) {
+      const pal = $('#palette'), cv = UI.canvas;
+      rectCache = {
+        left: pal ? pal.getBoundingClientRect().left : Infinity,
+        canvas: cv ? cv.getBoundingClientRect() : null,
+      };
+    }
+    return rectCache;
+  }
+  const columnLeft = () => rects().left;
+  window.addEventListener('resize', invalidateRects);
+  window.addEventListener('scroll', invalidateRects, true);
+  window.addEventListener('orientationchange', invalidateRects);
 
   function attachTrayDrag(slot, id) {
     let timer = null, showing = false, carrying = false, swallow = false;
@@ -1018,7 +1044,7 @@
     /* upgrade buttons light up the moment they become affordable — the card
        itself only re-renders on selection changes, so without this the
        poor/can state would freeze at whatever the cash was back then */
-    for (const b of document.querySelectorAll('#selpanel .btn.upg-buy[data-cost]')) {
+    for (const b of document.querySelectorAll('#selpanel .ds-path[data-cost]')) {
       const can = g.cash >= +b.dataset.cost;
       if (can && !b.classList.contains('can')) {
         b.classList.add('flash');   // one pulse right as it crosses the line
@@ -1717,7 +1743,6 @@
     }
     box.hidden = false;
     box.classList.toggle('placing', !!g.placingType);
-    box.classList.remove('compact');   // re-decided by measurement at the end
     /* Start below the vitals rather than on top of them. Lives and fish are
        exactly what you are reading while you decide whether to buy an upgrade,
        and the panel is wide enough to cover all three counters. Measured rather
@@ -1791,13 +1816,17 @@
     // ☠ only where it can ever be non-zero — vendors and aura towers never shoot
     if (!['income', 'aura'].includes(c.kind))
       stats.push(`<span title="Sea lions destroyed by this penguin">☠ <b class="ds-kills">${short(t.kills || 0)}</b></span>`);
-    head.appendChild(el('div', '', `<div class="ds-name" style="color:${color}">${def.name}${def.hero ? ` · <span class="hero-tag">★ Lv ${g.heroLevel}</span>` : ''}</div><div class="ds-stats">${stats.join(' · ')}</div>`));
+    /* The name sits beside the portrait and the stats run full width beneath
+       both. In a column this narrow, name and stats side by side left each of
+       them 33px — the name came out as "Pe…" and the stat line was invisible. */
+    head.appendChild(el('div', 'ds-title', `<div class="ds-name" style="color:${color}">${def.name}${def.hero ? ` · <span class="hero-tag">★ Lv ${g.heroLevel}</span>` : ''}</div>`));
     /* An explicit way out. Tapping the map closes the panel too, but on a phone
        the map is mostly covered by the thing you are trying to dismiss. */
     const shut = el('button', 'ds-close', '✕');
     shut.title = 'Close (Esc)';
     shut.onclick = () => { g.selected = null; renderDockSel(); };
     head.appendChild(shut);
+    head.appendChild(el('div', 'ds-stats', stats.join(' · ')));
     box.appendChild(head);
 
     /* The falloff has to be explained somewhere, and the stat line has room
@@ -1855,15 +1884,21 @@
       return;
     }
 
-    /* All three paths in full, every tier with its description, in the panel
-       itself. The old card had room for two names and a price, so what each
-       upgrade actually DID lived in a floating card you had to hover — which a
-       finger cannot do. There is room here, so the game just says it.
+    /* One narrow column, the same width as the build tray on the right — three
+       rows, one per path, and nothing else.
 
-       The rule of two is enforced in the engine; this only has to DRAW it. A
-       path that is shut goes dim and says why in place of its buy button,
-       rather than vanishing — seeing the road you did not take is the whole
-       point of having three of them. */
+       Three paths printed in full did not fit anywhere. Laid out as three
+       columns it was 430px on a phone in landscape, which is 51% of the screen:
+       the card covered the battlefield it was describing. Stacked it was 867px
+       tall in a 613px window. Both were the same mistake — trying to print
+       eighteen upgrade descriptions next to a game you are meant to be
+       watching.
+
+       So a row says only what you need to DECIDE: which path, how far along it
+       you are, what comes next and what it costs. What an upgrade actually does
+       is a hover away on a mouse and a long-press away on a finger — the card
+       that opens is showUpgradeTip, which lays out the whole path with the tier
+       you are about to buy picked out, and which the game already had. */
     const upgRow = el('div', 'ds-upgs');
     const chosen = t.up.filter((v) => v > 0).length;
     for (let p = 0; p < def.paths.length; p++) {
@@ -1871,83 +1906,67 @@
       const tier = t.up[p];
       const key = ['Q', 'W', 'E'][p];
       const state = G.pathState(t.up, p);
-      const shut = state === 'locked';
-      const col = el('div', 'ds-path' + (shut ? ' shut' : ''));
 
-      /* Same markup the floating card uses, so the two never drift apart and
-         there is one set of styles for a tier row in the whole game.
+      /* Two lines, never three: the path and its progress on top, what you are
+         buying underneath. The price rides up on the first line beside the
+         dots — on its own line it cost sixteen pixels a row, and three rows of
+         that was the difference between the card fitting and the sell button
+         being pushed off the bottom.
 
-         Tiers you already own collapse to their name. A phone in landscape has
-         about 360px of panel to give and the full six descriptions want 590 —
-         and what you have already bought is the one thing you do not need the
-         description of. The tier you can buy next and the ones beyond it keep
-         theirs, because those are the decision. */
-      const rows = path.tiers.map((x, i) => {
-        const st = i < tier ? 'own' : i === tier ? 'next' : 'later';
-        const cost = `<span class="tt-cost">${fmt(g.priceOf(x.cost))}</span>`;
-        const cap = i === 2 ? '<span class="tt-capstone">capstone</span> ' : '';
-        return `<div class="tt-tier ${st}">
-          <span class="tt-tier-dot">${i < tier ? '●' : i === tier ? '▸' : '○'}</span>
-          <span><b>${x.name}</b> ${i < tier ? '' : cost}
-          ${i < tier ? '' : `<br><span class="tt-tier-desc">${cap}${x.desc}</span>`}</span></div>`;
-      }).join('');
-      const tag = state === 'mastered' ? ' · mastered'
-        : state === 'locked' ? ' · locked'
-        : state === 'capped' ? ' · capped' : '';
-      col.appendChild(el('div', 'ds-path-head', `${path.name}${tag}`));
-      col.appendChild(el('div', 'tt-tiers', rows));
+         No fish glyph on it, for the same reason the tray tiles do without one:
+         the emoji is 14px of a 107px line, which is what pushed "TRICK SHOT"
+         into an ellipsis, and a gold number already reads as a price. */
+      const dots = path.tiers.map((x, i) =>
+        `<i class="${i < tier ? 'on' : ''}"></i>`).join('');
 
-      let btn;
-      if (state === 'mastered') {
-        btn = el('button', 'btn upg-buy done', '★ mastered');
-        btn.disabled = true;
-      } else if (state === 'locked') {
-        btn = el('button', 'btn upg-buy done', '🔒 two paths chosen');
-        btn.title = G.PATH_LOCK_MSG.locked;
-        btn.disabled = true;
-      } else if (state === 'capped') {
-        btn = el('button', 'btn upg-buy done', '🔒 capstone spent');
-        btn.title = G.PATH_LOCK_MSG.capped;
-        btn.disabled = true;
-      } else {
+      let row;
+      if (state === 'open') {
         const u = path.tiers[tier];
         const uCost = g.priceOf(u.cost);
-        btn = el('button', 'btn upg-buy' + (g.cash < uCost ? ' poor' : ' can'),
-          `<kbd>${key}</kbd> ${u.name} · <b>${fmt(uCost)}</b>`);
-        btn.dataset.cost = uCost;   // updateHud re-checks this as fish come in
-        /* The one purchase a player cannot take back: buying into a second path
-           is what shuts the third. Say so BEFORE the click, on the button that
-           does it, rather than leaving them to discover it from a grey column. */
-        if (!tier && chosen === G.PATH_LIMIT - 1) {
-          btn.title = `Buying this closes the third path for the rest of the battle.`;
-          btn.classList.add('commits');
-        }
-        btn.onclick = () => buyUpgrade(t, p);
+        row = el('button', 'ds-path open' + (g.cash < uCost ? ' poor' : ' can'),
+          `<span class="dsp-head">
+             <span class="dsp-name">${path.name}</span>
+             <span class="dsp-dots">${dots}</span>
+           </span>
+           <span class="dsp-next"><kbd>${key}</kbd> <span class="dsp-up">${u.name}</span>
+             <span class="dsp-cost" title="${fmt(uCost)}">${num(uCost)}</span></span>`);
+        row.dataset.cost = uCost;   // updateHud re-checks this as fish come in
+        /* The one purchase that cannot be taken back: buying into a second path
+           is what shuts the third. Said on the button that does it, before the
+           press, rather than discovered afterwards from a greyed-out row. */
+        if (!tier && chosen === G.PATH_LIMIT - 1) row.classList.add('commits');
+        row.onclick = () => buyUpgrade(t, p);
+      } else {
+        const why = state === 'mastered' ? '★ mastered'
+          : state === 'locked' ? '🔒 two paths chosen'
+          : '🔒 capstone spent';
+        row = el('div', 'ds-path shut' + (state === 'mastered' ? ' done' : ''),
+          `<span class="dsp-head">
+             <span class="dsp-name">${path.name}</span>
+             <span class="dsp-dots">${dots}</span>
+           </span>
+           <span class="dsp-why">${why}</span>`);
+        row.title = G.PATH_LOCK_MSG[state] || '';
       }
-      col.appendChild(btn);
-      upgRow.appendChild(col);
+      // the descriptions live here now: hover on a mouse, long-press on a finger
+      hoverTip(row, () => showUpgradeTip(row, t.type, p, Math.min(tier, 2)));
+      attachLongPress(row, () => showUpgradeTip(row, t.type, p, Math.min(tier, 2)));
+      upgRow.appendChild(row);
     }
     box.appendChild(upgRow);
 
+    /* Targeting and selling share the bottom row. Stacked they were two 42px
+       rows plus a gap in a column that has about 320px to give on a phone in
+       landscape, and the sell button was the thing pushed off the bottom. */
     const act = el('div', 'ds-actions');
     if (!['income', 'aura', 'spikes', 'pulse'].includes(c.kind)) {
-      const tgt = el('button', 'btn tiny', `<kbd>T</kbd> ${t.target}`);
+      const tgt = el('button', 'btn tiny ds-target', `<kbd>T</kbd> ${t.target}`);
       tgt.title = 'Cycle targeting: first / last / strong / close';
       tgt.onclick = () => cycleTarget();
       act.appendChild(tgt);
     }
+    act.appendChild(makeSellButton(t));
     box.appendChild(act);
-
-    box.appendChild(makeSellButton(t));
-
-    /* Three paths stacked is taller than most windows: on a 1280x720 desktop
-       the third path's buy button sat 250px below the fold, and an upgrade you
-       have to scroll to find is the problem this panel was built to solve, in a
-       new place. So the panel MEASURES itself and lays the paths out side by
-       side when the stack does not fit — the same way its top and its ceiling
-       are already decided by measurement rather than by guessing a breakpoint.
-       Compact is strictly shorter, so this settles in one pass. */
-    if (box.scrollHeight > box.clientHeight) box.classList.add('compact');
   }
 
   /* Selling is destructive, refunds only 70% and has no undo, and it used to be
@@ -1957,8 +1976,13 @@
      arms it for three seconds, a second press sells. The X hotkey is left as a
      direct sell, because a deliberate keypress is not a mistap. */
   function makeSellButton(t) {
-    const price = () => `+${fmt(t.invested * G.SELL_RATE)}`;
-    const idle = `<kbd>X</kbd> Sell · ${price()}`;
+    /* No fish glyph and no middot on the idle label. It shares the bottom row
+       with the targeting button in a column about 143px wide, and spelled out
+       in full it clipped to "Sel". The refund is gold, which reads as fish
+       everywhere else in the game, and the confirm state below has the room to
+       say it properly. */
+    const price = () => `+${num(t.invested * G.SELL_RATE)}`;
+    const idle = `<kbd>X</kbd> Sell <b>${price()}</b>`;
     const sell = el('button', 'btn sell-btn', idle);
     const disarm = () => {
       if (sellArmedFor !== t) return;
@@ -1970,7 +1994,7 @@
       if (sellArmedFor === t) { clearTimeout(sellTimer); sellArmedFor = null; sellSelected(); return; }
       sellArmedFor = t;
       sell.classList.add('armed');
-      setHTML(sell, `Sell this penguin? · ${price()}`);
+      setHTML(sell, `Sell? · ${fmt(t.invested * G.SELL_RATE)}`);
       clearTimeout(sellTimer);
       sellTimer = setTimeout(disarm, 3000);
     };
@@ -2092,7 +2116,7 @@
 
   /* ---------- input ---------- */
   function canvasPos(ev) {
-    const r = UI.canvas.getBoundingClientRect();
+    const r = rects().canvas || UI.canvas.getBoundingClientRect();
     return { x: (ev.clientX - r.left) * (G.W / r.width), y: (ev.clientY - r.top) * (G.H / r.height) };
   }
 
@@ -2113,7 +2137,11 @@
         if (d2 < bd) { bd = d2; hover = t; }
       }
       g.hoverTower = hover;
-      cv.style.cursor = g.placingType ? 'crosshair' : hover ? 'pointer' : 'default';
+      /* Only when it changes. Writing the same value back still dirties layout,
+         and paired with canvasPos's read on the line above it turned every
+         pointer move into a read-write-read cycle. */
+      const want = g.placingType ? 'crosshair' : hover ? 'pointer' : 'default';
+      if (cv.style.cursor !== want) cv.style.cursor = want;
     };
 
     let downId = null, downPos = null, moved = false;
@@ -2304,7 +2332,12 @@
      it. It was a straight half each. The selection card used to be 170 of the
      panels' 519 nominal units, and it has moved to the flyout, so the panels
      need about two-thirds of what they did and the tray takes the difference —
-     which is a couple more rows of penguins visible without scrolling. */
+     which is a couple more rows of penguins visible without scrolling.
+
+     Left at 0.62 deliberately. The blank band under the tray was never this
+     split: it was an empty grid track inside the panel box (see #dock-hero's
+     grid-row in style.css), and taking height off the tray to paper over it
+     would have cost rows of penguins for nothing. */
   const TRAY_SHARE = 0.62;
 
   /* The panel group is drawn at PANEL_W and scaled by width alone, and given
@@ -2364,6 +2397,7 @@
 
     UI.canvas.style.width = Math.round(mapW) + 'px';
     UI.canvas.style.height = Math.round(mapH) + 'px';
+    invalidateRects();   // the column and the canvas just moved
   }
 
   /* ---------- main loop ---------- */

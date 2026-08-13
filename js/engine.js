@@ -703,10 +703,28 @@
       const z = tower.calc.zone;
       if (!z) return;
       const r = radius || z.r || (tower.calc.range || 60) * tower.buff.range;
+      const tone = z.tone || 'ice';
+      /* Refresh a patch that is already here rather than stacking another one
+         on top of it. Two identical circles in the same place cannot do more
+         than one — every zone effect takes the strongest, not the sum — so the
+         second was pure cost, and there were a lot of seconds: Hailfield and
+         The Anchored Eye re-lay the same full-range ring on every shot, and Icy
+         Wake drops one every 30px of a roll whose radius is 34.
+
+         They are translucent circles, so the cost is fill rate and it lands on
+         the GPU rather than in any JS profile: a measured board of forty
+         full-range patches was spending 6.3ms of a 16.7ms frame painting the
+         same ground over and over. */
+      for (const o of this.zones) {
+        if (o.tone !== tone || Math.abs(o.r - r) > 2) continue;
+        if (dist2(o.x, o.y, x, y) > (r * 0.35) ** 2) continue;
+        o.until = this.time + z.life;
+        return;
+      }
       this.zones.push({
         x, y, r, until: this.time + z.life, life: z.life,
         slowF: z.slowF, dps: z.dps, curse: z.curse ? tower.calc.fx : null,
-        stick: z.stick, tone: z.tone || 'ice', hit: null,
+        stick: z.stick, tone, hit: null,
       });
       /* A ceiling, because Icy Wake lays one every 30px a snowball rolls and a
          board of zone-makers reached 90 live patches on a measured endless run.
