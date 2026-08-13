@@ -46,19 +46,45 @@
     return px * px + py * py <= r2;
   }
 
+  /* An upgrade must never make a penguin worse at anything. With two paths
+     that was easy to keep true by hand; with three it is not, because the
+     pairs a player can buy are now six per tower and effects overlap across
+     them. So combining an effect TAKES THE BETTER of the two rather than
+     letting whichever path happens to be processed last win outright.
+
+     The case that forced it: the Slush Thrower's Thicker Slush (65% slow, 2.4s)
+     and Slow Drip (50% slow, 4.8s) are a legal pair, and plain assignment
+     handed the player a 50% slow for their trouble — a downgrade they paid
+     🐟320 for. Merged, they get the 65% AND the 4.8s, which is what buying
+     both plainly ought to mean. */
+  function mergeFx(fx, add) {
+    for (const k in add) {
+      const v = add[k], cur = fx[k];
+      if (!cur) { fx[k] = v; continue; }
+      if (k === 'slow') fx.slow = { f: Math.min(cur.f, v.f), d: Math.max(cur.d, v.d) };
+      else if (k === 'dot') fx.dot = { dps: Math.max(cur.dps, v.dps), d: Math.max(cur.d, v.d) };
+      else if (k === 'mark') fx.mark = { amt: Math.max(cur.amt, v.amt), d: Math.max(cur.d, v.d) };
+      else if (k === 'knock') fx.knock = { d: Math.max(cur.d, v.d), p: Math.max(cur.p, v.p) };
+      else if (k === 'bleed') fx.bleed = { pct: Math.max(cur.pct, v.pct), d: Math.max(cur.d, v.d) };
+      else if (k === 'freezeMeter') fx.freezeMeter = { hits: Math.min(cur.hits, v.hits), stun: Math.max(cur.stun, v.stun) };
+      else if (typeof v === 'number') fx[k] = Math.max(cur, v);
+      else fx[k] = v;
+    }
+  }
+
   /* ---------- Effective tower stats (base + upgrades) ---------- */
   function computeEffective(typeId, up) {
     const def = G.TOWERS[typeId];
     const s = Object.assign({}, def.stats);
     const fx = {};
     for (const k in (def.stats.fx || {})) fx[k] = def.stats.fx[k];
-    for (let p = 0; p < 2; p++) {
-      for (let t = 0; t < up[p]; t++) {
+    for (let p = 0; p < def.paths.length; p++) {
+      for (let t = 0; t < (up[p] || 0); t++) {
         const mods = def.paths[p].tiers[t].mods || {};
         for (const k in (mods.add || {})) s[k] = (s[k] || 0) + mods.add[k];
         for (const k in (mods.mul || {})) s[k] = (s[k] || 0) * mods.mul[k];
         for (const k in (mods.set || {})) s[k] = mods.set[k];
-        for (const k in (mods.fx || {})) fx[k] = mods.fx[k];
+        if (mods.fx) mergeFx(fx, mods.fx);
       }
     }
     s.fx = fx;
@@ -121,7 +147,18 @@
       this.spawnQueue = [];       // [{type, t, pathIdx, hpMult}]
       this.enemies = [];
       this.projectiles = [];
-      this.piles = [];            // ice-wall spikes on track
+      this.piles = [];            // ice-wall spikes, drift mines and ice decoys on track
+      /* Ground zones: craters, slicks, wakes, aurora fire, corrupt stains,
+         squalls, quagmires. One patch on the trail with a lifetime and an
+         effect, checked against sea lions exactly as spike piles already are —
+         ten capstones share this list rather than each inventing a system. */
+      this.zones = [];
+      /* Buffs that live for a few seconds rather than for the battle: the
+         Igloo's breach alarm, the War Drummer's opening solo. Static auras are
+         settled in recomputeBuffs; these can't be, because they start and stop
+         while nothing about the board has changed. */
+      this.tempAuras = [];
+      this.costMult = 1;          // Colony Contracts discount on everything bought
       this.towers = [];
       this.effects = [];          // transient visuals
       this.texts = [];            // floating cash/damage text
@@ -172,16 +209,25 @@
       return true;
     }
 
+    /* What a thing actually costs right now: the difficulty and colony-perk
+       price, then the Colony Contracts discount if a Fish Vendor is running
+       one. Every surface that quotes a price has to come through here, or the
+       dock advertises one number and the purchase takes another. */
+    priceOf(raw) {
+      const base = G.scaleCost(raw, this.diffId);
+      return this.costMult === 1 ? base : Math.max(5, Math.round((base * this.costMult) / 5) * 5);
+    }
+
     placeTower(typeId, x, y) {
       const def = G.TOWERS[typeId];
       if (def.hero && (this.heroTower || typeId !== this.heroType)) return null; // one hero, the chosen one
-      const cost = G.scaleCost(def.cost, this.diffId);
+      const cost = this.priceOf(def.cost);
       if (this.cash < cost || !this.canPlace(typeId, x, y)) return null;
       this.cash -= cost;
       const t = {
-        id: nextId++, type: typeId, x, y, up: [0, 0], target: 'first',
+        id: nextId++, type: typeId, x, y, up: [0, 0, 0], target: 'first',
         invested: cost, cooldown: 0, orbitAngle: Math.random() * Math.PI * 2,
-        calc: computeEffective(typeId, [0, 0]), buff: { dmg: 1, rate: 1, range: 1, stealth: false },
+        calc: computeEffective(typeId, [0, 0, 0]), buff: { dmg: 1, rate: 1, range: 1, stealth: false },
       };
       if (def.hero) { t.hero = true; this.heroTower = t; this.refreshHero(); }
       this.towers.push(t);
@@ -220,11 +266,11 @@
     buyUpgrade(tower, pathIdx) {
       const def = G.TOWERS[tower.type];
       if (def.hero) return { ok: false, msg: 'Heroes level up on their own as waves fall.' };
+      const state = G.pathState(tower.up, pathIdx);
+      if (state !== 'open') return { ok: false, msg: G.PATH_LOCK_MSG[state] };
       const tier = tower.up[pathIdx];
-      if (tier >= 3) return { ok: false, msg: 'Path maxed out.' };
-      if (tier === 2 && tower.up[1 - pathIdx] >= 3) return { ok: false, msg: 'Only one path can reach Tier 3.' };
       const upg = def.paths[pathIdx].tiers[tier];
-      const cost = G.scaleCost(upg.cost, this.diffId);
+      const cost = this.priceOf(upg.cost);
       if (this.cash < cost) return { ok: false, msg: 'Not enough fish.' };
       this.cash -= cost;
       tower.invested += cost;
@@ -256,9 +302,19 @@
       /* Fresh Catch takes the BEST vendor's rate rather than the sum — a
          per-kill bounty that stacked would just be vendor spam by another name. */
       this.bountyBonus = 0;
+      this.costMult = 1;
+      this.waveBonus = 0;
       for (const t of this.towers) {
-        if (t.calc.bountyBonus) this.bountyBonus = Math.max(this.bountyBonus, t.calc.bountyBonus);
+        const c = t.calc;
+        if (c.bountyBonus) this.bountyBonus = Math.max(this.bountyBonus, c.bountyBonus);
+        /* Colony Contracts and Cold Storage take the BEST stall rather than the
+           sum, for the same reason Fresh Catch does: a discount that stacked
+           would just be vendor spam wearing a different hat, and two of them
+           would be worth more than the vendors themselves. */
+        if (c.buildDiscount) this.costMult = Math.min(this.costMult, 1 - c.buildDiscount);
+        if (c.waveBonus) this.waveBonus = Math.max(this.waveBonus, c.waveBonus);
       }
+      this.deathZoners = this.towers.filter((t) => t.calc.zoneAt === 'death');
       /* Auras used to add up flat and without limit, so the winning move was
          simply to build more of them: a real board reached x7 attack speed and
          x2.65 range on one penguin, and 44% of it was support towers. Now each
@@ -267,15 +323,21 @@
          ceiling. One excellent aura tower gets you most of the way; a wall of
          them gets you almost nothing more. */
       const inbox = new Map();
-      for (const t of this.towers) inbox.set(t, { dmg: [], rate: [], range: [], shred: [], pierce: [], stealth: false });
+      for (const t of this.towers) inbox.set(t, { dmg: [], rate: [], range: [], shred: [], pierce: [], stealth: false, arcs: false });
       for (const s of this.towers) {
         const c = s.calc;
         // aura sources: dedicated aura towers, plus any unit carrying aura stats (heroes)
         if (c.kind !== 'aura' && !c.auraDmg && !c.auraRate && !c.auraRange && !c.auraStealth
-            && !c.auraShred && !c.auraPierce) continue;
-        const r2 = c.range * c.range;
+            && !c.auraShred && !c.auraPierce && !c.auraArcs) continue;
+        /* An aura's reach is the tower's own, unless it says otherwise. The
+           Artillery Emperor's Firebase is why: his shells carry 320, and using
+           that as the circle would have steadied every penguin on the map. */
+        const ar = c.auraR || c.range;
+        const r2 = ar * ar;
         for (const t of this.towers) {
           if (t === s || t.calc.kind === 'aura' || t.calc.kind === 'income') continue;
+          // Scout Tilly's Pack Scout lends her eyes to Frostline and no one else
+          if (c.auraClass && G.TOWERS[t.type].cls !== c.auraClass) continue;
           if (dist2(s.x, s.y, t.x, t.y) > r2) continue;
           const k = inbox.get(t);
           if (c.auraDmg) k.dmg.push(c.auraDmg);
@@ -284,6 +346,7 @@
           if (c.auraShred) k.shred.push(c.auraShred);
           if (c.auraPierce) k.pierce.push(c.auraPierce);
           if (c.auraStealth) k.stealth = true;
+          if (c.auraArcs) k.arcs = true;
         }
       }
       // strongest source in full, then halving: converges to 2x the best one
@@ -298,7 +361,8 @@
          here rather than in the per-frame targeting loop. Most towers get an
          empty list and skip the sight test entirely. */
       for (const t of this.towers) {
-        if (G.arcsOverTerrain(t.calc)) { t.los = null; continue; }
+        // Fire Control puts a spotter overhead: helpers stop caring about cover
+        if (G.arcsOverTerrain(t.calc) || inbox.get(t).arcs) { t.los = null; continue; }
         const reach = (t.calc.range || 0) * 1.5 + 40;
         t.los = this.sightBlockers.filter(
           (o) => dist2(t.x, t.y, o.x, o.y) <= (reach + o.r) ** 2);
@@ -341,6 +405,11 @@
       this.waveInProgress = true;
       this.waveTime = 0;
       this.refreshHero();   // endless strength moves with the wave number
+      for (const t of this.towers) {
+        // Shield Dome is once per wave; Drum Solo opens every one of them
+        if (t.calc.dome) t.domeUsed = false;
+        if (t.calc.solo) this.pushTempAura('solo' + t.id, G.W / 2, G.H / 2, 99999, t.calc.solo.rate, t.calc.solo.d);
+      }
       this.emit('waveStart', this.wave);
     }
 
@@ -354,6 +423,7 @@
         armor: def.armor, stealth: def.stealth, regen: def.regen,
         size: def.size, rank: def.rank, boss: !!def.boss, orca: !!def.orca,
         slowF: 1, slowUntil: 0, dotDps: 0, dotUntil: 0, stunUntil: 0, revealUntil: 0,
+        vulnAmt: 0, vulnUntil: 0, bleedPct: 0, bleedUntil: 0, frostHits: 0,
         wob: Math.random() * Math.PI * 2,
       });
     }
@@ -376,10 +446,25 @@
       return true;
     }
 
+    /* Some upgrades take the choice out of the player's hands: Spotter's Eye
+       and Hunter-Killer are bought precisely so the penguin stops wasting
+       shots on pups, so they override the targeting toggle. */
+    targetMode(t) { return t.calc.forceTarget || t.target; }
+
+    targetKey(mode, e, d2) {
+      switch (mode) {
+        case 'last':   return -e.dist;
+        case 'strong': return e.rank * 1e6 + e.hp;
+        case 'close':  return -d2;
+        default:       return e.dist; // first
+      }
+    }
+
     pickTarget(t, pos, range) {
       const r2 = range * range;
       let best = null, bestKey = -Infinity;
       const minR2 = (t.calc.minRange || 0) ** 2;
+      const mode = this.targetMode(t);
       for (const e of this.enemies) {
         if (e.dead || !this.canSee(t, e)) continue;
         const ep = samplePath(this.paths[e.pathIdx], e.dist);
@@ -387,16 +472,31 @@
         if (d2 > r2 || d2 < minR2) continue;
         // a ridge or boulder in the way means no shot (howitzers and storms arc)
         if (t.los && !this.sightClear(pos.x, pos.y, ep.x, ep.y, t.los)) continue;
-        let key;
-        switch (t.target) {
-          case 'last':   key = -e.dist; break;
-          case 'strong': key = e.rank * 1e6 + e.hp; break;
-          case 'close':  key = -d2; break;
-          default:       key = e.dist; // first
-        }
+        const key = this.targetKey(mode, e, d2);
         if (key > bestKey) { bestKey = key; best = { e, ep, d2 }; }
       }
       return best;
+    }
+
+    /* The same sweep, but keeping the best N distinct sea lions — Double
+       Launcher and Twin Auroras exist to stop two shots landing on one body.
+       Builds a list, so it is only called by the handful of towers that need
+       it rather than by every penguin every shot. */
+    pickTargets(t, pos, range, n) {
+      const r2 = range * range;
+      const minR2 = (t.calc.minRange || 0) ** 2;
+      const mode = this.targetMode(t);
+      const out = [];
+      for (const e of this.enemies) {
+        if (e.dead || !this.canSee(t, e)) continue;
+        const ep = samplePath(this.paths[e.pathIdx], e.dist);
+        const d2 = dist2(pos.x, pos.y, ep.x, ep.y);
+        if (d2 > r2 || d2 < minR2) continue;
+        if (t.los && !this.sightClear(pos.x, pos.y, ep.x, ep.y, t.los)) continue;
+        out.push({ e, ep, d2, key: this.targetKey(mode, e, d2) });
+      }
+      out.sort((a, b) => b.key - a.key);
+      return out.slice(0, n);
     }
 
     /* ----- what each Fish Vendor actually pays at the end of a wave -----
@@ -427,13 +527,29 @@
           }
           pay += c.tradeHub * near;
         }
-        if (c.interest) pay += Math.min(200, Math.round(cash * c.interest));
-        const got = Math.round(pay * share);
-        out.push({ tower: t, rank: out.length + 1, share, full: pay, got });
+        if (c.interest) pay += Math.min(250, Math.round(cash * c.interest));
+        /* Krill Konglomerate sells at full price whatever its rank. It still
+           OCCUPIES a rank — the stalls beneath it are undercut exactly as
+           before — it simply refuses to be undercut itself. */
+        const sh = c.noFalloff ? 1 : share;
+        const got = Math.round(pay * sh);
+        out.push({ tower: t, rank: out.length + 1, share: sh, full: pay, got });
         cash += got;
         share *= G.VENDOR_FALLOFF;
       }
       return out;
+    }
+
+    /* How many mystic curses are riding on this sea lion right now — chill,
+       rot and the vulnerability mark. Read by the Aurora Mage's Resonance,
+       which pays out for arriving second. Warden Kell's Corrosion leaves a rot,
+       so it counts here without needing a case of its own. */
+    debuffCount(e) {
+      let n = 0;
+      if (e.slowUntil > this.time) n++;
+      if (e.dotUntil > this.time) n++;
+      if (e.vulnUntil > this.time) n++;
+      return n;
     }
 
     damageEnemy(e, rawDmg, tower, opts) {
@@ -441,6 +557,13 @@
       const c = tower ? tower.calc : {};
       let dmg = rawDmg * (tower ? tower.buff.dmg : 1);
       if (e.boss && c.bossBonus) dmg *= c.bossBonus;
+      // Stonebreaker: a pebble aimed at the plates rather than around them
+      if (c.vsArmored && e.armor > 0) dmg *= c.vsArmored;
+      if (c.resonance) dmg += c.resonance * this.debuffCount(e);
+      /* Killing Frost — the game's only random damage roll, deliberately
+         capstone-priced. A shuriken that finds something hiding always lands
+         the crit, which is the Shadow Diver's whole reason to see stealth. */
+      if (c.crit && ((c.crit.stealthAlways && e.stealth) || Math.random() < c.crit.p)) dmg *= c.crit.mult;
       if (!opts.pure && !c.armorPierce) {
         // Heroic Ballad and friends let nearby penguins punch through blubber
         const armor = Math.max(0, e.armor - (tower ? tower.buff.shred || 0 : 0));
@@ -455,10 +578,53 @@
            nothing. */
         dmg = rawDmg > 0 ? Math.max(dmg * 0.1, dmg - armor) : 0;
       }
+      /* Vulnerability marks multiply LAST, after armour, because that is what
+         "+30% damage from every source" has to mean to be worth its price —
+         marking a Colossus should raise the damage that actually lands on it,
+         not the damage its blubber then eats. */
+      if (e.vulnUntil > this.time) dmg *= 1 + e.vulnAmt;
       e.hp -= dmg;
       if (tower && c.fx) this.applyFx(e, c.fx);
+      /* Prism Conduit and Miasma: what the bolt does to the sea lions the bolt
+         did not hit. Kept here rather than at each firing site so every weapon
+         kind the Aurora Mage and Frost Witch can become carries it. */
+      if (c.conduit) this.spreadCurse(e, c.conduit);
+      if (c.miasma && c.fx) this.splashFx(e, c.miasma, c.fx);
       if (e.hp <= 0) this.killEnemy(e, tower);
       return dmg;
+    }
+
+    /* Prism Conduit — hold the curses already on the victim open a little
+       longer, and pass one of them to whoever is standing nearest. */
+    spreadCurse(e, radius) {
+      if (e.slowUntil > this.time) e.slowUntil += 1;
+      if (e.dotUntil > this.time) e.dotUntil += 1;
+      if (e.vulnUntil > this.time) e.vulnUntil += 1;
+      const carry = {};
+      if (e.dotUntil > this.time && e.dotDps) carry.dot = { dps: e.dotDps, d: 2 };
+      else if (e.slowUntil > this.time) carry.slow = { f: e.slowF, d: 2 };
+      else if (e.vulnUntil > this.time) carry.mark = { amt: e.vulnAmt, d: 2 };
+      else return;
+      const ep = samplePath(this.paths[e.pathIdx], e.dist);
+      let best = null, bd = radius * radius;
+      for (const o of this.enemies) {
+        if (o === e || o.dead) continue;
+        const op = samplePath(this.paths[o.pathIdx], o.dist);
+        const d2 = dist2(ep.x, ep.y, op.x, op.y);
+        if (d2 < bd) { bd = d2; best = o; }
+      }
+      if (best) this.applyFx(best, carry);
+    }
+
+    // Miasma — the curse alone, splashed onto the bodies pressed against the target
+    splashFx(e, radius, fx) {
+      const ep = samplePath(this.paths[e.pathIdx], e.dist);
+      const r2 = radius * radius;
+      for (const o of this.enemies) {
+        if (o === e || o.dead) continue;
+        const op = samplePath(this.paths[o.pathIdx], o.dist);
+        if (dist2(ep.x, ep.y, op.x, op.y) <= r2) this.applyFx(o, fx);
+      }
     }
 
     applyFx(e, fx) {
@@ -478,9 +644,147 @@
         e.dotUntil = Math.max(e.dotUntil, this.time + fx.dot.d);
       }
       if (fx.shred && e.armor > 0) e.armor = Math.max(0, e.armor - fx.shred);
-      if (fx.stun) {
-        e.stunUntil = Math.max(e.stunUntil, this.time + fx.stun * (e.boss ? 0.25 : 1) * (1 - resist));
+      /* Solar Judgment strips one plate a SECOND, not one per beam tick — the
+         Sun Priest fires four times a second, so a plain shred would have
+         peeled an Ancient Leviathan bare in a second and a quarter. */
+      if (fx.shredPerSec && e.armor > 0 && (e.shredReady || 0) <= this.time) {
+        e.armor = Math.max(0, e.armor - fx.shredPerSec);
+        e.shredReady = this.time + 1;
       }
+      // Deep Chill: slush holds a sea lion open, so every freeze that lands sticks longer
+      if (fx.frostbite) { e.frostMul = fx.frostbite; e.frostMulUntil = this.time + 3; }
+      if (fx.stun) this.stunEnemy(e, fx.stun, resist);
+      /* The freeze meter. A counter on the victim rather than a chance roll,
+         because "the third hit freezes it solid" was the whole Snowball Roller
+         fantasy and a 33% chance is a different, worse promise. */
+      if (fx.freezeMeter) {
+        e.frostHits = (e.frostHits || 0) + 1;
+        if (e.frostHits >= fx.freezeMeter.hits) {
+          e.frostHits = 0;
+          this.stunEnemy(e, fx.freezeMeter.stun, resist);
+        }
+      }
+      /* Vulnerability marks. One field on the sea lion and one multiply where
+         damage is dealt — six capstones share it. The strongest mark wins
+         rather than adding, so stacking two markers is coverage, not a combo. */
+      if (fx.mark) {
+        if (e.vulnUntil <= this.time || fx.mark.amt >= e.vulnAmt) e.vulnAmt = fx.mark.amt;
+        e.vulnUntil = Math.max(e.vulnUntil || 0, this.time + fx.mark.d);
+      }
+      /* Knockback. A sea lion's progress is a distance along the trail, so
+         knocking it back is a subtraction — the field has simply never been
+         written to before. Bosses budge a third as far. */
+      if (fx.knock && (fx.knock.p >= 1 || Math.random() < fx.knock.p)) {
+        const back = fx.knock.d * (e.boss ? 0.35 : 1) * (1 - resist);
+        if (back > 0) {
+          e.dist = Math.max(0, e.dist - back);
+          this.effects.push({ kind: 'knock', e, life: 0.25, max: 0.25 });
+        }
+      }
+      // Leviathan Lance: bosses only. Stacks refresh the bleed, they don't multiply it.
+      if (fx.bleed && e.boss) {
+        e.bleedPct = Math.max(e.bleedPct || 0, fx.bleed.pct);
+        e.bleedUntil = Math.max(e.bleedUntil || 0, this.time + fx.bleed.d);
+      }
+    }
+
+    stunEnemy(e, secs, resist) {
+      const boost = (e.frostMulUntil || 0) > this.time ? e.frostMul : 1;
+      e.stunUntil = Math.max(e.stunUntil, this.time + secs * boost * (e.boss ? 0.25 : 1) * (1 - (resist || 0)));
+    }
+
+    /* ----- ground zones -----
+       Lay a patch on the trail. `r: 0` in the definition means "as wide as the
+       penguin reaches", which is what the ring capstones (Hailfield, The
+       Anchored Eye) want. The list is capped because a fast penguin with a
+       short-lived zone can otherwise put hundreds down inside a second. */
+    dropZone(tower, x, y, radius) {
+      const z = tower.calc.zone;
+      if (!z) return;
+      const r = radius || z.r || (tower.calc.range || 60) * tower.buff.range;
+      this.zones.push({
+        x, y, r, until: this.time + z.life, life: z.life,
+        slowF: z.slowF, dps: z.dps, curse: z.curse ? tower.calc.fx : null,
+        stick: z.stick, tone: z.tone || 'ice', hit: null,
+      });
+      /* A ceiling, because Icy Wake lays one every 30px a snowball rolls and a
+         board of zone-makers reached 90 live patches on a measured endless run.
+         Dropping the OLDEST is the right eviction here: on a wake that is the
+         patch furthest behind the roll, the one already being left behind.
+         160 keeps that run clear of the cap; the per-frame cost of even a full
+         list is a rounding error beside the frame budget. */
+      if (this.zones.length > 160) this.zones.splice(0, this.zones.length - 160);
+    }
+
+    /* Buffs with a clock on them — the Igloo's breach alarm, the War Drummer's
+       opening solo. Refreshed rather than duplicated, so an alarm that keeps
+       tripping stays one entry. */
+    pushTempAura(key, x, y, r, rate, dur) {
+      let a = this.tempAuras.find((v) => v.key === key);
+      if (!a) { a = { key, x, y, r, rate, until: 0 }; this.tempAuras.push(a); }
+      a.x = x; a.y = y; a.r = r; a.rate = rate;
+      a.until = Math.max(a.until, this.time + dur);
+    }
+
+    tempRate(t) {
+      let m = 1;
+      for (const a of this.tempAuras) {
+        if (a.until <= this.time) continue;
+        if (dist2(a.x, a.y, t.x, t.y) > a.r * a.r) continue;
+        m *= a.rate;
+      }
+      return m;
+    }
+
+    /* ----- a penguin's second job, on its own clock -----
+       Shard Bulwark, Drift Mines and Decoy Dive all put something on the trail
+       while the penguin keeps shooting, and Thunder Drums staggers on a beat
+       the drummer does not otherwise have. One timer serves all four. */
+    auxTick(t, dt) {
+      const a = t.calc.aux;
+      if (!a) return;
+      t.auxCd = (t.auxCd == null ? a.every : t.auxCd) - dt;
+      if (t.auxCd > 0) return;
+      t.auxCd = a.every;
+      const range = (t.calc.range || 0) * t.buff.range;
+
+      if (a.kind === 'stagger') {
+        const r2 = range * range;
+        let any = false;
+        for (const e of this.enemies) {
+          if (e.dead) continue;
+          const ep = samplePath(this.paths[e.pathIdx], e.dist);
+          if (dist2(t.x, t.y, ep.x, ep.y) > r2) continue;
+          this.stunEnemy(e, a.stun, this.endless ? G.slowResist(this.wave) : 0);
+          any = true;
+        }
+        if (any) this.effects.push({ kind: 'storm', x: t.x, y: t.y, r: range, life: 0.3, max: 0.3 });
+        return;
+      }
+
+      const mine = this.piles.filter((p) => p.owner === t.id);
+      if (mine.length >= (a.maxPiles || 3)) return;
+      const spot = this.pickTrailSpot(t, range);
+      if (!spot) return;
+      this.piles.push({
+        x: spot.x, y: spot.y, owner: t.id,
+        charges: a.charges, damage: a.mine ? Math.round((t.calc.damage || 1) * a.mine.mult) : (a.damage || 0),
+        chill: a.chill, hold: a.hold, decoy: a.decoy,
+        mine: a.mine ? a.mine.blast : 0,
+      });
+    }
+
+    // somewhere on the trail this penguin can actually reach
+    pickTrailSpot(t, range) {
+      const pos = this.towerPos(t);
+      const spots = [];
+      for (const path of this.paths) {
+        for (let d = 30; d < path.total - 30; d += 26) {
+          const p = samplePath(path, d);
+          if (dist2(pos.x, pos.y, p.x, p.y) <= range * range) spots.push(p);
+        }
+      }
+      return spots.length ? spots[(Math.random() * spots.length) | 0] : null;
     }
 
     killEnemy(e, tower) {
@@ -506,7 +810,7 @@
         + (this.bountyBonus || 0));   // Fresh Catch
       this.cash += bounty;
       this.texts.push({ x: 0, y: 0, e, txt: '+' + bounty + '🐟', life: 0.9, kind: 'cash' });
-      // plague spread (Frost Witch T3)
+      // plague spread (Frost Witch — Plague of Brine)
       if (tower && tower.calc.plague && e.dotDps > 0) {
         const ep = samplePath(this.paths[e.pathIdx], e.dist);
         for (const o of this.enemies) {
@@ -514,6 +818,17 @@
           const op = samplePath(this.paths[o.pathIdx], o.dist);
           if (dist2(ep.x, ep.y, op.x, op.y) < 70 * 70) this.applyFx(o, { dot: { dps: e.dotDps, d: 2 } });
         }
+      }
+      /* Corrupted Ground — a sea lion that dies CURSED stains the trail. It
+         asks the BOARD whether a witch is running the stain, not whoever landed
+         the killing blow: the likeliest way to die cursed is to die OF the
+         curse, and a rot tick kills with no tower credited at all. Hanging this
+         off the killer would have made the capstone fire least in exactly the
+         case it was bought for. The rot check stays — it is the curse that
+         soaks in, so a witch who has not landed one leaves nothing behind. */
+      if (this.deathZoners && this.deathZoners.length && e.dotUntil > this.time) {
+        const dp = samplePath(this.paths[e.pathIdx], e.dist);
+        this.dropZone(this.deathZoners[0], dp.x, dp.y);
       }
       for (let i = 0; i < def.children.length; i++) {
         this.spawnEnemy(def.children[i], e.pathIdx, Math.max(0, e.dist - 14 * (i + 1)), e.hpMult);
@@ -567,6 +882,54 @@
       if (fed) this.emit('devour');
     }
 
+    /* What a burst leaves behind. Zones and cluster children both hang off the
+       moment of impact, and both a lobbed shell and an exploding bullet reach
+       it, so they share one door rather than each firing site remembering. */
+    onImpact(tower, pr, x, y) {
+      if (!tower) return;
+      const c = tower.calc;
+      if (c.zone && !c.zoneAt) this.dropZone(tower, x, y);
+      // Cluster Ice: the chunk cracks apart and the halves fly on. Children
+      // never cluster again, or one shell would seed an endless cascade.
+      if (c.cluster && !pr.child) {
+        const near = this.pickTargets(tower, { x, y }, (c.splash || 60) * 3.2, c.cluster.n + 1)
+          .filter((s) => !s.e.dead);
+        let made = 0;
+        for (const s of near) {
+          if (made >= c.cluster.n) break;
+          made++;
+          this.projectiles.push({
+            kind: 'lob', sx: x, sy: y, tx: s.ep.x, ty: s.ep.y,
+            t: 0, T: 0.3, splash: (pr.splash || 40) * 0.7, damage: pr.damage * c.cluster.frac,
+            pierce: pr.pierce, owner: tower.id, child: true,
+          });
+        }
+      }
+    }
+
+    /* Ricochet — the pebble comes off the hide into whoever is standing close.
+       No new projectile: the bounce lands where it lands, which is what the
+       player sees, and a spawned pebble would have to be aimed at a body that
+       may already be dead by the time it arrives. */
+    ricochet(tower, pr, from, fp) {
+      let left = tower.calc.ricochet;
+      const struck = [from];
+      while (left-- > 0) {
+        let best = null, bd = 95 * 95;
+        for (const o of this.enemies) {
+          if (o.dead || struck.includes(o) || pr.hit.includes(o.id) || !this.canSee(tower, o)) continue;
+          const op = samplePath(this.paths[o.pathIdx], o.dist);
+          const d2 = dist2(fp.x, fp.y, op.x, op.y);
+          if (d2 < bd) { bd = d2; best = { o, op }; }
+        }
+        if (!best) break;
+        struck.push(best.o);
+        this.effects.push({ kind: 'hit', x: best.op.x, y: best.op.y, life: 0.12, max: 0.12 });
+        this.damageEnemy(best.o, pr.damage, tower);
+        fp = best.op;
+      }
+    }
+
     splashAt(x, y, radius, dmg, tower, maxHit, exclude) {
       const r2 = radius * radius;
       let hits = 0;
@@ -597,6 +960,8 @@
       this.lives = this.startLives;
       this.enemies = [];
       this.projectiles = [];
+      this.zones = [];
+      this.tempAuras = [];
       this.spawnQueue = [];
       this.waveInProgress = false;
       this.waveTime = 0;
@@ -664,19 +1029,22 @@
       if (c.kind === 'spikes') {
         const mine = this.piles.filter((p) => p.owner === t.id);
         if (mine.length >= c.maxPiles) return;
-        // drop a wall on a random path point within range
-        const spots = [];
-        for (let pi = 0; pi < this.paths.length; pi++) {
-          const path = this.paths[pi];
-          for (let d = 30; d < path.total - 30; d += 26) {
-            const p = samplePath(path, d);
-            if (dist2(pos.x, pos.y, p.x, p.y) <= range * range) spots.push(p);
+        const p = this.pickTrailSpot(t, range);
+        if (!p) return;
+        this.piles.push({
+          x: p.x, y: p.y, charges: c.charges, max: c.charges, damage: c.spikeDmg, owner: t.id,
+          shred: c.spikeShred || 0, regrow: c.regrow || 0,
+        });
+        // Frozen Frontier: the wall goes up in a flash of frost
+        if (c.pileFlash) {
+          for (const e of this.enemies) {
+            if (e.dead) continue;
+            const ep = samplePath(this.paths[e.pathIdx], e.dist);
+            if (dist2(p.x, p.y, ep.x, ep.y) <= 70 * 70) this.applyFx(e, { slow: c.pileFlash });
           }
+          this.effects.push({ kind: 'storm', x: p.x, y: p.y, r: 70, life: 0.35, max: 0.35 });
         }
-        if (!spots.length) return;
-        const p = spots[(Math.random() * spots.length) | 0];
-        this.piles.push({ x: p.x, y: p.y, charges: c.charges, damage: c.spikeDmg, owner: t.id });
-        t.cooldown = 1 / (c.rate * t.buff.rate * this.frenzyMult());
+        t.cooldown = 1 / (c.rate * t.buff.rate * this.frenzyMult() * this.tempRate(t));
         return;
       }
 
@@ -695,20 +1063,44 @@
           if (dist2(pos.x, pos.y, ep.x, ep.y) <= r2) this.damageEnemy(e, c.damage, t);
         }
         this.effects.push({ kind: 'storm', x: pos.x, y: pos.y, r: range, life: 0.5, max: 0.5 });
+        // The Anchored Eye: the storm leaves its footprint frozen behind it
+        if (c.zone && c.zoneAt === 'self') this.dropZone(t, pos.x, pos.y, range);
         t.lastShot = this.time;
-        t.cooldown = 1 / (c.rate * t.buff.rate * this.frenzyMult());
+        t.cooldown = 1 / (c.rate * t.buff.rate * this.frenzyMult() * this.tempRate(t));
         return;
       }
 
       const target = this.pickTarget(t, pos, range);
       if (!target) return;
       t.aim = Math.atan2(target.ep.y - pos.y, target.ep.x - pos.x);
+      // Double Launcher, Twin Auroras: one aim point per shot instead of one for all
+      const aimPoints = c.multiTarget && (c.shots || 1) > 1
+        ? this.pickTargets(t, pos, range, c.shots) : null;
 
       const shots = c.shots || 1;
       if (c.kind === 'snipe' || c.kind === 'ray') {
+        /* Supernova Focus: the beam builds while it stays on one victim and
+           drops the moment it switches. Capped at +15 on purpose — deep endless
+           would otherwise let a ramp with no ceiling run away entirely. */
+        let dmg = c.damage;
+        if (c.ramp) {
+          if (t.rampOn !== target.e.id) { t.rampOn = target.e.id; t.ramp = 0; }
+          else t.ramp = Math.min(c.ramp.max, (t.ramp || 0) + c.ramp.per);
+          dmg += t.ramp;
+        }
         for (let i = 0; i < shots; i++) {
           this.effects.push({ kind: c.kind === 'ray' ? 'ray' : 'snipeTrail', x: pos.x, y: pos.y, tx: target.ep.x, ty: target.ep.y, life: 0.12, max: 0.12 });
-          this.damageEnemy(target.e, c.damage, t);
+          this.damageEnemy(target.e, dmg, t);
+          // Scorched Path: the ground catches light where the beam lands
+          if (c.zone && !c.zoneAt) this.dropZone(t, target.ep.x, target.ep.y);
+          // Twin Mirrors: the beam splits to a second target at reduced power
+          if (c.split) {
+            for (const s of this.pickTargets(t, pos, range, 1 + c.split.n)) {
+              if (s.e === target.e) continue;
+              this.effects.push({ kind: 'ray', x: pos.x, y: pos.y, tx: s.ep.x, ty: s.ep.y, life: 0.12, max: 0.12 });
+              this.damageEnemy(s.e, dmg * c.split.frac, t);
+            }
+          }
           /* chain harpoons / solar lance: bounce to extra targets. These kinds
              fire no projectile, so a pierce aura has to be added here or it
              would silently do nothing for the Harpoon Sniper and Sun Priest. */
@@ -725,17 +1117,32 @@
             }
             if (!nxt) break;
             this.effects.push({ kind: 'ray', x: lp.x, y: lp.y, tx: nxt.op.x, ty: nxt.op.y, life: 0.1, max: 0.1 });
-            this.damageEnemy(nxt.o, c.damage, t);
+            this.damageEnemy(nxt.o, dmg, t);
             last = nxt.o;
           }
           if (target.e.dead) break;
         }
       } else if (c.kind === 'lob') {
         for (let i = 0; i < shots; i++) {
-          const off = i === 0 ? 0 : 30;
+          let tx, ty;
+          if (aimPoints) {
+            // each charge takes its own clump; falls back to the main target
+            const pick = aimPoints[Math.min(i, aimPoints.length - 1)] || target;
+            tx = pick.ep.x; ty = pick.ep.y;
+          } else if (c.walk) {
+            /* Rolling Barrage — three shells WALKED along the trail rather than
+               scattered around it, so the volley covers a stretch of lane. */
+            const path = this.paths[target.e.pathIdx];
+            const d = target.e.dist + (i - (shots - 1) / 2) * c.walk;
+            const p = samplePath(path, Math.max(0, Math.min(path.total - 1, d)));
+            tx = p.x; ty = p.y;
+          } else {
+            const off = i === 0 ? 0 : 30;
+            tx = target.ep.x + (Math.random() - 0.5) * off;
+            ty = target.ep.y + (Math.random() - 0.5) * off;
+          }
           this.projectiles.push({
-            kind: 'lob', sx: pos.x, sy: pos.y,
-            tx: target.ep.x + (Math.random() - 0.5) * off, ty: target.ep.y + (Math.random() - 0.5) * off,
+            kind: 'lob', sx: pos.x, sy: pos.y, tx, ty,
             t: 0, T: 0.55, splash: c.splash, damage: c.damage, pierce: c.pierce + (t.buff.pierce || 0), owner: t.id,
           });
         }
@@ -748,21 +1155,46 @@
             damage: c.damage, pierce: c.pierce + (t.buff.pierce || 0), splash: c.splash || 0, range, traveled: 0, owner: t.id, hit: [],
           });
         }
+        // Hailfield: the whole ring frosts over as the volley goes out
+        if (c.zone && c.zoneAt === 'self') this.dropZone(t, pos.x, pos.y, range);
       } else { // bullet | homing
         for (let i = 0; i < shots; i++) {
-          const spread = shots > 1 ? (i - (shots - 1) / 2) * 0.14 : 0;
-          const a = t.aim + spread;
+          let a, aimAt = target.e;
+          if (aimPoints) {
+            const pick = aimPoints[Math.min(i, aimPoints.length - 1)] || target;
+            aimAt = pick.e;
+            a = Math.atan2(pick.ep.y - pos.y, pick.ep.x - pos.x);
+          } else {
+            a = t.aim + (shots > 1 ? (i - (shots - 1) / 2) * 0.14 : 0);
+          }
           this.projectiles.push({
             kind: c.kind, x: pos.x, y: pos.y,
             vx: Math.cos(a) * c.projSpeed, vy: Math.sin(a) * c.projSpeed,
             damage: c.damage, pierce: c.pierce + (t.buff.pierce || 0), splash: c.splash || 0,
-            range: range * 1.4, traveled: 0, owner: t.id, targetId: target.e.id, hit: [],
+            range: range * (c.projRange || 1.4), traveled: 0, owner: t.id, targetId: aimAt.id, hit: [],
+            grow: c.grow || null, grew: 0, wake: c.zoneAt === 'wake',
           });
+        }
+        /* Wolfpack Salvo — every third launch, a fan of light torpedoes that
+           each pick a different sea lion. Counted per penguin, so two subs do
+           not share a rhythm. */
+        if (c.salvo && ((t.salvoN = (t.salvoN || 0) + 1) % c.salvo.every === 0)) {
+          const fan = this.pickTargets(t, pos, range, c.salvo.n);
+          for (let i = 0; i < c.salvo.n; i++) {
+            const pick = fan[Math.min(i, fan.length - 1)] || target;
+            const a = Math.atan2(pick.ep.y - pos.y, pick.ep.x - pos.x) + (i - (c.salvo.n - 1) / 2) * 0.2;
+            this.projectiles.push({
+              kind: 'homing', x: pos.x, y: pos.y,
+              vx: Math.cos(a) * c.projSpeed, vy: Math.sin(a) * c.projSpeed,
+              damage: c.damage * c.salvo.frac, pierce: 1, splash: 0,
+              range: range * 1.6, traveled: 0, owner: t.id, targetId: pick.e.id, hit: [], light: true,
+            });
+          }
         }
       }
       this.effects.push({ kind: 'muzzle', x: pos.x, y: pos.y, a: t.aim, life: 0.14, max: 0.14 });
       t.lastShot = this.time;
-      t.cooldown = 1 / (c.rate * t.buff.rate * this.frenzyMult());
+      t.cooldown = 1 / (c.rate * t.buff.rate * this.frenzyMult() * this.tempRate(t));
     }
 
     /* ----- main update ----- */
@@ -792,10 +1224,10 @@
         }
         if (e.slowUntil <= this.time) e.slowF = 1;
         if (e.regen && e.hp < e.maxHp) e.hp = Math.min(e.maxHp, e.hp + e.regen * dt);
-        if (e.dotUntil > this.time) {
-          e.hp -= e.dotDps * dt;
-          if (e.hp <= 0) { this.killEnemy(e, null); continue; }
-        }
+        if (e.dotUntil > this.time) e.hp -= e.dotDps * dt;
+        // Leviathan Lance: the barb keeps working on the big ones
+        if (e.bleedUntil > this.time) e.hp -= e.maxHp * e.bleedPct * dt;
+        if (e.hp <= 0) { this.killEnemy(e, null); continue; }
         const path = this.paths[e.pathIdx];
         if (e.dist >= path.total) {
           e.dead = true; e.leaked = true;
@@ -804,33 +1236,104 @@
           this.emit('leak', e.type);
           continue;
         }
+        /* One position, three checks. Sampling the trail is the hot call in
+           this loop, and decloak zones, ground zones and spike piles were all
+           asking for it separately. */
+        if (!decloakers.length && !this.zones.length && !this.piles.length) continue;
+        const ep = samplePath(path, e.dist);
+
         if (e.stealth && decloakers.length) {
-          const ep = samplePath(path, e.dist);
           for (const s of decloakers) {
-            if (dist2(s.x, s.y, ep.x, ep.y) <= s.calc.range * s.calc.range) { e.revealUntil = this.time + 0.5; break; }
+            if (dist2(s.x, s.y, ep.x, ep.y) > s.calc.range * s.calc.range) continue;
+            e.revealUntil = this.time + 0.5;
+            // Full Decloak: what the whole colony can see, it hits harder
+            if (s.calc.revealMark) this.applyFx(e, { mark: { amt: s.calc.revealMark, d: 1 } });
+            break;
           }
         }
-        // spikes
-        if (this.piles.length) {
-          const ep = samplePath(path, e.dist);
-          for (const p of this.piles) {
-            if (p.charges <= 0) continue;
-            if (dist2(p.x, p.y, ep.x, ep.y) < 18 * 18) {
-              p.charges--;
-              this.damageEnemy(e, p.damage, null, { pure: true });
-              this.effects.push({ kind: 'spikeHit', x: ep.x, y: ep.y, life: 0.2, max: 0.2 });
-              if (e.dead) break;
-            }
+
+        // ground zones — craters, slicks, wakes, stains, squalls, quagmires
+        for (const z of this.zones) {
+          if (dist2(z.x, z.y, ep.x, ep.y) > z.r * z.r) continue;
+          if (z.slowF) this.applyFx(e, { slow: { f: z.slowF, d: 0.4 } });
+          if (z.dps) e.hp -= z.dps * dt;
+          if (z.curse) this.applyFx(e, z.curse);
+          /* Quagmire: something the spray already slushed gets stuck fast, and
+             only once per puddle — a per-frame stun would be a permanent one. */
+          if (z.stick && e.slowUntil > this.time) {
+            if (!z.hit) z.hit = new Set();
+            if (!z.hit.has(e.id)) { z.hit.add(e.id); this.stunEnemy(e, z.stick, this.endless ? G.slowResist(this.wave) : 0); }
           }
+        }
+        if (e.hp <= 0) { this.killEnemy(e, null); continue; }
+
+        // spikes, drift mines and ice decoys all live on the pile list
+        for (const p of this.piles) {
+          if (p.charges <= 0) continue;
+          if (dist2(p.x, p.y, ep.x, ep.y) >= 18 * 18) continue;
+          p.charges--;
+          if (p.regrow) p.grindUntil = this.time + 1;
+          if (p.mine) {
+            // Drift Mines: the first sea lion over it sets the whole thing off
+            p.charges = 0;
+            this.splashAt(p.x, p.y, p.mine, p.damage, null, 12);
+          } else if (p.hold) {
+            // Decoy Dive: the ice-double cracks and whatever stood on it stops dead
+            this.stunEnemy(e, p.hold, this.endless ? G.slowResist(this.wave) : 0);
+            this.effects.push({ kind: 'spikeHit', x: ep.x, y: ep.y, life: 0.2, max: 0.2 });
+          } else {
+            if (p.shred) this.applyFx(e, { shred: p.shred });
+            this.damageEnemy(e, p.damage, null, { pure: true });
+            this.effects.push({ kind: 'spikeHit', x: ep.x, y: ep.y, life: 0.2, max: 0.2 });
+          }
+          if (p.chill) this.applyFx(e, { slow: p.chill });
+          if (e.dead) break;
         }
       }
       this.orcaEat();
       this.enemies = this.enemies.filter((e) => !e.dead);
+
+      /* Living Ice: a wall being ground down grows a spike back every second,
+         so long as something is still grinding on it. A wall spent to nothing
+         is gone — regrowth keeps a wall standing, it does not resurrect one. */
+      for (const p of this.piles) {
+        if (!p.regrow || p.charges <= 0 || p.charges >= p.max) continue;
+        if ((p.grindUntil || 0) <= this.time) continue;
+        p.regrown = (p.regrown || 0) + p.regrow * dt;
+        while (p.regrown >= 1 && p.charges < p.max) { p.regrown -= 1; p.charges++; }
+      }
       this.piles = this.piles.filter((p) => p.charges > 0);
+      if (this.zones.length) this.zones = this.zones.filter((z) => z.until > this.time);
+      if (this.tempAuras.length) this.tempAuras = this.tempAuras.filter((a) => a.until > this.time);
 
       // towers
       for (const t of this.towers) {
         if (t.calc.orbit) t.orbitAngle += dt * (t.calc.orbitSpeed || 1.4);
+        const c = t.calc;
+        /* Fortress Walls and Shield Dome both watch the circle rather than
+           shoot from it, so they are checked here rather than in fireTower —
+           an aura tower never reaches that function at all. */
+        if (c.alarm || c.dome) {
+          const r2 = (c.range * t.buff.range) ** 2;
+          let breach = null;
+          for (const e of this.enemies) {
+            if (e.dead) continue;
+            const ep = samplePath(this.paths[e.pathIdx], e.dist);
+            if (dist2(t.x, t.y, ep.x, ep.y) <= r2) { breach = ep; break; }
+          }
+          if (breach && c.alarm) this.pushTempAura('alarm' + t.id, t.x, t.y, c.range * t.buff.range, c.alarm.rate, c.alarm.d);
+          if (breach && c.dome && !t.domeUsed) {
+            t.domeUsed = true;
+            const resist = this.endless ? G.slowResist(this.wave) : 0;
+            for (const e of this.enemies) {
+              if (e.dead) continue;
+              const ep = samplePath(this.paths[e.pathIdx], e.dist);
+              if (dist2(t.x, t.y, ep.x, ep.y) <= r2) this.stunEnemy(e, c.dome, resist);
+            }
+            this.effects.push({ kind: 'storm', x: t.x, y: t.y, r: c.range * t.buff.range, life: 0.6, max: 0.6 });
+          }
+        }
+        this.auxTick(t, dt);
         this.fireTower(t, dt);
       }
 
@@ -842,6 +1345,7 @@
             pr.dead = true;
             const owner = this.towers.find((t) => t.id === pr.owner);
             this.splashAt(pr.tx, pr.ty, pr.splash, pr.damage, owner, pr.pierce);
+            this.onImpact(owner, pr, pr.tx, pr.ty);
           }
           continue;
         }
@@ -869,8 +1373,26 @@
             pr.vx = Math.cos(na) * sp; pr.vy = Math.sin(na) * sp;
           }
         }
+        const step = Math.hypot(pr.vx, pr.vy) * dt;
         pr.x += pr.vx * dt; pr.y += pr.vy * dt;
-        pr.traveled += Math.hypot(pr.vx, pr.vy) * dt;
+        pr.traveled += step;
+        /* Rolling Thunder: a snowball is heavier at the bottom of the lane than
+           at the top. One counter on the projectile, capped so a long straight
+           on a tier-3 map cannot turn one shot into the whole answer. */
+        if (pr.grow) {
+          const want = Math.min(pr.grow.max, Math.floor(pr.traveled / pr.grow.per));
+          if (want > pr.grew) {
+            pr.damage += (want - pr.grew) * pr.grow.damage;
+            pr.pierce += (want - pr.grew) * pr.grow.pierce;
+            pr.grew = want;
+          }
+        }
+        // Icy Wake: the trail polishes over into ice behind the roll
+        if (pr.wake && pr.traveled - (pr.lastWake || 0) > 30) {
+          pr.lastWake = pr.traveled;
+          const ow = this.towers.find((t) => t.id === pr.owner);
+          if (ow) this.dropZone(ow, pr.x, pr.y);
+        }
         if (pr.traveled > (pr.range || 600) || pr.x < -60 || pr.x > G.W + 60 || pr.y < -60 || pr.y > G.H + 60) { pr.dead = true; continue; }
         // collision
         for (const e of this.enemies) {
@@ -886,12 +1408,15 @@
                  outside the blast's own center-measured radius */
               this.damageEnemy(e, pr.damage, owner);
               this.splashAt(pr.x, pr.y, pr.splash, pr.damage, owner, Math.max(pr.pierce, 6), e);
+              this.onImpact(owner, pr, pr.x, pr.y);
               break;
             }
             this.damageEnemy(e, pr.damage, owner);
             pr.hit.push(e.id);
             pr.pierce--;
             this.effects.push({ kind: 'hit', x: ep.x, y: ep.y, life: 0.12, max: 0.12 });
+            if (owner && owner.calc.ricochet) this.ricochet(owner, pr, e, ep);
+            if (owner && owner.calc.zone && !owner.calc.zoneAt) this.dropZone(owner, ep.x, ep.y);
             if (pr.pierce <= 0) { pr.dead = true; break; }
           }
         }
@@ -915,7 +1440,8 @@
       // wave end
       if (this.waveInProgress && !this.spawnQueue.length && !this.enemies.length) {
         this.waveInProgress = false;
-        const wr = Math.round(this.waveReward * G.PERK.reward);   // Keen Scouts
+        // Keen Scouts (colony perk) and Cold Storage (a vendor on the board)
+        const wr = Math.round(this.waveReward * G.PERK.reward * (1 + (this.waveBonus || 0)));
         this.cash += wr;
         let earned = wr;
         for (const p of this.vendorPayouts()) {
@@ -949,7 +1475,7 @@
     /* ----- serialization (mid-match saves) ----- */
     serialize() {
       return {
-        v: 2, levelIdx: this.levelIdx, diff: this.diffId, cash: this.cash, lives: this.lives,
+        v: 3, levelIdx: this.levelIdx, diff: this.diffId, cash: this.cash, lives: this.lives,
         wave: this.wave, waveInProgress: this.waveInProgress, waveTime: this.waveTime,
         waveReward: this.waveReward || 0, autoStart: this.autoStart, time: this.time,
         frenzyUntil: this.frenzyUntil || 0, endless: this.endless,
@@ -991,11 +1517,16 @@
       }
       g.heroReadyAt = g.time + (data.heroReadyIn || 0);
       for (const td of data.towers) {
+        /* Saves written when penguins had two paths carry a two-slot array.
+           Padding it leaves those towers exactly as they were — the third path
+           simply starts empty, and the rule of two then treats them like any
+           other penguin with one or two paths already going. */
+        const up = [td.up[0] || 0, td.up[1] || 0, td.up[2] || 0];
         const t = {
-          id: nextId++, type: td.type, x: td.x, y: td.y, up: [...td.up], target: td.target,
+          id: nextId++, type: td.type, x: td.x, y: td.y, up, target: td.target,
           invested: td.invested, cooldown: 0, orbitAngle: Math.random() * Math.PI * 2,
           kills: td.kills || 0,
-          calc: computeEffective(td.type, td.up), buff: { dmg: 1, rate: 1, range: 1, stealth: false },
+          calc: computeEffective(td.type, up), buff: { dmg: 1, rate: 1, range: 1, stealth: false },
         };
         if ((G.TOWERS[td.type] || {}).hero) { t.hero = true; g.heroTower = t; }
         g.towers.push(t);

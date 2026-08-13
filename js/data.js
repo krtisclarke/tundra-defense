@@ -271,15 +271,58 @@
     support: { name: 'Support',   color: '#3fae6a', desc: 'Economy, buffs, detection and track hazards.' },
   };
 
+  /* ---------------- The rule of two ----------------
+     Every penguin has three upgrade paths and may be fed from only TWO of
+     them. Buying into a second path shuts the third for the rest of the
+     battle, and only one of the two you chose may take its capstone (tier 3);
+     the other stops at tier 2. That is the same five purchases a penguin
+     supported when there were two paths, so no cost band and nothing about the
+     fish economy moves — what changes is that a tower now has six real builds
+     (which pair, then which of the pair caps) instead of two.
+
+     One function answers it for the engine, the panel and the guide alike, so
+     the rule can never be enforced in one place and drawn differently in
+     another. */
+  G.PATH_LIMIT = 2;
+  G.pathState = function (up, p) {
+    up = up || [];
+    const tier = up[p] || 0;
+    if (tier >= 3) return 'mastered';
+    const chosen = up.filter((v) => v > 0).length;
+    if (!tier && chosen >= G.PATH_LIMIT) return 'locked';
+    if (tier === 2 && up.some((v, i) => i !== p && v >= 3)) return 'capped';
+    return 'open';
+  };
+  // plain English for a shut path — the panel and the buy refusal share it
+  G.PATH_LOCK_MSG = {
+    locked: 'Two paths chosen — this one is shut for the battle.',
+    capped: 'Only one path can take its capstone.',
+    mastered: 'Path maxed out.',
+  };
+
   /* ---------------- Towers ----------------
      stats keys the engine understands:
        range, rate (shots/s), damage, pierce, projSpeed, splash,
        kind: bullet | homing | lob | snipe | ray | volley | pulse | spikes | income | aura
        volley (count), shots (multishot), minRange, orbit (radius),
        income ($/wave), charges/spikeDmg/maxPiles (spikes),
-       auraDmg/auraRate/auraRange/auraStealth (aura), stealth (detect), water: 'only'|'never'|'any',
+       auraDmg/auraRate/auraRange/auraStealth/auraShred/auraPierce/auraArcs (aura),
+       auraR (aura radius when it differs from the tower's own reach),
+       auraClass (aura only reaches penguins of that class),
+       stealth (detect), water: 'only'|'never'|'any',
        bossBonus (damage mult vs boss ranks), armorPierce
-     fx applied to hit enemies: slow {f,d}, dot {dps,d}, shred (armor), stun (s)
+     ...and the capstone machinery, each built once and shared:
+       zone {r,life,slowF,dps,curse,stick,tone} + zoneAt: impact|self|wake|death — ground zones
+       aux {kind:'pile'|'stagger', every, ...} — a second job on its own clock
+       crit {p,mult,stealthAlways}, ramp {per,max}, grow {per,damage,pierce,max},
+       cluster {n,frac}, salvo {every,n,frac}, split {n,frac}, ricochet (n),
+       multiTarget, forceTarget, walk (px), projRange, vsArmored, resonance,
+       conduit (px), miasma (px), alarm {rate,d}, solo {rate,d}, dome (s),
+       regrow, spikeShred, pileFlash {f,d}, decloak, revealMark,
+       noFalloff, waveBonus, buildDiscount, interest, tradeHub, bountyBonus
+     fx applied to hit enemies: slow {f,d}, dot {dps,d}, shred (armor), stun (s),
+       mark {amt,d}, knock {d,p}, freezeMeter {hits,stun}, bleed {pct,d},
+       shredPerSec (n), frostbite (freeze-duration multiplier)
      Upgrade mods: { add:{}, mul:{}, set:{}, fx:{} }                                    */
   G.TOWERS = {
     /* ---- FROSTLINE ---- */
@@ -290,13 +333,18 @@
       paths: [
         { name: 'Power', tiers: [
           { name: 'Sharp Pebbles',  cost: 110, desc: '+1 damage.',                        mods: { add: { damage: 1 } } },
-          { name: 'Flipper Fury',   cost: 260, desc: 'Throws 60% faster.',                mods: { mul: { rate: 1.6 } } },
-          { name: 'Boulder Toss',   cost: 850, desc: '+3 damage, small splash.',          mods: { add: { damage: 3, splash: 34, pierce: 3 } } },
+          { name: 'Flipper Fury',   cost: 260, desc: '+2 damage, throws 25% faster.',     mods: { add: { damage: 2 }, mul: { rate: 1.25 } } },
+          { name: 'Stonebreaker',   cost: 850, desc: '+3 damage; double damage to armored sea lions, and every hit flinches (0.3s).', mods: { add: { damage: 3 }, set: { vsArmored: 2 }, fx: { stun: 0.3 } } },
         ]},
         { name: 'Reach', tiers: [
           { name: 'Keen Eyes',      cost: 90,  desc: '+30% range, sees stealth.',         mods: { mul: { range: 1.3 }, set: { stealth: true } } },
           { name: 'Piercing Throw', cost: 210, desc: 'Pebbles pierce 2 extra sea lions.', mods: { add: { pierce: 2 } } },
-          { name: 'Twin Throw',     cost: 700, desc: 'Throws two pebbles at once.',       mods: { set: { shots: 2 } } },
+          { name: 'Ricochet',       cost: 700, desc: 'Pebbles bounce off their victim into 2 more nearby sea lions.', mods: { set: { ricochet: 2 } } },
+        ]},
+        { name: 'Trick Shot', tiers: [
+          { name: 'Follow-Through', cost: 100, desc: 'The throw doesn’t stop at the first hide it hits: +1 pierce.', mods: { add: { pierce: 1 } } },
+          { name: 'Sandy Pebbles',  cost: 240, desc: 'Grit in the eyes: hits slow sea lions 15% for 1s.', mods: { fx: { slow: { f: 0.85, d: 1 } } } },
+          { name: 'Beach Bully',    cost: 780, desc: 'Every pebble has a 1-in-4 chance to knock its target a step back down the trail.', mods: { fx: { knock: { d: 40, p: 0.25 } } } },
         ]},
       ],
     },
@@ -308,12 +356,17 @@
         { name: 'Mass', tiers: [
           { name: 'Packed Ice',     cost: 180, desc: '+1 damage.',                        mods: { add: { damage: 1 } } },
           { name: 'Giant Snowball', cost: 420, desc: '+2 damage, +4 pierce.',             mods: { add: { damage: 2, pierce: 4 } } },
-          { name: 'Avalanche',      cost: 1300, desc: 'Massive snowballs crush 20 sea lions each.', mods: { add: { damage: 4, pierce: 14 }, mul: { projSpeed: 1.2 } } },
+          { name: 'Rolling Thunder', cost: 1300, desc: 'Snowballs grow as they roll — +1 damage and +2 pierce for every stretch of trail they cover, and they roll much further.', mods: { set: { grow: { per: 55, damage: 1, pierce: 2, max: 10 }, projRange: 3 } } },
         ]},
         { name: 'Chill', tiers: [
           { name: 'Slush Coating',  cost: 200, desc: 'Snowballs slow targets 30%.',       mods: { fx: { slow: { f: 0.7, d: 1.6 } } } },
-          { name: 'Rapid Rolling',  cost: 380, desc: 'Rolls 50% faster.',                 mods: { mul: { rate: 1.5 } } },
-          { name: 'Deep Freeze',    cost: 1100, desc: 'Snowballs briefly freeze sea lions solid.', mods: { fx: { stun: 0.6, slow: { f: 0.5, d: 2 } } } },
+          { name: 'Deeper Chill',   cost: 380, desc: 'Slow strengthened to 45%, and it lasts longer.', mods: { fx: { slow: { f: 0.55, d: 2.4 } } } },
+          { name: 'Deep Freeze',    cost: 1100, desc: 'Every hit builds frost on the victim; the third freezes it solid for 1.5s.', mods: { fx: { freezeMeter: { hits: 3, stun: 1.5 }, slow: { f: 0.55, d: 2.4 } } } },
+        ]},
+        { name: 'Momentum', tiers: [
+          { name: 'Groomed Lanes',  cost: 190, desc: 'Rolls 40% faster.',                 mods: { mul: { rate: 1.4 } } },
+          { name: 'Wide Track',     cost: 400, desc: '+25% range, +3 pierce.',            mods: { mul: { range: 1.25 }, add: { pierce: 3 } } },
+          { name: 'Icy Wake',       cost: 1200, desc: 'Snowballs polish the trail behind them into ice for 3s — sea lions on the wake are slowed 30%, no hit required.', mods: { set: { zone: { r: 34, life: 3, slowF: 0.7, tone: 'ice' }, zoneAt: 'wake' } } },
         ]},
       ],
     },
@@ -325,12 +378,17 @@
         { name: 'Barrage', tiers: [
           { name: 'Faster Firing',  cost: 150, desc: '+50% attack speed.',                mods: { mul: { rate: 1.5 } } },
           { name: 'Shard Storm',    cost: 400, desc: 'Fires 12 shards per volley.',       mods: { set: { volley: 12 } } },
-          { name: 'Crystal Nova',   cost: 1200, desc: '16 shards, +1 damage, +1 pierce.', mods: { set: { volley: 16 }, add: { damage: 1, pierce: 1 } } },
+          { name: 'Hailfield',      cost: 1200, desc: 'Each volley frosts the ground in its ring for 2s — sea lions crossing it are slowed 25%.', mods: { set: { zone: { r: 0, life: 2, slowF: 0.75, tone: 'ice' }, zoneAt: 'self' } } },
         ]},
         { name: 'Edge', tiers: [
           { name: 'Razor Shards',   cost: 170, desc: '+1 damage.',                        mods: { add: { damage: 1 } } },
           { name: 'Long Splinters', cost: 330, desc: '+35% range, faster shards.',        mods: { mul: { range: 1.35, projSpeed: 1.3 } } },
-          { name: 'Glacial Spikes', cost: 950, desc: 'Shards pierce 3 and chill targets.', mods: { add: { pierce: 3 }, fx: { slow: { f: 0.75, d: 1.2 } } } },
+          { name: 'Brittle Ice',    cost: 950, desc: 'Shards crack the hide — for 2s the victim takes +25% damage from every penguin on the field.', mods: { fx: { mark: { amt: 0.25, d: 2 } } } },
+        ]},
+        { name: 'Fortress', tiers: [
+          { name: 'Dense Volley',   cost: 160, desc: '+4 shards per volley.',             mods: { add: { volley: 4 } } },
+          { name: 'Cold Snap Ring', cost: 350, desc: 'Shards chill sea lions 20% for 1s.', mods: { fx: { slow: { f: 0.8, d: 1 } } } },
+          { name: 'Shard Bulwark',  cost: 1100, desc: 'Every few seconds, studs the trail inside its ring with ice spikes that bite and chill whatever tramples them.', mods: { set: { aux: { kind: 'pile', every: 3.5, maxPiles: 3, charges: 6, damage: 4, chill: { f: 0.7, d: 1.5 } } } } },
         ]},
       ],
     },
@@ -342,12 +400,17 @@
         { name: 'Payload', tiers: [
           { name: 'Bigger Chunks',  cost: 300, desc: '+2 damage.',                        mods: { add: { damage: 2 } } },
           { name: 'Shattering Ice', cost: 650, desc: '+30 blast radius, +8 blast targets.', mods: { add: { splash: 30, pierce: 8 } } },
-          { name: 'Calving Event',  cost: 1800, desc: 'Huge blasts that stun for 0.5s.',  mods: { add: { damage: 3 }, fx: { stun: 0.5 } } },
+          { name: 'Calving Crater', cost: 1800, desc: 'Blasts leave an ice crater for 4s — sea lions inside take 3 dmg/s and are slowed 20%.', mods: { set: { zone: { r: 60, life: 4, dps: 3, slowF: 0.8, tone: 'ice' } } } },
         ]},
         { name: 'Artillery', tiers: [
-          { name: 'Spotter Chick',  cost: 250, desc: '+25% range, sees stealth.',         mods: { mul: { range: 1.25 }, set: { stealth: true } } },
+          { name: 'Spotter Chick',  cost: 250, desc: '+25% range.',                       mods: { mul: { range: 1.25 } } },
           { name: 'Rapid Reload',   cost: 550, desc: '+55% attack speed.',                mods: { mul: { rate: 1.55 } } },
-          { name: 'Cluster Ice',    cost: 1500, desc: 'Fires two chunks per shot.',       mods: { set: { shots: 2 } } },
+          { name: 'Cluster Ice',    cost: 1500, desc: 'The chunk cracks apart on impact — two smaller chunks fly on to the nearest sea lions and burst again.', mods: { set: { cluster: { n: 2, frac: 0.6 } } } },
+        ]},
+        { name: 'Seismic', tiers: [
+          { name: 'Heavy Mounting', cost: 280, desc: '+20 blast radius.',                 mods: { add: { splash: 20 } } },
+          { name: 'Tremor Rounds',  cost: 600, desc: 'Survivors of a blast are slowed 25%.', mods: { fx: { slow: { f: 0.75, d: 2 } } } },
+          { name: 'Icequake',       cost: 1700, desc: 'Blasts throw a shockwave — sea lions near the impact are knocked a step back and stunned 0.4s.', mods: { fx: { knock: { d: 38, p: 1 }, stun: 0.4 } } },
         ]},
       ],
     },
@@ -359,12 +422,17 @@
         { name: 'Sticky', tiers: [
           { name: 'Thicker Slush',  cost: 160, desc: 'Slow strengthened to 65%.',         mods: { fx: { slow: { f: 0.35, d: 2.4 } } } },
           { name: 'Wide Spray',     cost: 340, desc: 'Bigger splash, +25% range.',        mods: { add: { splash: 22 }, mul: { range: 1.25 } } },
-          { name: 'Permafrost',     cost: 1000, desc: 'Slowed sea lions take 2 dmg/s corrosion.', mods: { fx: { dot: { dps: 2, d: 2.5 }, slow: { f: 0.3, d: 3 } } } },
+          { name: 'Deep Chill',     cost: 1000, desc: 'Slushed sea lions corrode (2 dmg/s), and every freeze that lands on them lasts 50% longer.', mods: { fx: { dot: { dps: 2, d: 3 }, frostbite: 1.5 } } },
         ]},
         { name: 'Volume', tiers: [
           { name: 'Faster Pumping', cost: 180, desc: '+50% attack speed.',                mods: { mul: { rate: 1.5 } } },
           { name: 'Chilling Bite',  cost: 300, desc: 'Slush now deals 1 damage.',         mods: { add: { damage: 1 } } },
-          { name: 'Brain Freeze',   cost: 900, desc: 'Slush can briefly stun (0.4s).',    mods: { fx: { stun: 0.4 }, add: { damage: 1 } } },
+          { name: 'Brain Freeze',   cost: 900, desc: 'Slush freezes brains — hits stun (0.4s), and a stunned sea lion sheds 1 armor for good.', mods: { fx: { stun: 0.4, shred: 1 } } },
+        ]},
+        { name: 'Trapper', tiers: [
+          { name: 'Extra Goop',     cost: 170, desc: 'Splash 50% wider.',                 mods: { mul: { splash: 1.5 } } },
+          { name: 'Slow Drip',      cost: 320, desc: 'Slows last twice as long.',         mods: { fx: { slow: { f: 0.5, d: 4.8 } } } },
+          { name: 'Quagmire',       cost: 950, desc: 'Slush pools into puddles that outlast the throw (4s) — anything wading one is slowed 60%, and a sea lion already slushed is stuck fast for 1s.', mods: { set: { zone: { r: 40, life: 4, slowF: 0.4, stick: 1, tone: 'slush' } } } },
         ]},
       ],
     },
@@ -378,12 +446,17 @@
         { name: 'Caliber', tiers: [
           { name: 'Barbed Tips',    cost: 320, desc: '+6 damage.',                        mods: { add: { damage: 6 } } },
           { name: 'Whale Piercer',  cost: 900, desc: '+12 damage.',                       mods: { add: { damage: 12 } } },
-          { name: 'Leviathan Lance', cost: 2600, desc: '+2x damage to boss sea lions.',   mods: { add: { damage: 15 }, set: { bossBonus: 3 } } },
+          { name: 'Leviathan Lance', cost: 2600, desc: 'Bosses bleed around the barb — 2% of max HP per second for 5s. Stacks refresh, they don’t multiply.', mods: { fx: { bleed: { pct: 0.02, d: 5 } } } },
         ]},
         { name: 'Marksman', tiers: [
-          { name: 'Night Scope',    cost: 260, desc: 'Sees stealth sea lions.',           mods: { set: { stealth: true } } },
-          { name: 'Quick Loader',   cost: 600, desc: '+80% attack speed.',                mods: { mul: { rate: 1.8 } } },
-          { name: 'Chain Harpoons', cost: 1900, desc: 'Harpoons bounce to 3 extra targets.', mods: { add: { pierce: 3 } } },
+          { name: 'Steady Hands',   cost: 260, desc: '+45% attack speed.',                mods: { mul: { rate: 1.45 } } },
+          { name: 'Quick Loader',   cost: 600, desc: '+80% attack speed in total.',       mods: { mul: { rate: 1.241 } } },
+          { name: 'Chain Harpoons', cost: 1900, desc: 'Harpoons bounce to 3 more sea lions, and every bounce slows its victim 30% for 2s.', mods: { add: { pierce: 3 }, fx: { slow: { f: 0.7, d: 2 } } } },
+        ]},
+        { name: 'Hunter', tiers: [
+          { name: 'Night Scope',    cost: 280, desc: 'Sees stealth sea lions.',           mods: { set: { stealth: true } } },
+          { name: 'Spotter’s Eye',  cost: 550, desc: '+4 damage, and the sniper always calls the strongest target on the field.', mods: { add: { damage: 4 }, set: { forceTarget: 'strong' } } },
+          { name: 'Marked Prey',    cost: 2200, desc: 'The harpooned target is marked for 4s — every penguin in the colony hits it 30% harder.', mods: { fx: { mark: { amt: 0.3, d: 4 } } } },
         ]},
       ],
     },
@@ -395,12 +468,17 @@
         { name: 'Warhead', tiers: [
           { name: 'Heavy Torpedoes', cost: 280, desc: '+3 damage.',                       mods: { add: { damage: 3 } } },
           { name: 'Blast Charges',  cost: 620, desc: 'Torpedoes explode (45 radius).',    mods: { add: { splash: 45, pierce: 6 } } },
-          { name: 'Torpedo Swarm',  cost: 1700, desc: 'Fires 3 torpedoes per volley.',    mods: { set: { shots: 3 } } },
+          { name: 'Oil Slick',      cost: 1700, desc: 'Blasts leave a slick for 3s — anything crossing it is slowed 30% and smoulders for 2 dmg/s.', mods: { set: { zone: { r: 48, life: 3, slowF: 0.7, dps: 2, tone: 'oil' } } } },
         ]},
         { name: 'Sonar', tiers: [
-          { name: 'Periscope',      cost: 220, desc: '+30% range, sees stealth.',         mods: { mul: { range: 1.3 }, set: { stealth: true } } },
+          { name: 'Periscope',      cost: 220, desc: '+30% range.',                       mods: { mul: { range: 1.3 } } },
           { name: 'Twin Tubes',     cost: 520, desc: '+70% attack speed.',                mods: { mul: { rate: 1.7 } } },
-          { name: 'Hunter-Killer',  cost: 1400, desc: '+6 damage, +50% vs bosses.',       mods: { add: { damage: 6 }, set: { bossBonus: 1.5 } } },
+          { name: 'Hunter-Killer',  cost: 1400, desc: 'Locks the biggest thing in range — +8 damage, +50% vs bosses, and never wastes a torpedo on a pup while a bull is swimming.', mods: { add: { damage: 8 }, set: { bossBonus: 1.5, forceTarget: 'strong' } } },
+        ]},
+        { name: 'Wolfpack', tiers: [
+          { name: 'Short Fuses',    cost: 250, desc: '+40% attack speed.',                mods: { mul: { rate: 1.4 } } },
+          { name: 'Flotilla Doctrine', cost: 500, desc: '+2 damage, +20% range.',         mods: { add: { damage: 2 }, mul: { range: 1.2 } } },
+          { name: 'Wolfpack Salvo', cost: 1500, desc: 'Every third launch adds a fan of four light torpedoes that each seek a different target.', mods: { set: { salvo: { every: 3, n: 4, frac: 0.5 } } } },
         ]},
       ],
     },
@@ -411,13 +489,18 @@
       paths: [
         { name: 'Ordnance', tiers: [
           { name: 'Bigger Barrels', cost: 350, desc: '+3 damage.',                        mods: { add: { damage: 3 } } },
-          { name: 'Shockwave',      cost: 700, desc: '+30 blast radius, slows survivors.', mods: { add: { splash: 30 }, fx: { slow: { f: 0.65, d: 1.5 } } } },
-          { name: 'Tsunami Charge', cost: 2000, desc: 'Enormous blasts, +5 damage.',      mods: { add: { damage: 5, splash: 30, pierce: 10 } } },
+          { name: 'Shockwave',      cost: 700, desc: '+30 blast radius.',                 mods: { add: { splash: 30 } } },
+          { name: 'Tsunami Charge', cost: 2000, desc: 'The blast throws a wave that shoves surviving sea lions a stride back down the trail.', mods: { fx: { knock: { d: 42, p: 1 } } } },
         ]},
         { name: 'Crew', tiers: [
           { name: 'Extra Hands',    cost: 300, desc: '+50% attack speed.',                mods: { mul: { rate: 1.5 } } },
-          { name: 'Lookout Post',   cost: 480, desc: '+30% range, sees stealth.',         mods: { mul: { range: 1.3 }, set: { stealth: true } } },
-          { name: 'Double Launcher', cost: 1500, desc: 'Lobs two charges per attack.',    mods: { set: { shots: 2 } } },
+          { name: 'Lookout Post',   cost: 480, desc: '+30% range.',                       mods: { mul: { range: 1.3 } } },
+          { name: 'Double Launcher', cost: 1500, desc: 'Two charges per attack, each aimed at its own clump.', mods: { set: { shots: 2, multiTarget: true } } },
+        ]},
+        { name: 'Mine Layer', tiers: [
+          { name: 'Contact Fuses',  cost: 320, desc: '+2 damage, +15 blast radius.',      mods: { add: { damage: 2, splash: 15 } } },
+          { name: 'Deep Stock',     cost: 550, desc: '+35% attack speed.',                mods: { mul: { rate: 1.35 } } },
+          { name: 'Drift Mines',    cost: 1800, desc: 'Seeds the water with drifting mines (up to 4 afloat) that detonate on the first sea lion over them.', mods: { set: { aux: { kind: 'pile', every: 2.5, maxPiles: 4, charges: 1, mine: { blast: 58, mult: 3 } } } } },
         ]},
       ],
     },
@@ -429,12 +512,17 @@
         { name: 'Gunnery', tiers: [
           { name: 'Heavy Rounds',   cost: 400, desc: '+1 damage.',                        mods: { add: { damage: 1 } } },
           { name: 'Dual Cannons',   cost: 900, desc: 'Fires two shots at once.',          mods: { set: { shots: 2 } } },
-          { name: 'Gunship',        cost: 2400, desc: '+2 damage, +60% attack speed.',    mods: { add: { damage: 2 }, mul: { rate: 1.6 } } },
+          { name: 'Gun Run',        cost: 2400, desc: 'Drops low and rakes the lane — every round punches through 3 sea lions in a row (+3 pierce, +1 damage).', mods: { add: { pierce: 3, damage: 1 } } },
         ]},
         { name: 'Avionics', tiers: [
           { name: 'Thermal Visor',  cost: 350, desc: 'Sees stealth sea lions.',           mods: { set: { stealth: true } } },
           { name: 'Afterburners',   cost: 650, desc: '+30% range, faster orbit.',         mods: { mul: { range: 1.3 }, set: { orbitSpeed: 2.2 } } },
-          { name: 'Missile Pods',   cost: 1800, desc: 'Shots explode on impact.',         mods: { add: { splash: 40, pierce: 5, damage: 1 } } },
+          { name: 'Missile Pods',   cost: 1800, desc: 'Shots explode on impact, and anything caught in a blast is lit up for the whole colony (+20% damage taken) for 3s.', mods: { add: { splash: 40, pierce: 5, damage: 1 }, fx: { mark: { amt: 0.2, d: 3 } } } },
+        ]},
+        { name: 'Ace', tiers: [
+          { name: 'Combat Trim',    cost: 380, desc: '+25% attack speed.',                mods: { mul: { rate: 1.25 } } },
+          { name: 'High Patrol',    cost: 700, desc: '+20% range, +1 damage.',            mods: { mul: { range: 1.2 }, add: { damage: 1 } } },
+          { name: 'Strafing Dive',  cost: 2100, desc: 'Screams into a low, fast pass — orbit speed doubled, +30% range, and every round bursts on impact.', mods: { mul: { range: 1.3 }, add: { splash: 26, pierce: 3 }, set: { orbitSpeed: 2.8 } } },
         ]},
       ],
     },
@@ -449,13 +537,18 @@
       paths: [
         { name: 'Shells', tiers: [
           { name: 'HE Shells',      cost: 500, desc: '+4 damage.',                        mods: { add: { damage: 4 } } },
-          { name: 'Concussive Blast', cost: 1000, desc: 'Blasts stun for 0.4s.',          mods: { fx: { stun: 0.4 } } },
-          { name: 'The Big One',    cost: 2800, desc: '+8 damage, +40 blast radius.',     mods: { add: { damage: 8, splash: 40, pierce: 12 } } },
+          { name: 'Siege Shells',   cost: 1000, desc: '+4 more damage, +25 blast radius.', mods: { add: { damage: 4, splash: 25 } } },
+          { name: 'Cratered Earth', cost: 2800, desc: 'Shells leave craters for 4s — 4 dmg/s and a 25% slow to anything crossing them.', mods: { set: { zone: { r: 70, life: 4, dps: 4, slowF: 0.75, tone: 'ice' } } } },
         ]},
         { name: 'Logistics', tiers: [
           { name: 'Loader Team',    cost: 450, desc: '+50% attack speed.',                mods: { mul: { rate: 1.5 } } },
-          { name: 'Forward Observer', cost: 700, desc: 'Sees stealth; smaller blind zone.', mods: { set: { stealth: true, minRange: 60 } } },
-          { name: 'Firebase',       cost: 2200, desc: 'Shells burn the ground (3 dmg/s).', mods: { fx: { dot: { dps: 3, d: 3 } }, mul: { rate: 1.3 } } },
+          { name: 'Forward Observer', cost: 700, desc: 'Smaller blind zone, +10% range.', mods: { set: { minRange: 60 }, mul: { range: 1.1 } } },
+          { name: 'Firebase',       cost: 2200, desc: 'Shells leave the impact burning for 3s (3 dmg/s), and the Emperor steadies the line: penguins near him attack 8% faster.', mods: { set: { zone: { r: 55, life: 3, dps: 3, tone: 'fire' }, auraR: 140 }, add: { auraRate: 0.08 } } },
+        ]},
+        { name: 'Barrage', tiers: [
+          { name: 'Drilled Crew',   cost: 480, desc: '+35% attack speed.',                mods: { mul: { rate: 1.35 } } },
+          { name: 'Flechette Mix',  cost: 900, desc: '+6 blast targets.',                 mods: { add: { pierce: 6 } } },
+          { name: 'Rolling Barrage', cost: 2500, desc: 'Trades the single great shell for a volley of three smaller ones, walked along the trail.', mods: { mul: { damage: 0.55 }, set: { shots: 3, walk: 70 } } },
         ]},
       ],
     },
@@ -469,12 +562,17 @@
         { name: 'Radiance', tiers: [
           { name: 'Brighter Bolts', cost: 250, desc: '+2 damage.',                        mods: { add: { damage: 2 } } },
           { name: 'Arc Lightning',  cost: 600, desc: '+6 pierce, faster bolts.',          mods: { add: { pierce: 6 }, mul: { projSpeed: 1.35 } } },
-          { name: 'Solar Flare',    cost: 1700, desc: 'Bolts explode at the end of their flight.', mods: { add: { damage: 3, splash: 55, pierce: 8 } } },
+          { name: 'Solar Flare',    cost: 1700, desc: 'Bolts burst on impact and leave a patch of aurora fire on the ground for 2s — 3 dmg/s to anything crossing it.', mods: { add: { damage: 2, splash: 50, pierce: 4 }, set: { zone: { r: 44, life: 2, dps: 3, tone: 'aurora' } } } },
         ]},
         { name: 'Attunement', tiers: [
-          { name: 'Third Eye',      cost: 220, desc: 'Sees stealth, +20% range.',         mods: { set: { stealth: true }, mul: { range: 1.2 } } },
-          { name: 'Quick Casting',  cost: 500, desc: '+60% attack speed.',                mods: { mul: { rate: 1.6 } } },
-          { name: 'Twin Auroras',   cost: 1400, desc: 'Casts two bolts per attack.',      mods: { set: { shots: 2 } } },
+          { name: 'Focused Mind',   cost: 220, desc: '+40% attack speed.',                mods: { mul: { rate: 1.4 } } },
+          { name: 'Quicksilver Bolts', cost: 500, desc: '+20% range, faster bolts.',      mods: { mul: { range: 1.2, projSpeed: 1.3 } } },
+          { name: 'Twin Auroras',   cost: 1400, desc: 'Two seeking bolts per cast, each picking its own target.', mods: { set: { shots: 2, multiTarget: true, kind: 'homing' } } },
+        ]},
+        { name: 'Conduit', tiers: [
+          { name: 'Attuned Light',  cost: 240, desc: '+1 damage, +2 pierce.',             mods: { add: { damage: 1, pierce: 2 } } },
+          { name: 'Resonance',      cost: 550, desc: 'Bolts deal +1 damage for every mystic debuff on the target (chill, rot, burn).', mods: { set: { resonance: 1 } } },
+          { name: 'Prism Conduit',  cost: 1500, desc: 'Bolts refresh mystic debuffs on the victim and spread one of them to a nearby sea lion.', mods: { set: { conduit: 90 } } },
         ]},
       ],
     },
@@ -489,12 +587,17 @@
              from 1 to 2 only ever saved a single hit. It now strips armour
              outright, which is a real capability rather than a rounding error. */
           { name: 'Armor Rust',     cost: 550, desc: 'The curse eats armor away entirely.', mods: { fx: { shred: 99 } } },
-          { name: 'Plague of Brine', cost: 1600, desc: 'Rot deals 8 dmg/s for 4s and spreads on death.', mods: { fx: { dot: { dps: 8, d: 4 } }, set: { plague: true } } },
+          { name: 'Plague of Brine', cost: 1600, desc: 'Rot deepens to 8 dmg/s, and a sea lion that dies rotting passes the full curse to its neighbours.', mods: { fx: { dot: { dps: 8, d: 4 } }, set: { plague: true } } },
         ]},
         { name: 'Coven', tiers: [
-          { name: 'Cursed Sight',   cost: 240, desc: 'Sees stealth, +20% range.',         mods: { set: { stealth: true }, mul: { range: 1.2 } } },
-          { name: 'Double Hex',     cost: 520, desc: '+2 pierce, +40% speed.',            mods: { add: { pierce: 2 }, mul: { rate: 1.4 } } },
-          { name: 'Winter’s Grasp', cost: 1300, desc: 'Cursed sea lions are slowed 35%.', mods: { fx: { slow: { f: 0.65, d: 2.5 } } } },
+          { name: 'Cursed Sight',   cost: 240, desc: '+20% range.',                       mods: { mul: { range: 1.2 } } },
+          { name: 'Double Hex',     cost: 520, desc: '+2 pierce, +40% attack speed.',     mods: { add: { pierce: 2 }, mul: { rate: 1.4 } } },
+          { name: 'Winter’s Grasp', cost: 1300, desc: 'Cursed sea lions are slowed 35% and take +15% damage from every source while the curse holds.', mods: { fx: { slow: { f: 0.65, d: 2.5 }, mark: { amt: 0.15, d: 2.5 } } } },
+        ]},
+        { name: 'Plague Bearer', tiers: [
+          { name: 'Festering Touch', cost: 260, desc: 'Curses last 2s longer.',           mods: { fx: { dot: { dps: 2, d: 5 } } } },
+          { name: 'Miasma',         cost: 500, desc: 'Curses splash to sea lions pressed against the target.', mods: { set: { miasma: 46 } } },
+          { name: 'Corrupted Ground', cost: 1500, desc: 'A sea lion that dies cursed leaves a stain on the trail for 3s — anything crossing it catches the curse fresh.', mods: { set: { zone: { r: 42, life: 3, curse: true, tone: 'curse' }, zoneAt: 'death' } } },
         ]},
       ],
     },
@@ -506,12 +609,17 @@
         { name: 'Tempest', tiers: [
           { name: 'Biting Winds',   cost: 400, desc: '+2 storm damage.',                  mods: { add: { damage: 2 } } },
           { name: 'Widening Gyre',  cost: 800, desc: '+35% storm radius.',                mods: { mul: { range: 1.35 } } },
-          { name: 'Whiteout',       cost: 2200, desc: 'Storms freeze sea lions for 0.8s.', mods: { fx: { stun: 0.8 }, add: { damage: 2 } } },
+          { name: 'Whiteout',       cost: 2200, desc: 'Storms freeze for 0.8s, and thawing sea lions are vulnerable — +20% damage taken for 2s.', mods: { fx: { stun: 0.8, mark: { amt: 0.2, d: 2 } } } },
         ]},
         { name: 'Frequency', tiers: [
           { name: 'Restless Sky',   cost: 380, desc: '+50% storm frequency.',             mods: { mul: { rate: 1.5 } } },
           { name: 'Hailstones',     cost: 750, desc: '+3 damage.',                        mods: { add: { damage: 3 } } },
-          { name: 'Endless Winter', cost: 1900, desc: 'Storms nearly constantly (+80% frequency), stronger slow.', mods: { mul: { rate: 1.8 }, fx: { slow: { f: 0.45, d: 2 } } } },
+          { name: 'Endless Winter', cost: 1900, desc: 'Storms roll almost without pause (+80% frequency in total), and every storm locks the pack in place for a blink (0.4s).', mods: { mul: { rate: 1.2 }, fx: { stun: 0.4 } } },
+        ]},
+        { name: 'Eye of the Storm', tiers: [
+          { name: 'Stormsight',     cost: 350, desc: '+25% range.',                       mods: { mul: { range: 1.25 } } },
+          { name: 'Low Pressure',   cost: 700, desc: 'Storm slow deepened to 50%.',       mods: { fx: { slow: { f: 0.5, d: 2 } } } },
+          { name: 'The Anchored Eye', cost: 2100, desc: 'The storm leaves its footprint frozen on the trail — a lingering squall (4s) that keeps slowing 40% after the storm has passed.', mods: { set: { zone: { r: 0, life: 4, slowF: 0.6, tone: 'ice' }, zoneAt: 'self' } } },
         ]},
       ],
     },
@@ -523,12 +631,17 @@
         { name: 'Assassin', tiers: [
           { name: 'Honed Icicles',  cost: 280, desc: '+1 damage.',                        mods: { add: { damage: 1 } } },
           { name: 'Flurry',         cost: 620, desc: 'Throws 3 shuriken per attack.',     mods: { set: { shots: 3 } } },
-          { name: 'Silent Blizzard', cost: 1800, desc: '+2 damage, +2 pierce, +40% speed.', mods: { add: { damage: 2, pierce: 2 }, mul: { rate: 1.4 } } },
+          { name: 'Killing Frost',  cost: 1800, desc: '25% chance to crit for triple damage — and a strike on a stealth sea lion always crits.', mods: { set: { crit: { p: 0.25, mult: 3, stealthAlways: true } } } },
         ]},
         { name: 'Sabotage', tiers: [
           { name: 'Numbing Strikes', cost: 260, desc: 'Hits slow sea lions 25%.',         mods: { fx: { slow: { f: 0.75, d: 1.4 } } } },
           { name: 'Deep Reach',     cost: 480, desc: '+35% range.',                       mods: { mul: { range: 1.35 } } },
-          { name: 'Boss Hunter',    cost: 1500, desc: '+100% damage to boss sea lions.',  mods: { set: { bossBonus: 2 }, add: { damage: 1 } } },
+          { name: 'Death Mark',     cost: 1500, desc: 'Shuriken mark the victim for 3s — it takes +25% damage from every source.', mods: { fx: { mark: { amt: 0.25, d: 3 } } } },
+        ]},
+        { name: 'Ghost', tiers: [
+          { name: 'Silent Steps',   cost: 270, desc: '+30% attack speed.',                mods: { mul: { rate: 1.3 } } },
+          { name: 'Umbral Blades',  cost: 500, desc: '+1 damage, +1 pierce.',             mods: { add: { damage: 1, pierce: 1 } } },
+          { name: 'Decoy Dive',     cost: 1600, desc: 'Every 8s, plants a glittering ice-double on the trail — the next three sea lions to reach it each stop dead for half a second as it cracks beneath them.', mods: { set: { aux: { kind: 'pile', every: 8, maxPiles: 2, charges: 3, hold: 0.5, decoy: true } } } },
         ]},
       ],
     },
@@ -539,13 +652,18 @@
       paths: [
         { name: 'Corona', tiers: [
           { name: 'Focused Beam',   cost: 1400, desc: '+3 damage.',                       mods: { add: { damage: 3 } } },
-          { name: 'Solar Lance',    cost: 3200, desc: 'Beam burns through 4 sea lions.',  mods: { add: { pierce: 4, damage: 2 } } },
-          { name: 'Supernova',      cost: 8000, desc: '+10 damage, +50% attack speed.',   mods: { add: { damage: 10 }, mul: { rate: 1.5 } } },
+          { name: 'Solar Lance',    cost: 3200, desc: 'The beam burns through 4 sea lions.', mods: { add: { pierce: 3 } } },
+          { name: 'Supernova Focus', cost: 8000, desc: 'The beam ramps while it holds one target — +1 damage per tick, up to +15, resetting when it switches.', mods: { set: { ramp: { per: 1, max: 15 } } } },
         ]},
         { name: 'Zenith', tiers: [
           { name: 'All-Seeing Light', cost: 1200, desc: 'Sees stealth, +25% range.',      mods: { set: { stealth: true }, mul: { range: 1.25 } } },
           { name: 'Searing Heat',   cost: 2800, desc: 'Targets burn for 6 dmg/s.',        mods: { fx: { dot: { dps: 6, d: 2.5 } } } },
-          { name: 'Eclipse Engine', cost: 7000, desc: '+150% damage vs bosses.',          mods: { set: { bossBonus: 2.5 }, add: { damage: 4 } } },
+          { name: 'Solar Judgment', cost: 7000, desc: 'The beam strips 1 armor per second and deals +150% damage to bosses.', mods: { fx: { shredPerSec: 1 }, set: { bossBonus: 2.5 } } },
+        ]},
+        { name: 'Eclipse', tiers: [
+          { name: 'Wide Lens',      cost: 1300, desc: '+2 damage, +15% range.',           mods: { add: { damage: 2 }, mul: { range: 1.15 } } },
+          { name: 'Twin Mirrors',   cost: 3000, desc: 'The beam splits to a second target at 60% power.', mods: { set: { split: { n: 1, frac: 0.6 } } } },
+          { name: 'Scorched Path',  cost: 7500, desc: 'The ground catches light where the beam lands — each struck spot burns (5 dmg/s) for 3s, so a sweeping beam writes a line of fire across the trail.', mods: { set: { zone: { r: 34, life: 3, dps: 5, tone: 'fire' } } } },
         ]},
       ],
     },
@@ -566,12 +684,17 @@
         { name: 'Market', tiers: [
           { name: 'Bigger Stall',   cost: 500, desc: '+60 🐟 per wave.',                  mods: { add: { income: 60 } } },
           { name: 'Fish Market',    cost: 1100, desc: '+130 🐟 per wave.',                mods: { add: { income: 130 } } },
-          { name: 'Krill Konglomerate', cost: 2800, desc: '+300 🐟 per wave.',            mods: { add: { income: 300 } } },
+          { name: 'Krill Konglomerate', cost: 2800, desc: '+300 🐟 per wave, and this stall ignores the market falloff — it always sells at full price, whatever its rank.', mods: { add: { income: 300 }, set: { noFalloff: true } } },
         ]},
         { name: 'Finance', tiers: [
           { name: 'Fresh Catch',    cost: 450, desc: 'Buys the catch: every sea lion the colony destroys pays +1 🐟.', mods: { set: { bountyBonus: 1 } } },
           { name: 'Trade Hub',      cost: 1000, desc: '+20 🐟 per wave for each penguin in range.', mods: { set: { tradeHub: 20 } } },
-          { name: 'Penguin Bank',   cost: 2400, desc: 'Also pays 5% interest on saved fish each wave (max 200 🐟).', mods: { set: { interest: 0.05 } } },
+          { name: 'Penguin Bank',   cost: 2400, desc: 'Also pays 5% interest on saved fish each wave (max 250 🐟). Hoarders rejoice.', mods: { set: { interest: 0.05 } } },
+        ]},
+        { name: 'Supply Chain', tiers: [
+          { name: 'Delivery Sleds', cost: 480, desc: '+40 🐟 per wave.',                  mods: { add: { income: 40 } } },
+          { name: 'Cold Storage',   cost: 1050, desc: 'Wave-clear rewards are +10% while the stall stands.', mods: { set: { waveBonus: 0.1 } } },
+          { name: 'Colony Contracts', cost: 2600, desc: 'Every penguin built or upgraded while it stands costs 5% less fish.', mods: { set: { buildDiscount: 0.05 } } },
         ]},
       ],
     },
@@ -588,7 +711,12 @@
         { name: 'Garrison', tiers: [
           { name: 'Watchtower',     cost: 500, desc: 'Helpers see stealth sea lions.',      mods: { set: { auraStealth: true } } },
           { name: 'Drill Sergeant', cost: 1100, desc: 'Helpers attack 12% faster.', mods: { add: { auraRate: 0.12 } } },
-          { name: 'Fortress Walls', cost: 2600, desc: 'Wider circle; helpers +12% more speed (24% total).', mods: { mul: { range: 1.2 }, add: { auraRate: 0.12 } } },
+          { name: 'Fortress Walls', cost: 2600, desc: 'Wider circle, +24% speed in total — and when a sea lion sets flipper inside it the alarm sounds: helpers attack 40% faster for 3s.', mods: { mul: { range: 1.2 }, add: { auraRate: 0.12 }, set: { alarm: { rate: 1.4, d: 3 } } } },
+        ]},
+        { name: 'Bastion', tiers: [
+          { name: 'Thick Ice',      cost: 550, desc: 'Circle 20% wider.',                  mods: { mul: { range: 1.2 } } },
+          { name: 'Snow Ramparts',  cost: 1150, desc: 'Helpers hit 12% harder.',           mods: { add: { auraDmg: 0.12 } } },
+          { name: 'Shield Dome',    cost: 2800, desc: 'Once per wave, the first sea lion to breach the circle triggers the dome — everything hostile inside freezes solid for 1.5s.', mods: { set: { dome: 1.5 } } },
         ]},
       ],
     },
@@ -608,7 +736,12 @@
         { name: 'Decrypt', tiers: [
           { name: 'Signal Boost',   cost: 300, desc: 'Helpers attack 8% faster.',        mods: { add: { auraRate: 0.08 } } },
           { name: 'Echo Location',  cost: 650, desc: 'Circle covers 20% more ground.', mods: { mul: { range: 1.2 } } },
-          { name: 'Full Decloak',   cost: 1600, desc: 'Stealth in the circle is revealed to EVERY penguin.', mods: { set: { decloak: true } } },
+          { name: 'Full Decloak',   cost: 1600, desc: 'Stealth in the circle is revealed to EVERY penguin on the field, and revealed sea lions take +10% damage.', mods: { set: { decloak: true, revealMark: 0.1 } } },
+        ]},
+        { name: 'Overwatch', tiers: [
+          { name: 'Target Feed',    cost: 320, desc: 'Helpers hit 8% harder.',        mods: { add: { auraDmg: 0.08 } } },
+          { name: 'Priority Uplink', cost: 680, desc: 'Helpers shoot 10% further and 8% faster.', mods: { add: { auraRange: 0.1, auraRate: 0.08 } } },
+          { name: 'Fire Control',   cost: 1700, desc: 'The station guides every shot from above — helpers in the circle fire clean over ridges, wrecks and igloos. Nothing on the map gives cover.', mods: { set: { auraArcs: true } } },
         ]},
       ],
     },
@@ -620,12 +753,17 @@
         { name: 'Rhythm', tiers: [
           { name: 'Double Time',    cost: 450, desc: 'Helpers attack 28% faster.',            mods: { add: { auraRate: 0.12 } } },
           { name: 'Battle Anthem',  cost: 950, desc: 'Helpers attack 44% faster.',            mods: { add: { auraRate: 0.16 } } },
-          { name: 'Thunder Drums',  cost: 2400, desc: 'Helpers attack 64% faster; wider circle.', mods: { add: { auraRate: 0.2 }, mul: { range: 1.15 } } },
+          { name: 'Thunder Drums',  cost: 2400, desc: 'Helpers attack 64% faster, wider circle — and every eighth beat is a thunderclap that staggers sea lions in the circle (0.3s).', mods: { add: { auraRate: 0.2 }, mul: { range: 1.15 }, set: { aux: { kind: 'stagger', every: 4, stun: 0.3 } } } },
         ]},
         { name: 'Morale', tiers: [
           { name: 'Rallying Beat',  cost: 400, desc: 'Helpers hit 8% harder.',      mods: { add: { auraDmg: 0.08 } } },
-          { name: 'Marching Orders', cost: 850, desc: 'Circle covers 20% more ground.', mods: { mul: { range: 1.2 } } },
+          { name: 'Fierce Cadence', cost: 850, desc: 'Helpers hit 16% harder.',     mods: { add: { auraDmg: 0.08 } } },
           { name: 'Heroic Ballad',  cost: 2000, desc: 'Helpers punch through 2 armor.', mods: { set: { auraShred: 2 } } },
+        ]},
+        { name: 'War Song', tiers: [
+          { name: 'Longer Verses',  cost: 420, desc: 'Circle 20% wider.',           mods: { mul: { range: 1.2 } } },
+          { name: 'Crescendo',      cost: 900, desc: 'Helpers attack 12% faster.',  mods: { add: { auraRate: 0.12 } } },
+          { name: 'Drum Solo',      cost: 2200, desc: 'As each wave arrives, an opening solo — every penguin on the field attacks 30% faster for 5s.', mods: { set: { solo: { rate: 1.3, d: 5 } } } },
         ]},
       ],
     },
@@ -637,12 +775,20 @@
         { name: 'Jagged', tiers: [
           { name: 'Sharper Spikes', cost: 350, desc: 'Spikes deal 4 damage.',             mods: { add: { spikeDmg: 2 } } },
           { name: 'Dense Walls',    cost: 750, desc: '10 spikes per wall.',               mods: { add: { charges: 4 } } },
-          { name: 'Glacier Teeth',  cost: 2000, desc: 'Spikes deal 9 damage, 14 per wall.', mods: { add: { spikeDmg: 5, charges: 4 } } },
+          { name: 'Glacier Teeth',  cost: 2000, desc: 'Spikes deal 9 damage, 14 per wall, and each bite shreds 1 armor.', mods: { add: { spikeDmg: 5, charges: 4 }, set: { spikeShred: 1 } } },
         ]},
         { name: 'Industry', tiers: [
           { name: 'Fast Builder',   cost: 300, desc: '+55% build speed.',                 mods: { mul: { rate: 1.55 } } },
           { name: 'Wide Operation', cost: 650, desc: '+35% range, 6 walls at once.',      mods: { mul: { range: 1.35 }, add: { maxPiles: 2 } } },
-          { name: 'Frozen Frontier', cost: 1700, desc: '9 walls at once, +45% build speed.', mods: { add: { maxPiles: 3 }, mul: { rate: 1.45 } } },
+          { name: 'Frozen Frontier', cost: 1700, desc: '9 walls at once, and each new wall goes up in a flash of frost that chills passing sea lions 30% for 1.5s.', mods: { add: { maxPiles: 3 }, set: { pileFlash: { f: 0.7, d: 1.5 } } } },
+        ]},
+        /* "Walls last 50% longer" has to mean something the engine can show. A
+           wall's life here is its spikes, not a clock, so Blue Ice adds half as
+           many again (6 → 9) rather than a timer nothing else in the game has. */
+        { name: 'Glacier Engineer', tiers: [
+          { name: 'Blue Ice',       cost: 320, desc: 'Spikes deal +2 damage, and walls hold 3 more spikes before they crumble.', mods: { add: { spikeDmg: 2, charges: 3 } } },
+          { name: 'Buttressed Walls', cost: 700, desc: '+2 spikes per wall, +20% range.', mods: { add: { charges: 2 }, mul: { range: 1.2 } } },
+          { name: 'Living Ice',     cost: 1900, desc: 'Walls regrow a spent spike every second while sea lions are grinding on them.', mods: { set: { regrow: 1 } } },
         ]},
       ],
     },
@@ -690,8 +836,13 @@
      them is assembled from weapon kinds the engine already fires. */
   G.TOWERS.hero_tilly = {
     cls: 'frost', hero: true, name: 'Scout Tilly', cost: 400,
-    desc: 'Fastest flippers in the colony. Buries swarms in pebbles and spots anything hiding.',
-    stats: { range: 145, rate: 2.6, damage: 1, pierce: 3, projSpeed: 560, kind: 'bullet', stealth: true, water: 'never' },
+    desc: 'Fastest flippers in the colony. Buries swarms in pebbles, spots anything hiding — and lends her eyes to every Frostline penguin around her.',
+    /* Pack Scout. Detection stopped being a tier-1 filler on nine towers in the
+       3-path roster, so Frostline's answer is Keen Eyes at 🐟90 — and Tilly is
+       the luxury version of it: what a scout is actually FOR. auraClass keeps
+       it to her own class rather than quietly re-blinding the whole board. */
+    stats: { range: 145, rate: 2.6, damage: 1, pierce: 3, projSpeed: 560, kind: 'bullet', stealth: true, water: 'never',
+             auraStealth: true, auraClass: 'frost' },
     paths: [],
   };
   G.TOWERS.hero_rook = {
@@ -769,7 +920,7 @@
     },
     hero_tilly: {
       pebbles: 2750,
-      blurb: 'Shreds swarms and sees stealth. Struggles alone against the big ones.',
+      blurb: 'Shreds swarms and sees stealth. Pack Scout: Frostline penguins in her reach see what she sees.',
       perLevel: { damage: 0.10, rate: 0.05, range: 0.01 },
       ability: { name: 'Snow Flurry', icon: '🌨️', cd: 35, unlock: 3,
                  desc: 'A blizzard of pebbles: heavy damage to everything near her.',
@@ -815,7 +966,11 @@
     },
     hero_kell: {
       pebbles: 4000,
-      blurb: 'Strips blubber and poisons the wound — armour and regenerators melt.',
+      /* Coven Warden. Corrosion leaves a rot, and rot is what the Aurora Mage's
+         Conduit path and the Frost Witch's Plague Bearer path read as a mystic
+         curse — so his burn is already something they can refresh and spread.
+         The passive is the wording catching up with the mechanics. */
+      blurb: 'Strips blubber and poisons the wound. Coven Warden: his Corrosion burn counts as a mystic curse, so Conduit and Plague Bearer can spread and refresh it.',
       perLevel: { damage: 0.13, rate: 0.03, range: 0.015 },
       ability: { name: 'Corrosion', icon: '🧪', cd: 40, unlock: 3,
                  desc: 'Strips 3 armour from every sea lion on the field and leaves them burning.',

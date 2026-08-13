@@ -161,7 +161,19 @@ three tiers each — starting fish, starting lives, bigger bounties, cheaper tow
 discounted Second Chances, richer wave rewards. Bought once, active in every battle
 from then on.
 
-### Your penguins — 20 towers, 4 classes, each with 2 upgrade paths × 3 tiers
+### Your penguins — 20 towers, 4 classes, each with 3 upgrade paths × 3 tiers
+
+**Three paths, choose two.** Every penguin has three upgrade paths, and fish may go into
+only **two** of them — buying into a second path shuts the third for the rest of the
+battle. One of your two may run all the way to its **capstone** (tier 3); the other stops
+at tier 2. That is the same five purchases a penguin has always supported, so no price
+moves: what changes is that each penguin now has six real builds (which pair, then which
+of the pair caps) instead of two.
+
+Tiers 1 and 2 sharpen the numbers. **Every capstone changes how the penguin plays** —
+ricochets, freeze meters, icy wakes, drift mines, strafing dives, anchored storms, ice
+decoys, corrupted ground, an alarm dome. Cheap purchases stay easy to judge mid-wave;
+the identity-defining decision sits at the top, where it is saved up for.
 
 Every penguin's card shows its **☠ kill count**, and the victory screen names the
 battle's top defender.
@@ -195,7 +207,7 @@ are seeded at the rank their wins had already earned.
 | 🔮 **Mystic** — aurora magic | Aurora Mage, Frost Witch, Blizzard Caller, Shadow Diver, Sun Priest |
 | 🛠 **Support** — economy & buffs | Fish Vendor, Igloo Fortress, Sonar Station, War Drummer, Ice Wall Builder |
 
-🌊 = must be placed on water. Only one upgrade path per tower can reach Tier 3 — choose wisely.
+🌊 = must be placed on water. Fish go into only two of a penguin's three paths, and only one of those two can reach its capstone — choose wisely.
 
 ### The sea lions — 13 types that split when destroyed
 
@@ -309,7 +321,7 @@ The interface is a bottom command dock built for keyboard + mouse: build palette
 |---|---|
 | **1–5** / **Q–T** / **A–G** / **Z–B** | Build a Frostline / Navy / Mystic / Support penguin (or click its slot), then click the map. Hold **Shift** to place several |
 | Click a placed penguin | Its card appears bottom-left |
-| **Q** / **W** (selected) | Buy upgrade path 1 / 2 |
+| **Q** / **W** / **E** (selected) | Buy upgrade path 1 / 2 / 3 |
 | **T** (selected) | Cycle targeting: first / last / strong / close |
 | **X** (selected) | Sell |
 | **Space** | Send next wave |
@@ -331,10 +343,16 @@ The interface is a bottom command dock built for keyboard + mouse: build palette
   One excellent Igloo or War Drummer gets a cluster most of the way there; a wall of them
   adds almost nothing. Build the second one to cover different ground, not more power.
 - Build a Fish Vendor or two before wave 10 — but only a couple. Each extra vendor earns
-  30% less than the one before it, so a third and fourth barely pay for themselves. Their
-  two paths are a real choice: **Market** is flat reliable income, **Finance** pays off
-  your kills, your board and your savings instead.
-- Have stealth detection online before wave 14, and armor-shred before wave 16.
+  30% less than the one before it, so a third and fourth barely pay for themselves. Its
+  three paths pay three different ways: **Market** is flat reliable income, **Finance**
+  pays off your kills, your board and your savings, and **Supply Chain** makes everything
+  else on the board cheaper.
+- **Stealth detection is a choice now, not a freebie.** Nine penguins used to buy "sees
+  stealth" as tier-1 filler; now each class has exactly one cheap answer — Frostline's
+  **Keen Eyes** (🐟90, the cheapest upgrade in the game), Navy's **Night Scope** and
+  **Thermal Visor**, the Shadow Diver born with it for Mystic, and Support's
+  **Watchtower** plus the Sonar Station itself. Skip them all and wave 14 will hurt.
+- Have detection online before wave 14, and armor-shred before wave 16.
 - Save a Harpoon Sniper with the **Leviathan Lance** upgrade for boss waves.
 - Ice Walls placed near the exit catch whatever slips through.
 

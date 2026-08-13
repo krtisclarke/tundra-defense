@@ -1094,13 +1094,18 @@
   }
 
   /* ================= PENGUIN =================
-     up = [weaponTier, gearTier] (0-3 each). Upgrades change the look:
-     weapon path grows the prop (glowing at max), gear path adds a
-     sash → cape → gold-trimmed cape, and veterans stand a bit taller. */
+     up = one tier count per upgrade path (0-3 each). Upgrades change the look:
+     the first path grows the prop (glowing at max), the second adds a
+     sash → cape → gold-trimmed cape, and veterans stand a bit taller.
+
+     The third path rides on the SECOND path's dressing rather than inventing a
+     third costume. The rule of two means a penguin only ever wears two paths at
+     once, so what the silhouette needs to say is "how far along", not "which of
+     three" — the coloured pips above its head already answer that. */
   function drawPenguin(ctx, x, y, r0, typeId, aim, t, up) {
     const look = (typeId && G.LOOKS[typeId]) || {};
-    const tierA = up ? up[0] : 0;
-    const tierB = up ? up[1] : 0;
+    const tierA = up ? (up[0] || 0) : 0;
+    const tierB = up ? Math.max(up[1] || 0, up[2] || 0) : 0;
     const tiers = tierA + tierB;
     const r = r0 * (look.scale || 1) * (1 + tiers * 0.03);
     const body = look.tint || '#2b3138';
@@ -1732,15 +1737,22 @@
       ctx.restore();
     }
 
-    // tier pips, colour-coded per path: gold = first path, cyan = second
-    const tA = tw.up[0], tB = tw.up[1];
-    if (tA + tB > 0) {
-      const gap = tA > 0 && tB > 0 ? 5 : 0;
-      let ppx = tw.x - ((tA + tB - 1) * 8 + gap) / 2;
+    /* Tier pips, one colour per path — gold, cyan, violet. With the rule of two
+       there are never more than five, and the two colours present tell you at a
+       glance which pair this penguin committed to without opening its card. */
+    const PIP = ['#ffd166', '#6fd7f5', '#c08cf0'];
+    const ups = tw.up || [];
+    const total = (ups[0] || 0) + (ups[1] || 0) + (ups[2] || 0);
+    if (total > 0) {
+      const used = ups.filter((v) => v > 0).length;
+      const gap = 5 * (used - 1);
+      let ppx = tw.x - ((total - 1) * 8 + gap) / 2;
       const ppy = tw.y - 34;
-      for (let i = 0; i < tA; i++) { drawPip(ctx, ppx, ppy, '#ffd166'); ppx += 8; }
-      ppx += gap;
-      for (let i = 0; i < tB; i++) { drawPip(ctx, ppx, ppy, '#6fd7f5'); ppx += 8; }
+      for (let p = 0; p < ups.length; p++) {
+        if (!ups[p]) continue;
+        for (let i = 0; i < ups[p]; i++) { drawPip(ctx, ppx, ppy, PIP[p]); ppx += 8; }
+        ppx += 5;
+      }
     }
 
     // hero level badge: a gold star shield above the champion
@@ -2163,6 +2175,28 @@
       ctx.fillStyle = 'rgba(180,110,220,0.85)';
       ctx.beginPath(); ctx.arc(r * 0.5, -r * 0.9, 3, 0, TAU); ctx.fill();
     }
+    /* Marked for the whole colony. "+30% damage from every source" is otherwise
+       invisible — you buy the capstone and nothing on screen changes — so a
+       marked sea lion wears a target reticle until it wears off. */
+    if (e.vulnUntil > game.time) {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255,190,90,0.9)';
+      ctx.lineWidth = 1.8;
+      ctx.rotate(t * 1.6);
+      const rr = r * 1.25;
+      for (let i = 0; i < 4; i++) {
+        const a = (i / 4) * TAU;
+        ctx.beginPath();
+        ctx.arc(0, 0, rr, a + 0.22, a + TAU / 4 - 0.22);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+    // Bleeding around the barb (Leviathan Lance) — bosses only, so it stays rare
+    if (e.bleedUntil > game.time) {
+      ctx.fillStyle = `rgba(230,80,80,${0.5 + Math.sin(t * 6) * 0.3})`;
+      ctx.beginPath(); ctx.arc(-r * 0.5, -r * 0.9, 3, 0, TAU); ctx.fill();
+    }
     if (e.hp < e.maxHp) {
       const w = Math.max(24, r * 1.6);
       ctx.fillStyle = 'rgba(8,14,22,0.55)';
@@ -2490,6 +2524,20 @@
       } else if (fx.kind === 'leak') {
         ctx.fillStyle = `rgba(224,82,82,${f * 0.6})`;
         ctx.beginPath(); ctx.arc(fx.x, fx.y, (1 - f) * 40 + 10, 0, TAU); ctx.fill();
+      } else if (fx.kind === 'knock') {
+        /* Knockback. The sea lion jumps backwards down the trail, which on its
+           own reads as a glitch — this is the shove that explains it. */
+        if (fx.e && !fx.e.dead) {
+          const p = G.samplePath(game.paths[fx.e.pathIdx], fx.e.dist);
+          ctx.strokeStyle = `rgba(210,235,255,${f * 0.85})`;
+          ctx.lineWidth = 2.5;
+          for (let i = 0; i < 3; i++) {
+            const r = fx.e.size + 4 + i * 5 + (1 - f) * 8;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, r, Math.PI * 0.72, Math.PI * 1.28);
+            ctx.stroke();
+          }
+        }
       } else if (fx.kind === 'spikeHit') {
         ctx.fillStyle = `rgba(180,220,250,${f})`;
         ctx.beginPath(); ctx.arc(fx.x, fx.y, 6 * (1 - f) + 2, 0, TAU); ctx.fill();
@@ -2507,20 +2555,83 @@
     }
   }
 
-  function drawSpikes(ctx, game) {
+  /* Ground zones — craters, slicks, wakes, aurora fire, corrupt stains,
+     squalls, quagmires. Drawn under everything, on the trail itself, because
+     the whole point is that the ground is doing the work: a patch you cannot
+     see is a slow you cannot explain. Each tone is its own hue so a burning
+     crater never reads as a chilling one. */
+  const ZONE_TONES = {
+    ice:    { fill: 'rgba(150, 214, 245, 0.20)', edge: 'rgba(190, 234, 255, 0.55)' },
+    fire:   { fill: 'rgba(255, 150, 60, 0.20)',  edge: 'rgba(255, 200, 120, 0.55)' },
+    aurora: { fill: 'rgba(110, 235, 175, 0.20)', edge: 'rgba(160, 255, 210, 0.55)' },
+    curse:  { fill: 'rgba(160, 110, 220, 0.22)', edge: 'rgba(200, 160, 245, 0.55)' },
+    oil:    { fill: 'rgba(40, 50, 70, 0.30)',    edge: 'rgba(120, 140, 175, 0.5)' },
+    slush:  { fill: 'rgba(90, 190, 210, 0.24)',  edge: 'rgba(150, 225, 240, 0.55)' },
+  };
+  function drawZones(ctx, game, t) {
+    if (!game.zones || !game.zones.length) return;
+    ctx.save();
+    for (const z of game.zones) {
+      const life = Math.max(0, Math.min(1, (z.until - game.time) / (z.life || 1)));
+      const tone = ZONE_TONES[z.tone] || ZONE_TONES.ice;
+      ctx.globalAlpha = 0.25 + life * 0.75;
+      ctx.fillStyle = tone.fill;
+      ctx.beginPath(); ctx.arc(z.x, z.y, z.r, 0, TAU); ctx.fill();
+      ctx.strokeStyle = tone.edge;
+      ctx.lineWidth = 1.4;
+      // a slow shimmer, so a live patch is distinguishable from map decoration
+      ctx.setLineDash([5, 5]);
+      ctx.lineDashOffset = -t * 9;
+      ctx.beginPath(); ctx.arc(z.x, z.y, z.r - 1, 0, TAU); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    ctx.restore();
+  }
+
+  function drawSpikes(ctx, game, t) {
     for (const p of game.piles) {
       ctx.save();
       ctx.translate(p.x, p.y);
-      ctx.fillStyle = '#cfe4f4';
-      const n = Math.min(6, Math.ceil(p.charges / 2) + 1);
-      for (let i = 0; i < n; i++) {
-        const a = (i / n) * TAU;
-        const d = 7;
+      if (p.mine) {
+        /* A drift mine: a dark float with a blinking eye. It has to read as
+           "do not walk here" at a glance, and nothing like a wall of spikes. */
+        ctx.fillStyle = '#1b2735';
+        ctx.beginPath(); ctx.arc(0, 0, 8, 0, TAU); ctx.fill();
+        ctx.strokeStyle = '#5a7086'; ctx.lineWidth = 1.5;
+        for (let i = 0; i < 6; i++) {
+          const a = (i / 6) * TAU + t * 0.4;
+          ctx.beginPath();
+          ctx.moveTo(Math.cos(a) * 7, Math.sin(a) * 7);
+          ctx.lineTo(Math.cos(a) * 12, Math.sin(a) * 12);
+          ctx.stroke();
+        }
+        ctx.fillStyle = `rgba(255,90,80,${0.45 + Math.sin(t * 5) * 0.35})`;
+        ctx.beginPath(); ctx.arc(0, 0, 3, 0, TAU); ctx.fill();
+      } else if (p.decoy) {
+        // An ice-double of the diver: a glittering shard that shatters underfoot
+        ctx.globalAlpha = 0.55 + Math.sin(t * 4) * 0.2;
+        ctx.fillStyle = '#bfe8ff';
         ctx.beginPath();
-        ctx.moveTo(Math.cos(a) * d - 3, Math.sin(a) * d + 2);
-        ctx.lineTo(Math.cos(a) * d, Math.sin(a) * d - 9);
-        ctx.lineTo(Math.cos(a) * d + 3, Math.sin(a) * d + 2);
+        ctx.moveTo(0, -14); ctx.lineTo(7, 0); ctx.lineTo(0, 13); ctx.lineTo(-7, 0);
         ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.2;
+        ctx.stroke();
+        ctx.fillStyle = '#e8f6ff';
+        for (let i = 0; i < p.charges; i++) {
+          ctx.beginPath(); ctx.arc(-5 + i * 5, -18, 1.6, 0, TAU); ctx.fill();
+        }
+      } else {
+        ctx.fillStyle = '#cfe4f4';
+        const n = Math.min(6, Math.ceil(p.charges / 2) + 1);
+        for (let i = 0; i < n; i++) {
+          const a = (i / n) * TAU;
+          const d = 7;
+          ctx.beginPath();
+          ctx.moveTo(Math.cos(a) * d - 3, Math.sin(a) * d + 2);
+          ctx.lineTo(Math.cos(a) * d, Math.sin(a) * d - 9);
+          ctx.lineTo(Math.cos(a) * d + 3, Math.sin(a) * d + 2);
+          ctx.closePath(); ctx.fill();
+        }
       }
       ctx.restore();
     }
@@ -2606,7 +2717,7 @@
         const ok = game.canPlace(game.placingType, x, y);
         /* Effective range, not the raw stat — the ghost was drawing the
            pre-nerf circle and promising reach the placed penguin wouldn't have. */
-        const range = (G.computeEffective(game.placingType, [0, 0]).range || 60);
+        const range = (G.computeEffective(game.placingType, [0, 0, 0]).range || 60);
         ctx.fillStyle = ok ? 'rgba(110,200,130,0.15)' : 'rgba(220,110,110,0.18)';
         ctx.strokeStyle = ok ? 'rgba(110,200,130,0.6)' : 'rgba(220,110,110,0.6)';
         ctx.lineWidth = 2;
@@ -2646,7 +2757,8 @@
     const terr = getTerrain(game.level, G.W, game.endless && game.wave >= G.ORCA_WAVE);
     ctx.drawImage(terr.canvas, 0, 0, G.W, G.H);
     drawSceneryFX(ctx, game.level, terr.meta, clock);
-    drawSpikes(ctx, game);
+    drawZones(ctx, game, clock);
+    drawSpikes(ctx, game, clock);
     const sorted = [...game.enemies].sort((a, b) => a.dist - b.dist);
     // painter's order: lower towers draw over higher ones for a depth cue
     for (const t of [...game.towers].sort((a, b) => a.y - b.y)) drawTowerBody(ctx, game, t, clock);

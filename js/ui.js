@@ -269,7 +269,7 @@
           swallow = true;
           return;
         }
-        const cost = G.scaleCost(G.TOWERS[id].cost, g.diffId);
+        const cost = g.priceOf(G.TOWERS[id].cost);
         if (g.cash < cost) {
           sfx.error(); buzz(30);
           toast(`Need ${fmt(cost)} for a ${G.TOWERS[id].name}.`, 'bad');
@@ -1004,8 +1004,15 @@
     for (const slot of document.querySelectorAll('#palette .slot')) {
       if (slot.classList.contains('locked')) continue;
       const def = G.TOWERS[slot.dataset.type];
-      slot.classList.toggle('poor', g.cash < G.scaleCost(def.cost, g.diffId));
+      /* Colony Contracts can cut every price mid-battle, so the tray's own
+         labels are refreshed here rather than left at whatever they cost when
+         the dock was built — a tile that advertises the old price is a lie the
+         player only finds out about at the checkout. */
+      const price = g.priceOf(def.cost);
+      slot.classList.toggle('poor', g.cash < price);
       slot.classList.toggle('armed', g.placingType === slot.dataset.type);
+      const tag = slot.querySelector('.slot-cost');
+      if (tag && tag.textContent !== String(price)) tag.textContent = String(price);
     }
 
     /* upgrade buttons light up the moment they become affordable — the card
@@ -1115,7 +1122,7 @@
          fit a slot at the width the dock can spare, and the gold number
          already reads as a price — the tooltip and guide still spell it
          out with the icon. */
-      slot.appendChild(el('span', 'slot-cost', String(G.scaleCost(def.cost, UI.game.diffId))));
+      slot.appendChild(el('span', 'slot-cost', String(UI.game.priceOf(def.cost))));
       if (G.towerNeed(UI.profile, id)) {   // tower drip: not recruited yet
         slot.classList.add('locked');
         slot.appendChild(el('span', 'slot-lock', '🔒'));
@@ -1184,7 +1191,7 @@
     const lock = towerLockMsg(id);
     if (lock) { sfx.error(); toast('🔒 ' + lock, 'bad'); return; }
     const def = G.TOWERS[id];
-    const cost = G.scaleCost(def.cost, g.diffId);
+    const cost = g.priceOf(def.cost);
     if (g.placingType === id) { g.placingType = null; syncCancelBtn(); renderDockSel(); updateHud(); return; }
     if (g.cash < cost) { sfx.error(); toast(`Need ${fmt(cost)} for a ${def.name}.`, 'bad'); return; }
     g.placingType = id;
@@ -1220,7 +1227,7 @@
     if (s.range >= 5000) bits.push(['Range', '∞']);
     if (s.pierce > 1) bits.push(['Pierce', s.pierce]);
     if (s.income) bits.push(['Income', '🐟' + s.income + '/wave']);
-    const cost = UI.game ? G.scaleCost(def.cost, UI.game.diffId) : def.cost;
+    const cost = UI.game ? UI.game.priceOf(def.cost) : def.cost;
     const tip = $('#tooltip');
     tip.innerHTML = `
       <div class="tt-head"><b>${def.name}</b><span class="tt-cost">${fmt(cost)}</span></div>
@@ -1343,21 +1350,23 @@
     const def = G.TOWERS[typeId];
     const path = def.paths[pathIdx];
     const u = path.tiers[tier];
-    const cost = G.scaleCost(u.cost, g ? g.diffId : 'medium');
+    const price = (raw) => (g ? g.priceOf(raw) : G.scaleCost(raw, 'medium'));
+    const cost = price(u.cost);
     const afford = g && g.cash >= cost;
     const rows = path.tiers.map((x, i) => {
       const state = i < tier ? 'own' : i === tier ? 'next' : 'later';
+      const cap = i === 2 ? '<span class="tt-capstone">capstone</span> ' : '';
       return `<div class="tt-tier ${state}">
         <span class="tt-tier-dot">${i < tier ? '●' : i === tier ? '▸' : '○'}</span>
-        <span><b>${x.name}</b> <span class="tt-cost">${fmt(G.scaleCost(x.cost, g ? g.diffId : 'medium'))}</span><br>
-        <span class="tt-tier-desc">${x.desc}</span></span></div>`;
+        <span><b>${x.name}</b> <span class="tt-cost">${fmt(price(x.cost))}</span><br>
+        <span class="tt-tier-desc">${cap}${x.desc}</span></span></div>`;
     }).join('');
     const tip = $('#tooltip');
     tip.innerHTML = `
       <div class="tt-head"><b>${path.name}</b><span class="tt-cost">${fmt(cost)}</span></div>
-      <div class="tt-cls" style="color:${def.hero ? 'var(--gold)' : G.CLASSES[def.cls].color}">${def.name} — upgrade path ${pathIdx + 1}</div>
+      <div class="tt-cls" style="color:${def.hero ? 'var(--gold)' : G.CLASSES[def.cls].color}">${def.name} — upgrade path ${pathIdx + 1} of ${def.paths.length}</div>
       <div class="tt-tiers">${rows}</div>
-      <div class="tt-key">${afford ? `Press <kbd>${pathIdx === 0 ? 'Q' : 'W'}</kbd> or click to buy <b>${u.name}</b>` : `Need ${fmt(cost - (g ? g.cash : 0))} more`}</div>`;
+      <div class="tt-key">${afford ? `Press <kbd>${['Q', 'W', 'E'][pathIdx]}</kbd> or click to buy <b>${u.name}</b>` : `Need ${fmt(cost - (g ? g.cash : 0))} more`}</div>`;
     tip.style.display = 'block';
     placeTip(anchor);
   }
@@ -1433,7 +1442,7 @@
     if (!g || !g.heroType || !chip) return;
     const H = G.HEROES[g.heroType];
     const placed = !!g.heroTower;
-    const cost = G.scaleCost(G.TOWERS[g.heroType].cost, g.diffId);
+    const cost = g.priceOf(G.TOWERS[g.heroType].cost);
     chip.classList.toggle('placed', placed);
     chip.classList.toggle('armed', g.placingType === g.heroType);
     chip.classList.toggle('poor', !placed && g.cash < cost);
@@ -1472,7 +1481,15 @@
       : `<b>Colony Rank ${pr.rank}</b> · ${(p.xp || 0).toLocaleString()} / ${pr.next.toLocaleString()} sea lions` +
         (nextId ? ` — <b>${G.TOWERS[nextId].name}</b> joins at rank ${pr.rank + 1}, ${(pr.next - (p.xp || 0)).toLocaleString()} to go.` : '')));
 
-    // one section per class, every tower with both full upgrade paths
+    /* The rule of two, once, above the roster — it governs every card below it
+       and repeating it twenty times would be worse than saying it here. */
+    body.appendChild(el('div', 'gd-rule',
+      `<b>Three paths, choose two.</b> Every penguin has three upgrade paths, and fish may go into
+       only <b>two</b> of them — buying into a second path shuts the third for the rest of the battle.
+       One of your two may run all the way to its <b>capstone</b> (tier 3); the other stops at tier 2.
+       Tiers 1 and 2 sharpen the numbers. Every capstone changes how the penguin plays.`));
+
+    // one section per class, every tower with all three upgrade paths
     for (const clsKey of Object.keys(G.CLASSES)) {
       const cls = G.CLASSES[clsKey];
       const sec = el('div', 'gd-sec');
@@ -1508,9 +1525,11 @@
         for (const path of def.paths) {
           const col = el('div', 'gd-path');
           col.appendChild(el('div', 'gd-path-name', path.name));
-          for (const t of path.tiers) {
-            col.appendChild(el('div', 'gd-tier', `<b>${t.name}</b> <span class="gd-cost">🐟${t.cost}</span><br><span class="gd-tier-desc">${t.desc}</span>`));
-          }
+          path.tiers.forEach((t, i) => {
+            const cap = i === 2 ? '<span class="tt-capstone">capstone</span> ' : '';
+            col.appendChild(el('div', 'gd-tier' + (i === 2 ? ' cap' : ''),
+              `<b>${t.name}</b> <span class="gd-cost">🐟${t.cost.toLocaleString()}</span><br><span class="gd-tier-desc">${cap}${t.desc}</span>`));
+          });
           paths.appendChild(col);
         }
         card.appendChild(paths);
@@ -1698,6 +1717,7 @@
     }
     box.hidden = false;
     box.classList.toggle('placing', !!g.placingType);
+    box.classList.remove('compact');   // re-decided by measurement at the end
     /* Start below the vitals rather than on top of them. Lives and fish are
        exactly what you are reading while you decide whether to buy an upgrade,
        and the panel is wide enough to cover all three counters. Measured rather
@@ -1707,10 +1727,18 @@
     const below = hud && hud.offsetParent !== null ? hud.getBoundingClientRect().bottom : 0;
     const top = Math.max(8, Math.round(below) + 8);
     box.style.top = top + 'px';
+    /* How much room there actually is. A viewport that measures zero is a
+       layout that has not settled — mid-transition, entering fullscreen, a
+       phone mid-rotation — and taking it at face value clamped the panel to
+       its 120px floor and left it clipped there until something else forced a
+       re-render. With two paths that hid the sell button; with three it hides
+       most of the card. When the measurement is nonsense, don't set a ceiling
+       at all and let the panel size to its content. */
+    const vh = window.innerHeight || document.documentElement.clientHeight || 0;
     /* The ceiling has to be set with the top, not left to CSS. A panel taller
        than the space under the vitals will happily overflow UPWARDS out of its
        own box and cover them again — which is exactly what it did. */
-    box.style.maxHeight = Math.max(120, window.innerHeight - top - 8) + 'px';
+    box.style.maxHeight = vh ? Math.max(120, vh - top - 8) + 'px' : '';
 
     if (g.placingType) {
       const def = G.TOWERS[g.placingType];
@@ -1780,7 +1808,9 @@
       const all = g.vendorPayouts();
       const statsEl = head.querySelector('.ds-stats');
       if (all.length > 1) {
-        statsEl.title = vpay.rank === 1
+        statsEl.title = c.noFalloff && vpay.rank > 1
+          ? `A Krill Konglomerate refuses to be undercut. This is stall ${vpay.rank} of ${all.length}, but it still sells at full price: ${fmt(vpay.got)} every wave, whatever stands above it.`
+          : vpay.rank === 1
           ? `The richest stall sells at full price. Every further vendor earns ${Math.round((1 - G.VENDOR_FALLOFF) * 100)}% less than the one above it — a second is worth 70% of this one, a third 49%.`
           : `Vendors undercut each other. This is stall ${vpay.rank} of ${all.length}, so it earns ${Math.round(vpay.share * 100)}% of full price: ${fmt(vpay.full)} becomes ${fmt(vpay.got)} each wave.`;
       } else {
@@ -1825,17 +1855,24 @@
       return;
     }
 
-    /* Both paths in full, every tier with its description, in the panel itself.
-       The old card had room for two names and a price, so what each upgrade
-       actually DID lived in a floating card you had to hover — which a finger
-       cannot do. There is room here, so the game just says it. */
+    /* All three paths in full, every tier with its description, in the panel
+       itself. The old card had room for two names and a price, so what each
+       upgrade actually DID lived in a floating card you had to hover — which a
+       finger cannot do. There is room here, so the game just says it.
+
+       The rule of two is enforced in the engine; this only has to DRAW it. A
+       path that is shut goes dim and says why in place of its buy button,
+       rather than vanishing — seeing the road you did not take is the whole
+       point of having three of them. */
     const upgRow = el('div', 'ds-upgs');
-    for (let p = 0; p < 2; p++) {
+    const chosen = t.up.filter((v) => v > 0).length;
+    for (let p = 0; p < def.paths.length; p++) {
       const path = def.paths[p];
       const tier = t.up[p];
-      const key = p === 0 ? 'Q' : 'W';
-      const locked = tier === 2 && t.up[1 - p] >= 3;
-      const col = el('div', 'ds-path');
+      const key = ['Q', 'W', 'E'][p];
+      const state = G.pathState(t.up, p);
+      const shut = state === 'locked';
+      const col = el('div', 'ds-path' + (shut ? ' shut' : ''));
 
       /* Same markup the floating card uses, so the two never drift apart and
          there is one set of styles for a tier row in the whole game.
@@ -1846,29 +1883,45 @@
          description of. The tier you can buy next and the ones beyond it keep
          theirs, because those are the decision. */
       const rows = path.tiers.map((x, i) => {
-        const state = i < tier ? 'own' : i === tier ? 'next' : 'later';
-        const cost = `<span class="tt-cost">${fmt(G.scaleCost(x.cost, g.diffId))}</span>`;
-        return `<div class="tt-tier ${state}">
+        const st = i < tier ? 'own' : i === tier ? 'next' : 'later';
+        const cost = `<span class="tt-cost">${fmt(g.priceOf(x.cost))}</span>`;
+        const cap = i === 2 ? '<span class="tt-capstone">capstone</span> ' : '';
+        return `<div class="tt-tier ${st}">
           <span class="tt-tier-dot">${i < tier ? '●' : i === tier ? '▸' : '○'}</span>
           <span><b>${x.name}</b> ${i < tier ? '' : cost}
-          ${i < tier ? '' : `<br><span class="tt-tier-desc">${x.desc}</span>`}</span></div>`;
+          ${i < tier ? '' : `<br><span class="tt-tier-desc">${cap}${x.desc}</span>`}</span></div>`;
       }).join('');
-      col.appendChild(el('div', 'ds-path-head', `${path.name}${locked ? ' · locked' : tier >= 3 ? ' · mastered' : ''}`));
+      const tag = state === 'mastered' ? ' · mastered'
+        : state === 'locked' ? ' · locked'
+        : state === 'capped' ? ' · capped' : '';
+      col.appendChild(el('div', 'ds-path-head', `${path.name}${tag}`));
       col.appendChild(el('div', 'tt-tiers', rows));
 
       let btn;
-      if (tier >= 3) {
+      if (state === 'mastered') {
         btn = el('button', 'btn upg-buy done', '★ mastered');
         btn.disabled = true;
-      } else if (locked) {
-        btn = el('button', 'btn upg-buy done', '🔒 path locked');
+      } else if (state === 'locked') {
+        btn = el('button', 'btn upg-buy done', '🔒 two paths chosen');
+        btn.title = G.PATH_LOCK_MSG.locked;
+        btn.disabled = true;
+      } else if (state === 'capped') {
+        btn = el('button', 'btn upg-buy done', '🔒 capstone spent');
+        btn.title = G.PATH_LOCK_MSG.capped;
         btn.disabled = true;
       } else {
         const u = path.tiers[tier];
-        const uCost = G.scaleCost(u.cost, g.diffId);
+        const uCost = g.priceOf(u.cost);
         btn = el('button', 'btn upg-buy' + (g.cash < uCost ? ' poor' : ' can'),
           `<kbd>${key}</kbd> ${u.name} · <b>${fmt(uCost)}</b>`);
         btn.dataset.cost = uCost;   // updateHud re-checks this as fish come in
+        /* The one purchase a player cannot take back: buying into a second path
+           is what shuts the third. Say so BEFORE the click, on the button that
+           does it, rather than leaving them to discover it from a grey column. */
+        if (!tier && chosen === G.PATH_LIMIT - 1) {
+          btn.title = `Buying this closes the third path for the rest of the battle.`;
+          btn.classList.add('commits');
+        }
         btn.onclick = () => buyUpgrade(t, p);
       }
       col.appendChild(btn);
@@ -1886,6 +1939,15 @@
     box.appendChild(act);
 
     box.appendChild(makeSellButton(t));
+
+    /* Three paths stacked is taller than most windows: on a 1280x720 desktop
+       the third path's buy button sat 250px below the fold, and an upgrade you
+       have to scroll to find is the problem this panel was built to solve, in a
+       new place. So the panel MEASURES itself and lays the paths out side by
+       side when the stack does not fit — the same way its top and its ceiling
+       are already decided by measurement rather than by guessing a breakpoint.
+       Compact is strictly shorter, so this settles in one pass. */
+    if (box.scrollHeight > box.clientHeight) box.classList.add('compact');
   }
 
   /* Selling is destructive, refunds only 70% and has no undo, and it used to be
@@ -2090,7 +2152,7 @@
         const placed = g.placeTower(g.placingType, pos.x, pos.y);
         if (placed) {
           sfx.place();
-          const cost = G.scaleCost(G.TOWERS[g.placingType].cost, g.diffId);
+          const cost = g.priceOf(G.TOWERS[g.placingType].cost);
           if (!ev.shiftKey || g.cash < cost) g.placingType = null;
         } else {
           sfx.error();
@@ -2166,6 +2228,7 @@
         const lk = k.toLowerCase();
         if (lk === 'q') { buyUpgrade(g.selected, 0); return; }
         if (lk === 'w') { buyUpgrade(g.selected, 1); return; }
+        if (lk === 'e') { buyUpgrade(g.selected, 2); return; }
         if (lk === 't') { cycleTarget(); return; }
         if (lk === 'x') { sellSelected(); return; }
       }
