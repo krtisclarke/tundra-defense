@@ -517,6 +517,7 @@
     $('#btn-resume').onclick = closePauseMenu;
     $('#btn-pause-save').onclick = () => { doSave(false); };
     $('#btn-pause-quit').onclick = () => exitToMenu(true);
+    $('#btn-pause-restart').onclick = restartBattle;
   }
 
   function buildLevelSelect() {
@@ -766,6 +767,42 @@
     G.music.play('menu');
     buildLevelSelect();
     show('#screen-levels');
+  }
+
+  /* Start this battlefield again from wave 1, same difficulty, from the pause
+     menu. It goes through startGame rather than resetting the live Game: the
+     constructor is the only place that knows the full list of fields a battle
+     starts with, so a fresh Game cannot drift out of date the way a hand-written
+     reset would every time a field is added. (Second Chance is the opposite
+     operation — it deliberately KEEPS the board — so there is nothing to share.)
+
+     Three things have to happen around it, none of which startGame does:
+       · bank the XP first. Kills are only banked at the end of a wave, so
+         everything felled since then is unbanked, and the colony rank that
+         recruits new penguins is built from exactly those kills. The game's
+         standing rule is that a sea lion felled is never forfeited, defeat
+         included, and a restart should not be the one exception.
+       · delete the save. It is keyed on the level alone and startGame does not
+         touch it, so the abandoned run would still be sitting there offering
+         "Continue — wave 23" from the level card.
+       · drop the wake lock before taking a new one. keepAwake(true) overwrites
+         the sentinel without releasing it, which is fine today only because
+         every other route into startGame comes from the menu with no lock held.
+         A restart is the first thing to enter it from a live battle. */
+  function restartBattle() {
+    const g = UI.game;
+    if (!g) return;
+    if (!confirm('Restart this battle from wave 1? Everything built is lost, and any boosts already used are not refunded.')) return;
+    bankXp();
+    store.del(saveKey(g.levelIdx));
+    hideTooltip();
+    keepAwake(false);
+    const li = g.levelIdx, diff = g.diffId;
+    /* Unpause while the old game is still there — setPaused reaches into it and
+       into the music scheduler — and only then throw it away. */
+    closePauseMenu();
+    UI.game = null;
+    startGame(li, null, diff);
   }
 
   function doSave(silent) {
