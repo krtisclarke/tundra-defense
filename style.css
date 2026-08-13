@@ -281,8 +281,12 @@ html.touch #btn-fs { display: none; }
      It used to size itself to fit a tier description, which on a phone in
      landscape came to 51% of the screen: the card covered the battlefield it
      was describing. Descriptions moved to hover and long-press instead. */
-  width: calc(var(--sidew, 320px) - 8px);
-  max-width: 46vw;
+  /* Matched to the build tray while the tray is narrow, and capped after
+     that. The tray needs its width for three penguin tiles across; this column
+     only ever holds a name, a price and a keyboard letter, so past ~230px it
+     was just eating battlefield. */
+  width: min(calc(var(--sidew, 320px) - 8px), 230px);
+  max-width: 44vw;
 
   z-index: 45;
   background: var(--glass);
@@ -294,7 +298,7 @@ html.touch #btn-fs { display: none; }
   /* The card is the container its own contents are measured against, so the
      narrow-column trims below key on the CARD's width rather than the window's
      — the same trick the build tray already uses for its tiles. */
-  container-type: inline-size;
+  container-type: size;
   display: flex;
   flex-direction: column;
   gap: 7px;
@@ -461,7 +465,19 @@ html.touch #btn-fs { display: none; }
   white-space: normal; overflow: hidden;
 }
 /* One path row above the next, each the full width of the column. */
-.ds-upgs { display: flex; flex-direction: column; gap: 6px; flex: none; }
+/* The rows take the column's spare height between the head and the actions,
+   sharing it evenly — bigger targets on a tall window, unchanged on a short
+   one — and the bottom row is pinned to the foot by the auto margin. */
+.ds-upgs {
+  display: flex; flex-direction: column; gap: 6px;
+  flex: 1 1 auto; min-height: 0;
+  /* Spread down the column rather than bunching under the head. The three rows
+     are the reason the card exists, so on a tall window they get the height
+     instead of it collecting as a gap above the sell button. */
+  justify-content: space-between;
+}
+.ds-upgs .ds-path { flex: 0 1 auto; justify-content: center; }
+.ds-actions { margin-top: auto; }
 .btn.upg-mini {
   flex: 1;
   min-width: 0;              /* let the two buttons share a narrow card evenly */
@@ -1812,4 +1828,26 @@ html.touch .btn.upg-mini { padding-left: 8px; }
   .ds-actions .btn { font-size: 11px; padding: 7px 6px; }
   .ds-actions .sell-btn { min-height: 38px; }
   .ds-actions .ds-target { min-height: 38px; }
+}
+
+/* The tier ladder under each row: where this path goes, names only. Hidden by
+   default and shown only when the column is tall enough to spend the space —
+   the card is its own size container, so this keys on the CARD's height and
+   not the window's. */
+.dsp-tiers { display: none; }
+@container (min-height: 430px) {
+  .dsp-tiers {
+    display: flex; flex-direction: column; gap: 1px;
+    margin-top: 3px; padding-top: 3px;
+    border-top: 1px solid var(--line);
+  }
+  .dsp-tier {
+    display: flex; gap: 4px; align-items: baseline;
+    font-size: 9.5px; font-weight: 650; line-height: 1.25; color: var(--dim);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .dsp-tier i { flex: none; width: 7px; font-style: normal; text-align: center; }
+  .dsp-tier.own { color: var(--good); opacity: 0.75; }
+  .dsp-tier.next { color: var(--text); }
+  .ds-path.shut .dsp-tiers { display: none; }
 }

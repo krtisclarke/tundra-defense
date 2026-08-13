@@ -1289,6 +1289,21 @@
     const tr = tip.getBoundingClientRect();
     const left = columnLeft();
     const clampY = (y) => Math.max(8, Math.min(window.innerHeight - tr.height - 8, y));
+    /* An upgrade row lives in the selection card on the LEFT, and the rule
+       below would centre its description above the row — which put the card on
+       top of the very list you are choosing from, hiding the other two paths
+       while you read about one. Anything anchored in that column opens to its
+       RIGHT instead, out over the map, level with the row it describes. */
+    const panel = anchor.closest && anchor.closest('#selpanel');
+    if (panel) {
+      const pr = panel.getBoundingClientRect();
+      const x = pr.right + 10;
+      tip.style.left = (x + tr.width + 8 <= window.innerWidth
+        ? x
+        : Math.max(8, pr.left - tr.width - 10)) + 'px';
+      tip.style.top = clampY(r.top + r.height / 2 - tr.height / 2) + 'px';
+      return;
+    }
     if (r.left >= left - 1 && left > tr.width + 16) {
       tip.style.left = Math.max(8, left - tr.width - 10) + 'px';
       tip.style.top = clampY(r.top + r.height / 2 - tr.height / 2) + 'px';
@@ -1763,6 +1778,14 @@
     /* The ceiling has to be set with the top, not left to CSS. A panel taller
        than the space under the vitals will happily overflow UPWARDS out of its
        own box and cover them again — which is exactly what it did. */
+    /* A column, not a card that happens to be on the left: it runs from under
+       the vitals to the bottom of the battlefield, so the three paths get room
+       to breathe and the sell button sits at the foot of it rather than
+       wherever the content happened to end. Bounded by the MAP rather than the
+       window — the map is what it is allowed to cover. */
+    const cr = UI.canvas ? UI.canvas.getBoundingClientRect() : null;
+    const floorY = cr && cr.bottom > top + 160 ? cr.bottom : (vh ? vh - 8 : 0);
+    box.style.height = floorY ? Math.round(floorY - top) + 'px' : '';
     box.style.maxHeight = vh ? Math.max(120, vh - top - 8) + 'px' : '';
 
     if (g.placingType) {
@@ -1929,7 +1952,8 @@
              <span class="dsp-dots">${dots}</span>
            </span>
            <span class="dsp-next"><kbd>${key}</kbd> <span class="dsp-up">${u.name}</span>
-             <span class="dsp-cost" title="${fmt(uCost)}">${num(uCost)}</span></span>`);
+             <span class="dsp-cost" title="${fmt(uCost)}">${num(uCost)}</span></span>
+           ${ladder(path, tier)}`);
         row.dataset.cost = uCost;   // updateHud re-checks this as fish come in
         /* The one purchase that cannot be taken back: buying into a second path
            is what shuts the third. Said on the button that does it, before the
@@ -1945,7 +1969,8 @@
              <span class="dsp-name">${path.name}</span>
              <span class="dsp-dots">${dots}</span>
            </span>
-           <span class="dsp-why">${why}</span>`);
+           <span class="dsp-why">${why}</span>
+           ${ladder(path, tier)}`);
         row.title = G.PATH_LOCK_MSG[state] || '';
       }
       // the descriptions live here now: hover on a mouse, long-press on a finger
@@ -1999,6 +2024,21 @@
       sellTimer = setTimeout(disarm, 3000);
     };
     return sell;
+  }
+
+  /* Where the path GOES — the three tier names, nothing else. It is what the
+     column's spare height is for: on a tall window you can read the shape of
+     all three paths at once without opening anything, and on a short one the
+     container query hides it and the rows stay as they were. Names only. The
+     descriptions are what made this card cover half the screen, and they stay
+     in the hover card where there is room for them. */
+  function ladder(path, tier) {
+    const rows = path.tiers.map((x, i) => {
+      const mark = i < tier ? '✓' : i === tier ? '▸' : '·';
+      const st = i < tier ? 'own' : i === tier ? 'next' : 'later';
+      return `<span class="dsp-tier ${st}"><i>${mark}</i>${x.name}</span>`;
+    }).join('');
+    return `<span class="dsp-tiers">${rows}</span>`;
   }
 
   function buyUpgrade(t, p) {
@@ -2294,17 +2334,48 @@
   }
 
   /* ---------- canvas sizing (world size varies per tier) ---------- */
-  function sizeCanvas() {
-    // phones push far more pixels per CSS unit; cap harder so the big
-    // tier-3 maps don't ask a handset for a 3200x1840 backbuffer
+  /* How many real pixels the battlefield is drawn into.
+
+     This used to be the WORLD size times the device ratio — G.W * dpr — which
+     has nothing to do with how big the map is actually on screen. On a Retina
+     Mac that is a 2560x1600 backbuffer, 4.1 million pixels, redrawn every
+     frame, to fill a canvas the layout had sized to 596x373. Nine times the
+     pixels the display could show. Measured on an EMPTY map with no towers and
+     no sea lions, that alone was 9.0ms of a 16.7ms frame — before drawing a
+     single penguin — which is why the whole game had so little headroom left
+     that dragging a penguin around visibly skipped.
+
+     It is the displayed size times the device ratio now, which is the amount
+     that can actually be seen, capped at twice the world size so a 5K panel
+     cannot ask for a backbuffer nobody benefits from. Everything draws in world
+     coordinates and the transform absorbs the difference, so nothing else in
+     the renderer has to know. */
+  const MAX_OVERSAMPLE = 2;
+  function backingScale(cssW) {
     const dpr = Math.min(IS_TOUCH ? 1.5 : 2, window.devicePixelRatio || 1);
-    UI.canvas.width = G.W * dpr;
-    UI.canvas.height = G.H * dpr;
+    return Math.min(MAX_OVERSAMPLE, (cssW * dpr) / G.W);
+  }
+
+  function applyBacking(cssW) {
+    const s = backingScale(cssW);
+    const w = Math.max(320, Math.round(G.W * s)), h = Math.max(200, Math.round(G.H * s));
+    /* Setting width/height clears the canvas and resets its state, so only do
+       it when the number really changed — fitCanvas runs on every resize tick
+       and a ResizeObserver can fire a lot. */
+    if (UI.canvas.width !== w || UI.canvas.height !== h) {
+      UI.canvas.width = w;
+      UI.canvas.height = h;
+    }
+    // the transform is reset by a resize, so it is re-applied either way
+    UI.ctx.setTransform(w / G.W, 0, 0, h / G.H, 0, 0);
+  }
+
+  function sizeCanvas() {
     /* alpha:false — the terrain blit covers every pixel of this canvas on every
        frame, so the transparency was never used, and an opaque canvas can go
        straight to the compositor instead of being blended over the page. */
     UI.ctx = UI.canvas.getContext('2d', { alpha: false });
-    UI.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    applyBacking(G.W);   // a starting guess; fitCanvas sets the real one
     fitCanvas();
   }
   /* ---- in-level geometry ----
@@ -2397,6 +2468,7 @@
 
     UI.canvas.style.width = Math.round(mapW) + 'px';
     UI.canvas.style.height = Math.round(mapH) + 'px';
+    applyBacking(mapW);  // draw at the resolution it is actually displayed at
     invalidateRects();   // the column and the canvas just moved
   }
 
