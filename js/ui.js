@@ -1621,7 +1621,7 @@
       box.innerHTML = '';
       box.appendChild(el('div', 'ds-placing', IS_TOUCH
         ? `<b style="color:${color}">${def.name}</b> — drag onto the map to place.<br>
-           <span class="dim">A spot that won't take it keeps it in hand — tap to try again.</span>`
+           <span class="dim">A spot that won't take it keeps it in hand — drag again and lift.</span>`
         : `<b style="color:${color}">${def.name}</b> — click the map to place.<br>
            <span class="dim">Hold <kbd>Shift</kbd> for more · <kbd>Esc</kbd> cancel</span>`));
       return;
