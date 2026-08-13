@@ -132,7 +132,14 @@
       this.nextWaveIn = null;   // auto-start countdown (ticks only while unpaused)
       this.over = null;           // 'win' | 'lose'
       this.endless = false;       // set after victory if the player keeps going
-      this.kills = 0;             // sea lions destroyed this battle = colony XP
+      this.kills = 0;             // sea lions destroyed this battle (the ☠ count)
+      /* Colony XP is no longer the raw count: an endless kill is worth
+         G.ENDLESS_RANK_XP of a campaign one, so depth on one map cannot outrun
+         the ten-battlefield tier the rank ladder was fitted to. Kept as its own
+         running total rather than derived at bank time, because banking happens
+         mid-wave too (saving, restarting) and "which waves were those kills in"
+         is not recoverable from a total after the fact. */
+      this.rankXp = 0;
       this.xpBanked = 0;          // how much of that is already on the profile
       this.selected = null;
       this.placingType = null;
@@ -480,6 +487,7 @@
       if (e.dead) return;
       e.dead = true;
       this.kills++;                                     // leaks never reach here
+      this.rankXp += this.endless ? G.ENDLESS_RANK_XP : 1;
       if (tower) tower.kills = (tower.kills || 0) + 1;
       /* Hero XP. Every sea lion the colony fells counts, not only the ones the
          hero shot — the hero is the champion the colony fights around, and
@@ -945,7 +953,7 @@
         wave: this.wave, waveInProgress: this.waveInProgress, waveTime: this.waveTime,
         waveReward: this.waveReward || 0, autoStart: this.autoStart, time: this.time,
         frenzyUntil: this.frenzyUntil || 0, endless: this.endless,
-        kills: this.kills, xpBanked: this.xpBanked,
+        kills: this.kills, rankXp: this.rankXp, xpBanked: this.xpBanked,
         heroType: this.heroType, heroKills: this.heroKills,
         heroReadyIn: Math.max(0, this.heroReadyAt - this.time),
         towers: this.towers.map((t) => ({ type: t.type, x: t.x, y: t.y, up: [...t.up], target: t.target, invested: t.invested, kills: t.kills || 0 })),
@@ -967,6 +975,10 @@
       g.waveReward = data.waveReward; g.autoStart = !!data.autoStart; g.time = data.time || 0;
       g.frenzyUntil = data.frenzyUntil || 0; g.endless = !!data.endless;
       g.kills = data.kills || 0; g.xpBanked = data.xpBanked || 0;
+      /* Saves written before rank XP split from the kill count have no rankXp.
+         Seeding it from kills keeps them exactly where they were — their banked
+         total already equals their kill count, so nothing is re-paid or lost. */
+      g.rankXp = data.rankXp != null ? data.rankXp : (data.kills || 0);
       /* Saves written before hero XP moved to kills carry heroWaves instead.
          Convert by keeping the LEVEL the player had earned (3 waves a level,
          old cap 10) and crediting the kills that level now costs, so nobody

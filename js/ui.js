@@ -1120,9 +1120,13 @@
   function bankXp() {
     const g = UI.game;
     if (!g) return;
-    const gained = g.kills - g.xpBanked;
+    /* Floored, and xpBanked moves by the same whole number it paid out — an
+       endless kill is a quarter of an XP, so banking the raw figure would put
+       fractions on the profile and let rounding pay for kills twice. At most
+       three-quarters of one XP ever sits unbanked. */
+    const gained = Math.floor(g.rankXp) - g.xpBanked;
     if (gained <= 0) return;
-    g.xpBanked = g.kills;
+    g.xpBanked += gained;
     const p = UI.profile;
     const before = G.rankFromXp(p.xp);
     p.xp = (p.xp || 0) + gained;

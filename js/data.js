@@ -107,6 +107,34 @@
   G.MUSIC_CAP_WAVE = 75;
   G.tempoForWave = (wave) => Math.pow(1.01, Math.min(wave || 1, G.MUSIC_CAP_WAVE) - 1);
 
+  /* ---- what an endless kill is worth toward colony rank ----
+     The ladder below was fitted to CAMPAIGN play and says so: ten Frostlands
+     battlefields field ~30,900 sea lions against the 30,500 rank 16 needs. That
+     fit is exact and deliberate, and it is still the intended pace.
+
+     Endless was never in the arithmetic, and it dwarfs the thing that was.
+     Battlefield 1 fields 7,039 sea lions across a whole Hard campaign and
+     another 13,665 in the 49 endless waves after it — endless pays a flat ~279
+     a wave forever, because herd size is capped at 60 a group and deep waves get
+     their menace from health and speed instead of numbers. So one long run on
+     the FIRST map out-earns the ten-battlefield tier the ladder was built
+     around, and a real save came back at rank 12 with 80% of the roster from a
+     single sitting.
+
+     A quarter is the fix, and it goes here rather than on the ladder for two
+     reasons. Raising the ladder would break the campaign fit that is correct
+     today — and it would re-rank every profile already saved, taking penguins
+     back off players who have them. Only future earning changes.
+
+     What it lands on: that same wave-99 run pays about rank 9 instead of 12, and
+     climbing the rest of the ladder on endless alone becomes ~300 waves, so
+     depth on one map stops being the shortcut past breadth across many.
+
+     Hero levels deliberately do NOT use this. That curve was fitted WITH endless
+     in mind — the note below it works in "roughly wave 65 of an endless run" —
+     so it is already correct and is left alone. */
+  G.ENDLESS_RANK_XP = 0.25;
+
   G.MAX_RANK = 16;
   G.RANK_XP = [
     0,      // rank 1 — where everyone starts
