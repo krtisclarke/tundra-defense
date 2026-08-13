@@ -1182,6 +1182,24 @@
      above is too much mouthful, and other orcas are kin. */
   G.EDIBLE_RANK = 9;
 
+  /* ---- What counts as a leviathan ----
+     Bosses and orcas alike: too much animal to shove, freeze or chain-slow, and
+     big enough that the tools built for big things are the answer to them.
+
+     Orcas used to be neither. They sat outside `boss` — only the KILLER WHALE
+     carries that flag — so every anti-boss investment in the game did nothing
+     to a 9,000 HP Great Orca, while a pebble could knock one back down the
+     trail. That is exactly backwards: the deepest threat in the game was the
+     one your crowd control worked best on and your boss-killer worked worst on,
+     and the Harpoon Sniper's Leviathan Lance was measured doing literally
+     nothing for 0.0% of orca uptime — a 2,600-fish capstone named after them.
+
+     Deliberately NOT applied to power-ups or hero abilities: Big Freeze and
+     Cold Snap are bought with pebbles and sit on long cooldowns, so they stay
+     the panic button that works on anything. This governs what towers do on
+     their own, which is what was trivialising the fight. */
+  G.isLeviathan = (e) => !!(e && (e.boss || e.orca));
+
   /* ---------------- Levels ----------------
      paths: one or more waypoint lists (enemies are assigned a path).
      water: circles {x,y,r} and rects {x,y,w,h} — water towers go here, land towers can't.

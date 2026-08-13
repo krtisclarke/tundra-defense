@@ -134,9 +134,20 @@
           } else {
             g('orca_young', Math.min(8, 2 + Math.floor((w - 71) / 2)), 4, { hpMult: oHp });
           }
-          // chum: the herd the orcas swim through (and feed on)
-          g('bull', n(14), 0.35 * sp, { hpMult: hp, delay: 2 });
-          g('armored', n(10), 0.4 * sp, { hpMult: hp, delay: 1.5 });
+          /* Chum: the herd the orcas swim through (and feed on).
+             It carries the stealth and the regenerators as well as the muscle,
+             because the note above this branch promised it did and the code did
+             not: from wave 71 the deep game fielded nothing hidden and
+             nothing that heals, so every detection upgrade in the roster — the
+             purchase the 3-path redesign turned into a deliberate choice with
+             one owner per class — quietly stopped mattering in the deepest
+             content in the game, along with the Shadow Diver's stealth-crit.
+             The bull and armoured counts come down to pay for them: the point
+             is a wider spread of problems, not a bigger herd. */
+          g('bull', n(9), 0.35 * sp, { hpMult: hp, delay: 2 });
+          g('armored', n(8), 0.4 * sp, { hpMult: hp, delay: 1.5 });
+          g('stealth', n(7), 0.45 * sp, { hpMult: hp, delay: 2.5 });
+          g('regen', n(5), 0.5 * sp, { hpMult: hp, delay: 2 });
           if (w % 5 === 0) g('beachmaster', 2 + Math.floor(depth / 15), 3, { hpMult: bossHp, delay: 3 });
           break;
         }

@@ -556,7 +556,8 @@
       opts = opts || {};
       const c = tower ? tower.calc : {};
       let dmg = rawDmg * (tower ? tower.buff.dmg : 1);
-      if (e.boss && c.bossBonus) dmg *= c.bossBonus;
+      // boss-killers earn their price against orcas too — see G.isLeviathan
+      if (c.bossBonus && G.isLeviathan(e)) dmg *= c.bossBonus;
       // Stonebreaker: a pebble aimed at the plates rather than around them
       if (c.vsArmored && e.armor > 0) dmg *= c.vsArmored;
       if (c.resonance) dmg += c.resonance * this.debuffCount(e);
@@ -675,14 +676,14 @@
          knocking it back is a subtraction — the field has simply never been
          written to before. Bosses budge a third as far. */
       if (fx.knock && (fx.knock.p >= 1 || Math.random() < fx.knock.p)) {
-        const back = fx.knock.d * (e.boss ? 0.35 : 1) * (1 - resist);
+        const back = fx.knock.d * (G.isLeviathan(e) ? 0.35 : 1) * (1 - resist);
         if (back > 0) {
           e.dist = Math.max(0, e.dist - back);
           this.effects.push({ kind: 'knock', e, life: 0.25, max: 0.25 });
         }
       }
       // Leviathan Lance: bosses only. Stacks refresh the bleed, they don't multiply it.
-      if (fx.bleed && e.boss) {
+      if (fx.bleed && G.isLeviathan(e)) {
         e.bleedPct = Math.max(e.bleedPct || 0, fx.bleed.pct);
         e.bleedUntil = Math.max(e.bleedUntil || 0, this.time + fx.bleed.d);
       }
@@ -690,7 +691,7 @@
 
     stunEnemy(e, secs, resist) {
       const boost = (e.frostMulUntil || 0) > this.time ? e.frostMul : 1;
-      e.stunUntil = Math.max(e.stunUntil, this.time + secs * boost * (e.boss ? 0.25 : 1) * (1 - (resist || 0)));
+      e.stunUntil = Math.max(e.stunUntil, this.time + secs * boost * (G.isLeviathan(e) ? 0.25 : 1) * (1 - (resist || 0)));
     }
 
     /* ----- ground zones -----
