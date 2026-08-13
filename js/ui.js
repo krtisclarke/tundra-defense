@@ -179,8 +179,24 @@
       else if (!on && wakeLock) { wakeLock.release(); wakeLock = null; }
     } catch (e) { /* not granted — harmless */ }
   }
+  /* Leaving the game should cost nothing. Before this, backgrounding the app
+     left the frame loop and a 15Hz catch-up timer both alive: the browser
+     throttles them, but every surviving tick still ran a full simulation step
+     AND painted a canvas nobody could see, so a wave went on advancing in your
+     pocket at about quarter speed — you could come back to lost lives. It also
+     went on holding the screen awake.
+
+     So: hidden pauses the battle and drops the wake lock. It stays paused when
+     you come back, rather than resuming under your thumb. */
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && UI.game) keepAwake(true);
+    const g = UI.game;
+    if (document.visibilityState === 'visible') {
+      if (g && !g.paused && !g.over) keepAwake(true);
+      startLoop();
+    } else {
+      keepAwake(false);
+      if (g && !g.over && !g.paused) setPaused(true);
+    }
   });
 
   /* iPhones mute WebAudio when the ring/silent switch is on silent, because a
@@ -744,6 +760,7 @@
     updateHud();
     fitPanels();   // the panels have their content now; scale to what it needs
     keepAwake(true);
+    startLoop();
     banner(save ? `Welcome back — Wave ${game.wave}` : `${game.level.name} — ${G.DIFFICULTIES[game.diffId].name}`);
     G.music.play(G.music.trackForLevel(levelIdx));
     G.music.setTempoScale(G.tempoForWave(game.wave));
@@ -909,6 +926,7 @@
         ` Reward: +${D.pebbles} 🪨 pebbles — you now have ${p.pebbles.toLocaleString()}. ` +
         `${g.kills.toLocaleString()} sea lions destroyed — ${rankChipText()}.` + opened;
       show('#screen-end');
+      keepAwake(false);   // the battle is over; stop holding the screen on
     } else if (kind === 'defeat') {
       G.music.stop();
       bankXp();          // a lost battle still earned every sea lion it felled
@@ -944,6 +962,7 @@
           (afford ? ' The colony can rally, for a price…' : ' Regroup and try again!');
       }
       show('#screen-end');
+      keepAwake(false);   // the battle is over; stop holding the screen on
     }
   }
 
@@ -1356,6 +1375,7 @@
     $('#auto-start').checked = false;
     show(null);
     sfx.upgrade();
+    keepAwake(true); startLoop();   // the end screen released both
     G.music.play(G.music.trackForLevel(g.levelIdx));
     G.music.setTempoScale(G.tempoForWave(g.wave));
     banner(`Second chance — Wave ${g.wave}`);
@@ -1612,6 +1632,7 @@
     $('#auto-start').checked = false;
     show(null);
     sfx.wave();
+    keepAwake(true); startLoop();   // the end screen released both
     G.music.play(G.music.trackForLevel(g.levelIdx));
     G.music.setTempoScale(G.tempoForWave(g.wave));
     banner(`🌊 The Endless Tide — Wave ${g.wave}`);
@@ -1930,6 +1951,8 @@
     g.paused = !!paused;
     G.music.setPaused(g.paused);
     updateHud();
+    // unpausing is one of the two things that can wake a stopped frame loop
+    if (!g.paused) startLoop();
   }
   function togglePause() {
     const g = UI.game;
@@ -2186,7 +2209,10 @@
     const dpr = Math.min(IS_TOUCH ? 1.5 : 2, window.devicePixelRatio || 1);
     UI.canvas.width = G.W * dpr;
     UI.canvas.height = G.H * dpr;
-    UI.ctx = UI.canvas.getContext('2d');
+    /* alpha:false — the terrain blit covers every pixel of this canvas on every
+       frame, so the transparency was never used, and an opaque canvas can go
+       straight to the compositor instead of being blended over the page. */
+    UI.ctx = UI.canvas.getContext('2d', { alpha: false });
     UI.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     fitCanvas();
   }
@@ -2283,6 +2309,21 @@
     const g = UI.game;
     if (!g) return;
 
+    /* Paused or finished: draw the state once so the banner and the final board
+       land, then stop. The simulation already bails on both, but the renderer
+       did not — it rebuilt the whole scene sixty times a second for a picture
+       that could not change, and because the render clock keeps advancing the
+       frames really were different, so the browser could not skip a single one.
+       A paused game cost exactly as much as a live one. */
+    if (g.paused || g.over) {
+      if (UI.idleDrawn) return;
+      UI.idleDrawn = true;
+      G.render(UI.ctx, g, dt);
+      updateHud();
+      return;
+    }
+    UI.idleDrawn = false;
+
     const popsBefore = g.enemies.length;
     g.update(dt);
     if (g.enemies.length < popsBefore && now > UI.popSoundGate) {
@@ -2304,8 +2345,41 @@
     }
   }
 
-  function loop(now) {
+  /* Never draw faster than this, whatever the screen offers. requestAnimationFrame
+     fires at the display's refresh rate, so nobody ever chose 60 — a 120Hz phone
+     was simply doing twice the work per second for a picture that looks the same,
+     because the simulation is driven by elapsed time rather than by counting
+     frames. There is no way for the player or the device to opt out of that. */
+  const FRAME_MS = 1000 / 60;
+
+  function startLoop() {
+    if (UI.rafId != null) return;
+    UI.lastTime = performance.now();
     UI.rafId = requestAnimationFrame(loop);
+  }
+
+  /* The loop stops rather than idling. It used to re-arm unconditionally on its
+     first line, so it ran at full refresh through every menu, shop and level
+     select for the whole session, doing a call and an early return — cheap in
+     JS, but it keeps the browser's rendering pipeline armed the entire time.
+     Anything that gives us a game to run starts it again. */
+  function loop(now) {
+    const g = UI.game;
+    if (!g) { UI.rafId = null; return; }
+    /* Stop once there is nothing left that can change on screen. A finished
+       battle is the state a phone is most likely to be left sitting in —
+       someone wins and puts it down — and it used to redraw the whole
+       battlefield forever at full refresh.
+
+       Deliberately keyed on the GAME being paused rather than on the page being
+       hidden. Hiding pauses the battle, so the battery saving is the same, but a
+       webview that misreports its visibility can then only ever cost a paused
+       game the player can see and resume — not a loop that refuses to restart. */
+    if ((g.paused || g.over) && UI.idleDrawn) { UI.rafId = null; return; }
+    UI.rafId = requestAnimationFrame(loop);
+    // 1ms of slack: frame times jitter, and an exact compare drops every other
+    // frame on a 60Hz screen instead of none.
+    if (now - UI.lastTime < FRAME_MS - 1) return;
     const dt = Math.min(0.1, (now - UI.lastTime) / 1000) || 0.016;
     UI.lastTime = now;
     step(dt, now);
@@ -2336,8 +2410,8 @@
     document.addEventListener('webkitfullscreenchange', updateFsButton);
     updateFsButton();
     show('#screen-menu');
-    UI.lastTime = performance.now();
-    loop(UI.lastTime);
+    /* Not started here any more: with no game there is nothing to run, and the
+       loop now stops instead of spinning through the menus. startGame kicks it. */
 
     // browsers unlock audio on the first gesture — start the menu tune then
     const kickAudio = () => {
@@ -2350,9 +2424,18 @@
     window.addEventListener('pointerdown', kickAudio);
     window.addEventListener('keydown', kickAudio);
 
-    // Backstop: keep the simulation running even if the browser starves
-    // requestAnimationFrame (embedded webviews, minimized panes, etc).
+    /* Backstop: keep the simulation running even if the browser starves
+       requestAnimationFrame (embedded webviews, minimized panes, etc).
+
+       It must not run while the page is hidden. There, rAF stops refreshing
+       lastTime, so the 120ms condition becomes permanently true and every
+       surviving tick simulated AND painted a canvas nobody could see — which is
+       precisely the case the backstop is not for. Nor while there is no game:
+       it woke the JS thread fifteen times a second from boot, on every screen,
+       for the whole session. */
     setInterval(() => {
+      const g = UI.game;
+      if (!g || g.paused || g.over) return;
       const now = performance.now();
       if (now - UI.lastTime > 120) {
         const dt = Math.min(0.25, (now - UI.lastTime) / 1000);
