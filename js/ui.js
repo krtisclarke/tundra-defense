@@ -292,9 +292,76 @@
     return x >= r.left - pad && x <= r.right + pad && y >= r.top - pad && y <= r.bottom + pad;
   }
 
+  /* Is this point back inside the dock column? Dragging a penguin out and then
+     back into the tray means "never mind", the same as dropping it on cancel —
+     there is nowhere in the column it could sensibly be placed. */
+  function overTray(x) { return x >= columnLeft() - 4; }
+
+  /* Would a drag in this direction reach the battlefield?
+
+     This is the rule, stated exactly: cast a ray from where the finger started,
+     along the direction it is moving, and ask whether it enters the map. If it
+     does, the player is pulling a penguin out. If it does not — straight down
+     the tray, up the tray, off to the right — it is a scroll.
+
+     It answers the question properly rather than with an angle threshold,
+     because the angle that "leads to the map" is not a constant: it depends on
+     where in the tray the finger started. From a tile at the top of the column
+     the map lies left and DOWN as well as left; from one at the bottom it lies
+     left and up. A fixed cone would have to be wrong at one end to be right at
+     the other. Standard slab test against the canvas rectangle. */
+  function rayReachesMap(ox, oy, dx, dy) {
+    const r = rects().canvas;
+    if (!r || !r.width) return dx < 0;      // no map measured yet: leftward wins
+    let tmin = 0, tmax = Infinity;
+    const slab = (o, d, lo, hi) => {
+      if (Math.abs(d) < 1e-6) return o >= lo && o <= hi;
+      let t1 = (lo - o) / d, t2 = (hi - o) / d;
+      if (t1 > t2) { const t = t1; t1 = t2; t2 = t; }
+      tmin = Math.max(tmin, t1);
+      tmax = Math.min(tmax, t2);
+      return tmin <= tmax;
+    };
+    if (!slab(ox, dx, r.left, r.right)) return false;
+    if (!slab(oy, dy, r.top, r.bottom)) return false;
+    return tmax >= 0;
+  }
+
+  /* The tray scrolls itself now. Its tiles are touch-action: none, because a
+     browser that owns the vertical axis decides the gesture BEFORE we can: it
+     commits to a pan after about 8px of movement, and on a diagonal pull the
+     vertical component reaches 8px before the horizontal one reaches any
+     threshold worth trusting. It would start scrolling, fire pointercancel, and
+     the drag was gone — which is why a diagonal drag out kept failing however
+     the angle rule was tuned. Owning the axis is the only way to be sure the
+     decision is ours.
+
+     What that costs is native momentum, so it is put back here: a flick keeps
+     its velocity and decays, which is the only part of native scrolling a
+     player would miss on a seven-row tray. */
+  let trayGlide = null;
+  function stopTrayGlide() { if (trayGlide) { cancelAnimationFrame(trayGlide); trayGlide = null; } }
+  function glideTray(vy) {
+    stopTrayGlide();
+    const pal = $('#palette');
+    if (!pal || Math.abs(vy) < 0.05) return;
+    let v = Math.max(-4, Math.min(4, vy));   // px per ms
+    let last = performance.now();
+    const step = (now) => {
+      const dt = Math.min(32, now - last); last = now;
+      pal.scrollTop -= v * dt;
+      v *= Math.pow(0.9975, dt);             // ~decay to nothing in half a second
+      if (Math.abs(v) > 0.02) trayGlide = requestAnimationFrame(step);
+      else trayGlide = null;
+    };
+    trayGlide = requestAnimationFrame(step);
+  }
+
   function attachTrayDrag(slot, id) {
     let timer = null, showing = false, carrying = false, swallow = false;
     let sx = 0, sy = 0, settled = false;
+    let mode = null;                 // null | 'carry' | 'scroll' — decided once, on the first real movement
+    let lastY = 0, lastT = 0, vy = 0;
     const clear = () => { if (timer) { clearTimeout(timer); timer = null; } };
 
     slot.addEventListener('pointerdown', (ev) => {
@@ -305,6 +372,9 @@
          user-select/touch-callout on .slot and html/body */
       showing = false; carrying = false; swallow = false; settled = false;
       sx = ev.clientX; sy = ev.clientY;
+      lastY = ev.clientY; lastT = ev.timeStamp || performance.now(); vy = 0;
+      mode = null;
+      stopTrayGlide();          // a new touch stops a flick that is still gliding
       clear();
       timer = setTimeout(() => {
         timer = null;
@@ -341,47 +411,56 @@
       return true;
     }
 
-    /* Which gesture is this? The tray scrolls vertically (touch-action: pan-y),
-       so the browser is entitled to claim anything with a vertical component —
-       and it did: dragging a penguin out on a diagonal became a tray scroll and
-       the drag was eaten by the pointercancel that follows.
-
-       So intent is decided from the first real movement instead of waiting for
-       the finger to cross the edge of the column: leftward and more sideways
-       than up-and-down is a penguin coming out, anything else is a scroll. The
-       tray is on the right and the map on the left, so "leftward" is the whole
-       signal. 0.7 leans the tie toward carrying, because a diagonal drag out is
-       the thing that was broken. */
-    function wantsCarry(x, y) {
-      const dx = x - sx, dy = y - sy;
-      return dx < -10 && Math.abs(dx) >= Math.abs(dy) * 0.7;
-    }
-
     slot.addEventListener('pointermove', (ev) => {
       if (ev.pointerType === 'mouse') return;
       const g = UI.game;
       if (!g || g.over) return;
-      // a straight pull left past the column edge still counts, as it always did
-      if (!carrying && !settled && (wantsCarry(ev.clientX, ev.clientY) || ev.clientX < columnLeft() - 4)) {
-        beginCarry();
-      }
       if (carrying) {
         g.mouse = canvasPos(ev);
-        // light the cancel button up while the finger is over it, so the drop reads
-        $('#btn-cancel-place').classList.toggle('hot', overCancelBtn(ev.clientX, ev.clientY));
+        /* Both ways out light up as the finger passes over them, so it is clear
+           before letting go that this drop puts the penguin back rather than
+           placing it: the cancel button, and the tray it came from. */
+        const back = overCancelBtn(ev.clientX, ev.clientY);
+        const home = overTray(ev.clientX);
+        $('#btn-cancel-place').classList.toggle('hot', back || home);
+        $('#palette').classList.toggle('returning', home);
       }
     });
 
-    /* Once the gesture is ours — a description card is up, a penguin is being
-       carried, or the first movement said "penguin" — stop the tray scroller
-       from claiming the touch. Quick vertical strokes still scroll natively. */
+    /* Every touch that starts on a tile is ours, and this is where it is spent:
+       the first real movement picks carry or scroll, and after that the choice
+       does not change for the rest of the gesture. Six pixels is enough to have
+       a direction and small enough that nothing has visibly happened yet. */
     slot.addEventListener('touchmove', (ev) => {
-      if (showing || carrying) { ev.preventDefault(); return; }
       const t = ev.touches && ev.touches[0];
-      if (!t || settled) return;
-      /* Decided here as well as in pointermove, because preventDefault has to
-         happen inside the touch event itself to keep the scroller off it. */
-      if (wantsCarry(t.clientX, t.clientY) && beginCarry()) ev.preventDefault();
+      if (!t) return;
+      ev.preventDefault();          // the tiles are touch-action:none; we drive both axes
+      const now = ev.timeStamp || performance.now();
+
+      if (mode === null && !settled) {
+        const dx = t.clientX - sx, dy = t.clientY - sy;
+        if (Math.hypot(dx, dy) < 6) return;
+        if (rayReachesMap(sx, sy, dx, dy)) {
+          mode = beginCarry() ? 'carry' : 'scroll';
+        } else {
+          mode = 'scroll';
+          clear();
+          if (showing) { hideTooltip(); showing = false; }
+        }
+      }
+
+      if (mode === 'scroll') {
+        const pal = $('#palette');
+        const dy = t.clientY - lastY;
+        if (pal) pal.scrollTop -= dy;
+        const dt = Math.max(1, now - lastT);
+        vy = 0.8 * (dy / dt) + 0.2 * vy;    // smoothed, for the flick
+        swallow = true;                      // a scrolled tile must not also arm
+      } else if (mode === 'carry') {
+        const g = UI.game;
+        if (g) g.mouse = canvasPos({ clientX: t.clientX, clientY: t.clientY });
+      }
+      lastY = t.clientY; lastT = now;
     }, { passive: false });
 
     const done = (ev) => {
@@ -389,13 +468,20 @@
       clear();
       const g = UI.game;
       $('#btn-cancel-place').classList.remove('hot');
-      if (carrying && g && g.placingType === id && overCancelBtn(ev.clientX, ev.clientY)) {
-        // dropped on cancel: put it back, spend nothing
+      $('#palette').classList.remove('returning');
+      if (mode === 'scroll') { glideTray(vy); mode = null; carrying = false; return; }
+      /* Two ways to change your mind, and they are the two places a player
+         would try: the cancel button, and the tray the penguin came out of.
+         Neither spends a fish. Dropping it back where you got it is the more
+         natural of the two — there is nothing in the column it could be placed
+         on anyway, so a drop there could only ever have meant "never mind". */
+      if (carrying && g && g.placingType === id
+          && (overCancelBtn(ev.clientX, ev.clientY) || overTray(ev.clientX))) {
         g.placingType = null;
         g.mouse = { x: -999, y: -999 };
         sfx.sell(); buzz(12);
         syncCancelBtn(); renderDockSel(); updateHud();
-        carrying = false;
+        carrying = false; mode = null;
         return;
       }
       if (carrying && g && g.placingType === id) {
@@ -419,13 +505,15 @@
       } else if (showing) {
         armTooltipDismiss();
       }
-      carrying = false;
+      carrying = false; mode = null;
     };
     slot.addEventListener('pointerup', done);
     slot.addEventListener('pointercancel', () => {   // tray scroll took the gesture
       clear();
       if (showing) { hideTooltip(); showing = false; }
       $('#btn-cancel-place').classList.remove('hot');
+      $('#palette').classList.remove('returning');
+      mode = null;
       if (carrying) {
         const g = UI.game;
         if (g && g.placingType === id) { g.placingType = null; g.mouse = { x: -999, y: -999 }; syncCancelBtn(); renderDockSel(); updateHud(); }

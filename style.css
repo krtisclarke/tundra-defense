@@ -608,15 +608,15 @@ html.touch #btn-fs { display: none; }
   -webkit-user-select: none;
   user-select: none;
   -webkit-touch-callout: none;
-  /* pan-y, not none: a vertical stroke belongs to the browser so the tray can
-     be scrolled with a finger on a tile, and only the gaps between tiles used
-     to scroll. The horizontal axis stays ours, which is the whole drag-out
-     gesture (it fires when the finger crosses the column's left edge), and the
-     machinery for the browser winning a stroke is already here — the
-     pointercancel handler drops a stolen carry, and touchmove reclaims the
-     gesture once the description card is up. This line was deleted along with
-     the second layout in 27ad637; the JS comments never stopped describing it. */
-  touch-action: pan-y;
+  /* none, not pan-y. Handing the vertical axis to the browser meant the BROWSER
+     decided what the gesture was, and it decides early — a pan starts after
+     about 8px, which on a diagonal pull is reached by the vertical component
+     before the horizontal one has said anything trustworthy. It would begin
+     scrolling and fire pointercancel, and the drag-out was gone. No angle rule
+     can win an argument that is over before it starts.
+     So the tile owns both axes and the tray is scrolled by hand in
+     attachTrayDrag, momentum included. */
+  touch-action: none;
   transition: transform 0.1s ease, box-shadow 0.15s ease, filter 0.15s;
 }
 /* 34px, not the bitmap's own 38. Two rows of icon + price have to clear the
@@ -1897,4 +1897,13 @@ html.touch .btn.upg-mini { padding-left: 8px; }
   .dsp-tier.own { color: var(--good); opacity: 0.75; }
   .dsp-tier.next { color: var(--text); }
   .ds-path.shut .dsp-tiers { display: none; }
+}
+
+/* While a carried penguin is over the tray it came from: letting go here puts
+   it back. Driven from the drag handler, which is the only thing that can see
+   the pointer during a drag. */
+#palette.returning {
+  outline: 2px solid rgba(229, 109, 119, 0.75);
+  outline-offset: -2px;
+  background-image: linear-gradient(180deg, rgba(229, 109, 119, 0.14), rgba(229, 109, 119, 0.05));
 }
