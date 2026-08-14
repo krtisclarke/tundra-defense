@@ -82,11 +82,15 @@ html.touch #btn-cancel-place.show { display: block; }
 #place-hint {
   display: none;
   position: absolute;
-  left: 50%;
+  /* Centred by auto margins across the FULL width, not by left:50% and a
+     translate. With the text allowed to wrap, left:50% caps the space it can
+     use at half the map — which folded a one-line hint onto three. */
+  left: 0; right: 0;
+  margin: 0 auto;
+  width: fit-content;
   bottom: 12px;
-  transform: translateX(-50%);
   z-index: 6;
-  max-width: min(560px, 84%);
+  max-width: min(640px, 92%);
   padding: 7px 14px;
   border-radius: 999px;
   background: rgba(12, 20, 33, 0.86);
@@ -96,7 +100,11 @@ html.touch #btn-cancel-place.show { display: block; }
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
   color: var(--dim);
   font-size: 13px; font-weight: 650; line-height: 1.35;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  /* Wraps rather than ellipses. Truncating a hint drops the end of it, and the
+     end of this one is how to cancel — the single most important word in it. On
+     a narrow map it takes a second line instead. */
+  white-space: normal;
+  text-align: center;
   pointer-events: none;   /* never in the way of the click it is describing */
 }
 #place-hint.show { display: block; }

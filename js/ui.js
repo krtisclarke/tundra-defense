@@ -234,7 +234,7 @@
     setHTML(hint, IS_TOUCH
       ? `<b style="color:${color}">${def.name}</b> — drag onto the map`
       : `<b style="color:${color}">${def.name}</b> — click to place
-         · <kbd>shift</kbd> place several · <kbd>esc</kbd> cancel`);
+         · hold <kbd>shift</kbd> to place several · <kbd>esc</kbd> cancel`);
   }
 
   /* Tray slots, touch: hold shows the penguin's description card; drag out of
