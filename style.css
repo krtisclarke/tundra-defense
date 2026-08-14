@@ -449,6 +449,7 @@ html.touch #btn-fs { display: none; }
      The sum is "the leftmost place on the map that can be read", which on the
      two smaller battlefields is simply the map's edge. */
   left: calc(var(--map-l, 0px) + var(--map-inset-l, 0px) + 12px);
+  right: auto;
   /* top and max-height are set from JS when the panel opens, so it starts below
      the vitals and never grows past the bottom of the window. Both have to come
      from the same measurement — a max-height left to CSS lets a tall panel
@@ -477,11 +478,29 @@ html.touch #btn-fs { display: none; }
      covered. */
 
   z-index: 45;
-  background: var(--glass);
+  /* You can see the battlefield through this. It is a full-height column over
+     the map and it opens on the penguin you are thinking about, so an opaque
+     one hides the very thing being decided about — where the sea lions are and
+     how far the trail runs.
+
+     Two numbers, and they pull against each other. The fill is what keeps the
+     text readable; the blur is what stops the map underneath competing with it
+     for the eye. Snow is the hard case, not the dark maps: a bright ground
+     under a translucent dark panel lifts it toward grey, and grey is where
+     white-on-dark stops being white-on-dark.
+
+     0.80 lets a fifth of the battlefield through and, measured against the
+     brightest terrain in the game and through the rows' own 3.5% wash, holds
+     every colour on the card above the 4.5:1 that counts as legible — body
+     text 8.8, dim labels and the green path edge 5.1, prices 7.0, the sell
+     button's red 4.8. 0.76 drops the labels and the green edge to 4.4, which
+     is the line. This is as thin as it goes. */
+  background: rgba(11, 19, 32, 0.80);
   border: 1px solid var(--line-strong);
   border-radius: 14px;
   box-shadow: var(--shadow);
-  backdrop-filter: blur(7px);
+  backdrop-filter: blur(16px) saturate(0.9);
+  -webkit-backdrop-filter: blur(16px) saturate(0.9);
   padding: 9px 9px;
   /* The card is the container its own contents are measured against, so the
      narrow-column trims below key on the CARD's width rather than the window's
@@ -496,6 +515,16 @@ html.touch #btn-fs { display: none; }
   font-size: 13px;
 }
 /* [hidden] must beat display:flex, or the panel is never actually closed */
+/* The far side of the map, hard against the build tray. The card opens on the
+   left because the left is where there is room for it — but a penguin standing
+   on the left is a penguin the card then covers, and the one thing you cannot
+   do while deciding whether to upgrade a penguin is look at it. So when the
+   card would land on top of the penguin it describes, it opens over on the
+   right instead. placeSelPanel in ui.js picks the side by measuring both. */
+#selpanel.on-right {
+  left: auto;
+  right: calc(var(--map-r, 0px) + 12px);
+}
 #selpanel[hidden] { display: none; }
 #selpanel::-webkit-scrollbar { width: 5px; }
 #selpanel::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.16); border-radius: 3px; }
@@ -1832,13 +1861,16 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
        An auto row cannot do it: the tile's height comes from its width, so the
        row and the tile end up defining each other and the row collapses to
        12px, which is what had them overlapping. */
-    grid-auto-rows: calc((var(--sidew, 400px) - 38px - var(--dock-inset-r, 0px)) / 3.75);
+    grid-auto-rows: calc((var(--sidew, 400px) - 38px) / 3.75);
     align-content: start;
-    /* Same margin as the panel group beneath it, for the same reason: the block
-       reaches the screen's edge, so anything sticking into that edge has to be
-       kept off the tiles. Both the margin and the row height above carry it, or
-       the tiles stop being square. */
-    margin: 0 var(--dock-inset-r, 0px) 4px 8px;
+    /* No cutout allowance. The tray briefly stepped in from the right edge to
+       stay clear of a Dynamic Island held that way round, and it cost 49px of a
+       170px column on the widest battlefield — three tiles across, so the tiles
+       and their prices visibly shrank. The island is assumed to be on the LEFT
+       (see fitCanvas): a player who turns the phone the other way and finds the
+       pill over the end of this column will turn it back, and that is a cheaper
+       thing to ask than smaller tiles for everyone forever. */
+    margin: 0 0 4px 8px;
     padding: 8px;
     background: linear-gradient(180deg, rgba(18, 28, 45, 0.97), rgba(11, 18, 30, 0.99));
     border: 1px solid var(--line-strong);
@@ -1939,12 +1971,14 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
   #panel-fit {
     grid-column: 3; grid-row: 3;
     min-width: 0; min-height: 0;
-    /* The right and bottom margins are whatever a cutout still reaches into
-       this corner of the block — the home indicator under the wave controls,
-       an island beside the boosts. Zero on nearly every screen. fitPanels
-       subtracts the same two numbers before it works out the group's scale, so
-       the group shrinks to fit the margin rather than being clipped by it. */
-    margin: 4px var(--dock-inset-r, 0px) var(--map-inset-b, 0px) 8px;
+    /* The bottom margin only, and it is the home indicator rather than the
+       island: the block runs to the foot of the screen, so without this the
+       wave controls sit in the strip iOS watches for a swipe up and Send Wave
+       occasionally sends you to the app switcher. Nothing is taken off the
+       right — see #palette. fitPanels subtracts the same number before working
+       out the group's scale, so the group shrinks to fit the margin rather than
+       being clipped by it. */
+    margin: 4px 0 var(--map-inset-b, 0px) 8px;
     display: grid;
     /* start, not centre: the group is scaled from its top-left corner and sized
        to fill this box exactly, so centring the unscaled box first threw it

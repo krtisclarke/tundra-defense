@@ -2394,10 +2394,49 @@
     act.appendChild(makeSellButton(t));
     box.appendChild(act);
 
-    /* Last, once the panel is in the document and the rows have real positions:
-       the card is placed relative to the row it describes, and a row that has
-       not been laid out yet reports a zero rectangle. */
+    /* Both of these need the panel to be in the document with its real size:
+       the side it opens on is chosen by measuring it, and the ⓘ card is placed
+       relative to the row it describes, which reports a zero rectangle until it
+       has been laid out. */
+    placeSelPanel(box, t);
     if (reopenInfo) reopenInfo();
+  }
+
+  /* Which side of the map the card opens on.
+
+     The left, normally — that is the side with room, and it is where the
+     matching column on the right has always been mirrored from. But the card is
+     a full-height column and the penguin you just tapped might be standing
+     underneath it, and the one thing you cannot do while deciding whether to
+     spend fish on a penguin is look at it. So if the card lands on top of it,
+     the card moves to the far side of the map instead, hard against the build
+     tray.
+
+     Decided by measuring rather than by arithmetic: the card's width comes from
+     a clamp against the column width and the viewport, and the map's scale
+     changes per battlefield, so anything computed here would be a second
+     opinion that could disagree with the first. Both reads happen before the
+     browser paints, so nothing flickers.
+
+     If BOTH sides would cover it — a narrow window where the card is most of
+     the map — it stays on the left. Moving it would trade one cover for
+     another and cost the player the side they are used to. */
+  function placeSelPanel(box, t) {
+    const cr = UI.canvas ? UI.canvas.getBoundingClientRect() : null;
+    if (!cr || !cr.width) return;
+    const scale = cr.width / G.W;
+    const px = cr.left + t.x * scale;
+    /* The penguin's own footprint, plus the ring drawn around a selected one,
+       so the card clears the whole thing and not just its centre point. */
+    const half = Math.max(18, (G.TOWER_R + 14) * scale);
+    const covers = () => {
+      const r = box.getBoundingClientRect();
+      return px + half > r.left && px - half < r.right;
+    };
+    box.classList.remove('on-right');
+    if (!covers()) return;
+    box.classList.add('on-right');
+    if (covers()) box.classList.remove('on-right');
   }
 
   /* Selling is destructive, refunds only 70% and has no undo, and it used to be
@@ -2852,16 +2891,14 @@
     const side = parseFloat(root.style.getPropertyValue('--sidew'));
     const half = parseFloat(root.style.getPropertyValue('--panelsh'));
     if (!side || !half) return;
-    /* The block runs to the edges of the screen now, so a cutout can end up
-       over the panels' own corner of it: the home indicator under the wave
-       controls, the island beside the boosts. #panel-fit keeps clear with a
-       margin — and the group has to be scaled to what is LEFT after that
-       margin, not to the whole cell, or #panel-fit's overflow:hidden simply
-       clips off the bottom of the group it was given. Zero on a screen with
-       nothing sticking into it. */
-    const inR = parseFloat(root.style.getPropertyValue('--dock-inset-r')) || 0;
+    /* The block runs to the foot of the screen now, so the wave controls would
+       otherwise sit in the strip iOS watches for a swipe up. #panel-fit keeps
+       clear with a bottom margin — and the group has to be scaled to what is
+       LEFT after that margin, not to the whole cell, or #panel-fit's
+       overflow:hidden simply clips off the bottom of the group it was given.
+       Zero on a screen with nothing sticking into it. */
     const inB = parseFloat(root.style.getPropertyValue('--map-inset-b')) || 0;
-    const cellW = side - 8 - inR, cellH = half - 4 - inB;   /* the cell, less its margins */
+    const cellW = side - 8, cellH = half - 4 - inB;   /* the cell, less its margins */
     const scale = cellW / PANEL_W;
     root.style.setProperty('--pscale', scale.toFixed(4));
     root.style.setProperty('--panelh', Math.round(cellH / scale) + 'px');
@@ -2932,8 +2969,19 @@
     /* Where the block sits. The four gutters are the grid's outer tracks (see
        #app in style.css), spent on the cutouts first and shared evenly after
        that — so a desktop window is centred exactly as it always was, and a
-       phone gets the block pushed off the island. */
-    const [gutL, gutR] = spendMargin(vw - blockW, sa.left, sa.right);
+       phone gets the block pushed off the island.
+
+       The RIGHT inset is deliberately ignored. iOS reports a landscape cutout
+       on both edges at once — 62px each on an iPhone 17 Pro — because it will
+       not say which way round the phone is being held. Honouring both cost 124
+       of the 26 spare pixels the widest battlefield has, and the shortfall came
+       out of the build tray: 49px off a 170px column, three tiles across, so
+       the tiles and their prices visibly shrank for everyone.
+       So the island is assumed to be on the LEFT, which is where it lands for
+       the way most people turn a phone. Held the other way it sits over the far
+       end of the tray, and a player will turn the phone back — a cheaper thing
+       to ask once than smaller tiles forever. */
+    const [gutL, gutR] = spendMargin(vw - blockW, sa.left, 0);
     const [gutT, gutB] = spendMargin(vh - mapH, sa.top, sa.bottom);
     root.style.setProperty('--gut-l', Math.round(gutL) + 'px');
     root.style.setProperty('--gut-r', Math.round(gutR) + 'px');
@@ -2952,13 +3000,15 @@
     root.style.setProperty('--map-inset-l', px(sa.left - gutL));
     root.style.setProperty('--map-inset-t', px(sa.top - gutT));
     root.style.setProperty('--map-inset-b', px(sa.bottom - gutB));
-    root.style.setProperty('--dock-inset-r', px(sa.right - gutR));
-    /* The map's own left edge, for the one card that floats over the map while
+    /* Both edges of the map, for the one card that floats over the map while
        being position:fixed and therefore measured against the window rather
        than against the map. Everything else that floats over the battlefield is
-       absolute inside #stage, which IS the map's box, and needs only the inset
-       above. */
+       absolute inside #stage, which IS the map's box, and needs only the insets
+       above. --map-r is measured from the window's RIGHT edge, so the card can
+       be pinned to the far side of the map with a plain `right:` and never
+       has to know how wide it is. */
     root.style.setProperty('--map-l', Math.round(gutL) + 'px');
+    root.style.setProperty('--map-r', Math.round(vw - gutL - mapW) + 'px');
     /* The vitals and the system buttons sit on the map rather than in the
        column, so they scale with the map rather than with the panels. Floored
        so they stay legible and tappable on a small block, capped so they do not
@@ -3081,6 +3131,14 @@
     window.addEventListener('resize', fitCanvas);
     setTimeout(fitCanvas, 0);
     new ResizeObserver(fitCanvas).observe($('#stage'));
+    /* Two more ways the room can change without a resize event, both of them
+       phone-only. visualViewport is what actually moves when Safari's furniture
+       slides away, and it does not always fire the window's resize alongside.
+       pageshow fires when an installed web app is restored rather than started
+       — it can come back with the status bar showing and 54px less height than
+       it had when it was put down, and nothing else announces that. */
+    if (window.visualViewport) window.visualViewport.addEventListener('resize', fitCanvas);
+    window.addEventListener('pageshow', () => { invalidateRects(); fitCanvas(); });
     /* the panel group's own height, which changes as its contents are built and
        as the hero panel comes and goes; the transform does not affect what this
        reports, so setting the scale cannot re-trigger it */
