@@ -75,6 +75,7 @@
      resize, a rotation, entering fullscreen. */
   const spriteCache = new Map();
   let spriteScale = 0;
+  let spritePixels = 0;      // what the cache is holding, in device pixels
 
   function syncSpriteScale(ctx) {
     let s = 1;
@@ -83,7 +84,7 @@
        thousandth, and rebuilding every sheet for a difference nobody can see
        is the exact cost this cache exists to avoid. */
     const q = Math.max(0.5, Math.min(3, Math.round(s * 8) / 8));
-    if (q !== spriteScale) { spriteScale = q; spriteCache.clear(); }
+    if (q !== spriteScale) { spriteScale = q; spriteCache.clear(); spritePixels = 0; }
   }
 
   /* A board is at most a few dozen penguins and a dozen species of sea lion,
@@ -91,8 +92,26 @@
      combinations, and each one they leave behind is a bitmap nothing will look
      at again. So the sheets in use are kept and the abandoned ones are dropped:
      a Map iterates in insertion order and a hit re-inserts, which makes the
-     front of it exactly the sheets nothing has drawn for the longest. */
-  const SPRITE_MAX = 320;
+     front of it exactly the sheets nothing has drawn for the longest.
+
+     Budgeted in PIXELS, not in sheets. It was a count, 320, and a count cannot
+     size this: a pip row is 30x10 and a KILLER WHALE is 300x170, and under a
+     count they take one slot each. What made that bite was adding the pip,
+     tail, flipper and pile sheets — small ones, but about ninety more entries,
+     which pushed a heavy board's working set past 320. Past it, the cache
+     evicts sheets it will need again LATER IN THE SAME FRAME, so it rebuilds
+     nearly three hundred canvases every frame, forever, and the optimisation
+     costs more than the drawing it replaced. It fails off a cliff rather than
+     degrading: measured at 100 towers it was zero rebuilds a frame, and at 110
+     it was 292.
+
+     A pixel budget cannot be wrong in that way, because it is measuring the
+     thing that actually costs. Eight million device pixels is about 32MB and
+     roughly two and a half screens' worth; the largest board the placement
+     rules allow — 288 towers on the roomiest map, every species alive — works
+     out at about 5.5 million, so there is real headroom rather than a number
+     that happened to fit the board it was tested on. */
+  const SPRITE_PIXELS = 8e6;
 
   /* `pad` is [left, right, top, bottom] around the origin, in the units the
      paint callback draws in. The callback gets a context already centred on
@@ -112,8 +131,18 @@
     const c = cv.getContext('2d');
     c.setTransform(s, 0, 0, s, pad[0] * s, pad[2] * s);
     paint(c);
-    const sp = { cv, x: -pad[0], y: -pad[2], w: cv.width / s, h: cv.height / s };
-    while (spriteCache.size >= SPRITE_MAX) spriteCache.delete(spriteCache.keys().next().value);
+    const px = cv.width * cv.height;
+    const sp = { cv, x: -pad[0], y: -pad[2], w: cv.width / s, h: cv.height / s, px };
+    /* Drop the oldest until the newcomer fits. Never the newcomer itself — it
+       is about to be drawn — so a single sheet larger than the whole budget
+       leaves the cache holding just that one rather than an empty map it
+       refills every frame. */
+    while (spritePixels + px > SPRITE_PIXELS && spriteCache.size) {
+      const oldest = spriteCache.keys().next().value;
+      spritePixels -= spriteCache.get(oldest).px;
+      spriteCache.delete(oldest);
+    }
+    spritePixels += px;
     spriteCache.set(key, sp);
     return sp;
   }
@@ -141,13 +170,22 @@
     // stored normalised (0-1) so the same flakes cover any tier's map size
     flakes.push({ fx: Math.random(), fy: Math.random(), r: 1 + Math.random() * 2, s: 12 + Math.random() * 25, drift: Math.random() * TAU });
   }
+  /* Forty-two dots in one colour at one opacity, and they were forty-two
+     separate rasterisations a frame — the same bill on a wave 1 board as on a
+     wave 100 one, which is the sort of cost that never shows up in a profile
+     because it never changes. One path, one fill. The moveTo before each arc
+     matters: without it the subpaths are joined by lines and the snow becomes
+     a cat's cradle. */
   function drawSnowfall(ctx, t) {
     ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    ctx.beginPath();
     for (const f of flakes) {
       const y = (f.fy * G.H + t * f.s) % G.H;
       const x = f.fx * G.W + Math.sin(t + f.drift) * 15;
-      ctx.beginPath(); ctx.arc(x, y, f.r, 0, TAU); ctx.fill();
+      ctx.moveTo(x + f.r, y);
+      ctx.arc(x, y, f.r, 0, TAU);
     }
+    ctx.fill();
   }
 
   /* ========================================================
@@ -1843,14 +1881,24 @@
     const total = (ups[0] || 0) + (ups[1] || 0) + (ups[2] || 0);
     if (total > 0) {
       const used = ups.filter((v) => v > 0).length;
-      const gap = 5 * (used - 1);
-      let ppx = tw.x - ((total - 1) * 8 + gap) / 2;
-      const ppy = tw.y - 34;
-      for (let p = 0; p < ups.length; p++) {
-        if (!ups[p]) continue;
-        for (let i = 0; i < ups[p]; i++) { drawPip(ctx, ppx, ppy, PIP[p]); ppx += 8; }
-        ppx += 5;
-      }
+      const half = ((total - 1) * 8 + 5 * (used - 1)) / 2;
+      /* The row is a function of the upgrade spread and nothing else — not the
+         clock, not the aim, not where the penguin stands. By wave 100 nearly
+         every penguin on the board is wearing the full five, which was two
+         hundred little diamonds a frame, each one a fill and a stroke of its
+         own. A board only ever shows a dozen different spreads, so one sheet
+         each covers the lot and the row costs a single blit. */
+      ctx.save();
+      ctx.translate(tw.x, tw.y - 34);
+      blitSprite(ctx, sprite('pip|' + ups.join(','), [half + 5, half + 5, 5, 5], (c) => {
+        let ppx = -half;
+        for (let p = 0; p < ups.length; p++) {
+          if (!ups[p]) continue;
+          for (let i = 0; i < ups[p]; i++) { drawPip(c, ppx, 0, PIP[p]); ppx += 8; }
+          ppx += 5;
+        }
+      }));
+      ctx.restore();
     }
 
     // hero level badge: a gold star shield above the champion
@@ -2222,6 +2270,45 @@
     }
   }
 
+  /* The tail flukes are four quadratics, and they were being flattened afresh
+     for every animal on the field — ninety bezier fills a frame for a shape
+     that is the same shape every time. The wag is a rigid turn about the hip,
+     so the turn stays live and only the outline is baked.
+
+     This sheet, paintSealFlipper's and paintOrcaTail's are keyed on the species
+     alone while baking in `r` and `col`, which is only correct because both are
+     copied straight off the ENEMIES table when the animal spawns and nothing
+     in the codebase ever writes to them afterwards. Give a sea lion a size that
+     varies — a giant modifier, a curve that swells them in deep endless — and
+     these three sheets go silently wrong, with every animal of the species
+     wearing whichever one was baked first. Put the varying thing in the key. */
+  function paintSealTail(ctx, r, col) {
+    ctx.fillStyle = shade(col, -12);
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.quadraticCurveTo(-r * 0.35, -r * 0.12, -r * 0.6, -r * 0.42);
+    ctx.quadraticCurveTo(-r * 0.42, -r * 0.05, -r * 0.38, 0);
+    ctx.quadraticCurveTo(-r * 0.42, r * 0.05, -r * 0.6, r * 0.42);
+    ctx.quadraticCurveTo(-r * 0.35, r * 0.12, 0, 0);
+    ctx.closePath(); ctx.fill();
+  }
+
+  /* The stealth fade is painted INTO this sheet rather than applied to the blit,
+     and the sheet is keyed on it. The webbing strokes lie on top of the fill,
+     and three translucent passes laid on the screen one after another are not
+     the same picture as three laid into a sheet that is then faded once — an
+     unrevealed stealth sea lion would have grown darker ribs. */
+  function paintSealFlipper(ctx, r, col, hidden) {
+    ctx.globalAlpha = hidden ? 0.45 : 1;
+    ctx.fillStyle = shade(col, -18);
+    ctx.beginPath();
+    ctx.ellipse(0, r * 0.2, r * 0.16, r * 0.4, 0, 0, TAU);
+    ctx.fill();
+    ctx.strokeStyle = shade(col, -34); ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, r * 0.1); ctx.lineTo(0, r * 0.5); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-r * 0.07, r * 0.12); ctx.lineTo(-r * 0.09, r * 0.48); ctx.stroke();
+  }
+
   function drawSeaLion(ctx, game, e, t) {
     const def = G.ENEMIES[e.type];
     const p = G.samplePath(game.paths[e.pathIdx], e.dist);
@@ -2273,17 +2360,11 @@
     }
 
     // tail flippers — under the body, so they go on before the sprite
-    ctx.fillStyle = shade(col, -12);
     const tailWag = Math.sin(t * 10 + e.wob) * 0.3;
     ctx.save();
     ctx.translate(-r * 1.02, 0); ctx.rotate(tailWag);
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.quadraticCurveTo(-r * 0.35, -r * 0.12, -r * 0.6, -r * 0.42);
-    ctx.quadraticCurveTo(-r * 0.42, -r * 0.05, -r * 0.38, 0);
-    ctx.quadraticCurveTo(-r * 0.42, r * 0.05, -r * 0.6, r * 0.42);
-    ctx.quadraticCurveTo(-r * 0.35, r * 0.12, 0, 0);
-    ctx.closePath(); ctx.fill();
+    blitSprite(ctx, sprite('tail|' + e.type, [r * 0.7, r * 0.1, r * 0.5, r * 0.5],
+      (c) => paintSealTail(c, r, col)));
     ctx.restore();
 
     /* The animal itself, in one blit. Three freckle patterns per species is
@@ -2293,20 +2374,16 @@
     ctx.globalAlpha = 1;
     blitSprite(ctx, sprite(key, [r * 2.4, r * 1.7, r * 1.25, r * 1.05],
       (c) => paintSeaLion(c, e.type, r, hidden, variant)));
-    ctx.globalAlpha = ghost;
 
     // front flipper — clear of the head, so it can go on over the sprite
-    ctx.fillStyle = shade(col, -18);
     ctx.save();
     ctx.translate(-r * 0.05, r * 0.34);
     ctx.rotate(0.55 + wob * 1.6);
-    ctx.beginPath();
-    ctx.ellipse(0, r * 0.2, r * 0.16, r * 0.4, 0, 0, TAU);
-    ctx.fill();
-    ctx.strokeStyle = shade(col, -34); ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(0, r * 0.1); ctx.lineTo(0, r * 0.5); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(-r * 0.07, r * 0.12); ctx.lineTo(-r * 0.09, r * 0.48); ctx.stroke();
+    blitSprite(ctx, sprite('flip|' + e.type + (hidden ? '|h' : ''),
+      [r * 0.2 + 2, r * 0.2 + 2, r * 0.25 + 2, r * 0.65 + 2],
+      (c) => paintSealFlipper(c, r, col, hidden)));
     ctx.restore();
+    ctx.globalAlpha = ghost;
 
     drawSeaLionLive(ctx, e, r, t, ghost);
 
@@ -2521,20 +2598,14 @@
     ctx.fill();
   }
 
-  function drawOrcaBody(ctx, e, r, col, t) {
-    const swim = Math.sin(t * 3.4 + e.wob);
-    const ink = '#0b1119';
-
-    blitSprite(ctx, sprite('orcawake|' + e.type, [r * 2.75, r * 0.1, r * 0.6, r * 0.6],
-      (c) => paintOrcaWake(c, r)));
-
-    // tail stock + flukes
-    const wag = swim * 0.34;
-    ctx.save();
-    ctx.translate(-r * 0.92, 0);
-    ctx.rotate(wag);
+  /* The last piece of the orca still being drawn by hand, and the most
+     expensive: five quadratics filled and then stroked again, on an animal the
+     deep endless tide fields thirty of at once. The wag is a rigid turn about
+     the tail stock, so the turn stays live and the outline is baked — which
+     leaves an orca costing three blits and no vector work at all. */
+  function paintOrcaTail(ctx, r, col) {
     ctx.fillStyle = shade(col, -6);
-    ctx.strokeStyle = ink; ctx.lineWidth = Math.max(1.4, r * 0.055); ctx.lineJoin = 'round';
+    ctx.strokeStyle = '#0b1119'; ctx.lineWidth = Math.max(1.4, r * 0.055); ctx.lineJoin = 'round';
     ctx.beginPath();
     ctx.moveTo(r * 0.12, 0);
     ctx.quadraticCurveTo(-r * 0.28, -r * 0.1, -r * 0.66, -r * 0.5);
@@ -2542,6 +2613,20 @@
     ctx.quadraticCurveTo(-r * 0.3, r * 0.14, -r * 0.66, r * 0.5);
     ctx.quadraticCurveTo(-r * 0.28, r * 0.1, r * 0.12, 0);
     ctx.closePath(); ctx.fill(); ctx.stroke();
+  }
+
+  function drawOrcaBody(ctx, e, r, col, t) {
+    const swim = Math.sin(t * 3.4 + e.wob);
+
+    blitSprite(ctx, sprite('orcawake|' + e.type, [r * 2.75, r * 0.1, r * 0.6, r * 0.6],
+      (c) => paintOrcaWake(c, r)));
+
+    // tail stock + flukes
+    ctx.save();
+    ctx.translate(-r * 0.92, 0);
+    ctx.rotate(swim * 0.34);
+    blitSprite(ctx, sprite('orcatail|' + e.type, [r * 0.75, r * 0.22, r * 0.6, r * 0.6],
+      (c) => paintOrcaTail(c, r, col)));
     ctx.restore();
 
     blitSprite(ctx, sprite('orca|' + e.type, [r * 1.15, r * 1.2, r * 1.35, r * 0.85],
@@ -2570,7 +2655,19 @@
   }
 
   /* ---------- projectiles & effects ---------- */
+  /* Reused between frames; see the note on zEnemies at the bottom of the file. */
+  const shotOwners = new Map();
   function drawProjectiles(ctx, game) {
+    if (!game.projectiles.length) return;
+    /* Every shot in the air had to be asked which penguin fired it, and the
+       answer was a fresh closure and a walk down the whole tower list. A busy
+       board keeps a hundred shots alive over forty penguins, so that was four
+       thousand comparisons a frame to recover a word that never changes for the
+       life of the shot. One pass over the towers instead. A shot whose penguin
+       has been sold mid-flight still finds nothing and still falls back to a
+       grey pebble, exactly as before. */
+    shotOwners.clear();
+    for (const tw of game.towers) shotOwners.set(tw.id, tw.type);
     for (const pr of game.projectiles) {
       if (pr.kind === 'lob') {
         const f = pr.t / pr.T;
@@ -2585,8 +2682,7 @@
         ctx.strokeStyle = 'rgba(200,80,80,0.35)'; ctx.lineWidth = 1.5;
         ctx.beginPath(); ctx.arc(pr.tx, pr.ty, 10, 0, TAU); ctx.stroke();
       } else {
-        const tw = game.towers.find((t) => t.id === pr.owner);
-        const type = tw ? tw.type : 'pebble';
+        const type = shotOwners.get(pr.owner) || 'pebble';
         // motion streak behind every shot
         ctx.strokeStyle = 'rgba(255,255,255,0.3)';
         ctx.lineWidth = 3;
@@ -2786,6 +2882,19 @@
     ctx.restore();   // takes the alpha back with it
   }
 
+  function paintSpikePile(ctx, n) {
+    ctx.fillStyle = '#cfe4f4';
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * TAU;
+      const d = 7;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a) * d - 3, Math.sin(a) * d + 2);
+      ctx.lineTo(Math.cos(a) * d, Math.sin(a) * d - 9);
+      ctx.lineTo(Math.cos(a) * d + 3, Math.sin(a) * d + 2);
+      ctx.closePath(); ctx.fill();
+    }
+  }
+
   function drawSpikes(ctx, game, t) {
     for (const p of game.piles) {
       ctx.save();
@@ -2819,17 +2928,11 @@
           ctx.beginPath(); ctx.arc(-5 + i * 5, -18, 1.6, 0, TAU); ctx.fill();
         }
       } else {
-        ctx.fillStyle = '#cfe4f4';
+        /* A plain spike pile has no clock in it at all: how many spikes, and
+           that is the whole of it. Six possible piles, and an icewall board can
+           carry forty of them at once. */
         const n = Math.min(6, Math.ceil(p.charges / 2) + 1);
-        for (let i = 0; i < n; i++) {
-          const a = (i / n) * TAU;
-          const d = 7;
-          ctx.beginPath();
-          ctx.moveTo(Math.cos(a) * d - 3, Math.sin(a) * d + 2);
-          ctx.lineTo(Math.cos(a) * d, Math.sin(a) * d - 9);
-          ctx.lineTo(Math.cos(a) * d + 3, Math.sin(a) * d + 2);
-          ctx.closePath(); ctx.fill();
-        }
+        blitSprite(ctx, sprite('pile|' + n, [11, 11, 17, 10], (c) => paintSpikePile(c, n)));
       }
       ctx.restore();
     }
