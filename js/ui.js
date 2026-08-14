@@ -643,6 +643,23 @@
     for (const s of document.querySelectorAll('.screen')) s.classList.remove('active');
     if (id) $(id).classList.add('active');
     $('#overlay').style.display = id ? 'flex' : 'none';
+    /* A menu covers the game, and the selection card is part of the game. It
+       sits at z-index 45 against the overlay's 20, so a battle that ended with
+       a penguin selected drew its upgrade card across the victory screen with
+       the dock still hidden behind it. Raising the overlay instead would have
+       put it over the toasts and the fullscreen button too, which is a bigger
+       change than the problem. */
+    if (id) {
+      const sel = $('#selpanel');
+      if (sel) { sel.hidden = true; sel.innerHTML = ''; }
+      showDock(true);
+      closeConfirm();
+      /* And drop the selection with it, or the game comes back from the menu
+         believing a card is open that is not on screen — which leaves the panel
+         shut until you tap a DIFFERENT penguin, because the poll only redraws
+         when the selection changes. */
+      if (UI.game) UI.game.selected = null;
+    }
     // every menu screen carries a pebble chip — keep them all current
     for (const b of document.querySelectorAll('.js-pebbles')) b.textContent = UI.profile.pebbles.toLocaleString();
     syncRankChips();
@@ -2094,32 +2111,43 @@
      tray and the hero and boost panels step aside for it and step back when it
      closes, and the battlefield is never touched.
 
-     Measured off the real elements rather than rebuilt from the same numbers
-     fitCanvas used. The tray gives the left edge, the width and the top; the
-     wave controls give the floor, because those stay live underneath — being
-     unable to pause or send a wave while a penguin's card is open is the one
-     thing this arrangement could have cost, and it does not.
+     It takes the BUILD TRAY's slot and nothing else. The hero chip, the boosts
+     and the wave controls are a separate grid row and they simply stay — which
+     is the whole point: a freeze, the hero's ability and the pause button are
+     the controls you reach for in the moment a wave is going wrong, and that
+     moment is exactly when a penguin's card is likely to be open. An earlier
+     version had the card cover them and it was a genuine regression, because
+     the boosts have no keyboard shortcut and no other route on a phone: a
+     player reaching for one from muscle memory hit an upgrade row and spent
+     fish instead.
 
-     A zero-width tray is a layout that has not settled — mid-rotation, entering
-     fullscreen, an installed app being restored — and writing that rect would
-     pin the card to nothing. The last good one is kept instead. */
+     Measured off the tray rather than computed from the same numbers fitCanvas
+     used, because the tray's box is the product of a grid, a container query
+     and a margin, and a second opinion here could only disagree with the first.
+     offsetLeft/offsetWidth, not getBoundingClientRect: the tray carries a
+     transform while it is stepping aside, and a rect includes it — which had
+     the card re-measuring itself 1.5% small every time it re-rendered and
+     jumping a couple of pixels the moment you bought an upgrade. The offset
+     box is the untransformed one.
+
+     A tray that measures near nothing is a layout that has not settled —
+     mid-rotation, entering fullscreen, an installed app being restored — and
+     writing that rect would pin the card to a sliver. Left alone instead; the
+     card keeps whatever it had, and the CSS floor below covers the first open. */
   function fitSelPanel(box) {
-    const tray = $('#palette'), cmd = $('#command');
-    const tr = tray ? tray.getBoundingClientRect() : null;
-    if (!tr || tr.width < 40 || tr.height < 40) return;
-    const cr = cmd ? cmd.getBoundingClientRect() : null;
-    const floor = cr && cr.top > tr.top + 140 ? cr.top - 6 : tr.bottom;
-    box.style.left = Math.round(tr.left) + 'px';
-    box.style.width = Math.round(tr.width) + 'px';
-    box.style.top = Math.round(tr.top) + 'px';
-    box.style.height = Math.round(floor - tr.top) + 'px';
+    const tray = $('#palette');
+    if (!tray || tray.offsetWidth < 40 || tray.offsetHeight < 40) return;
+    const par = tray.offsetParent;
+    const px = par ? par.getBoundingClientRect() : { left: 0, top: 0 };
+    box.style.left = Math.round(px.left + tray.offsetLeft) + 'px';
+    box.style.top = Math.round(px.top + tray.offsetTop) + 'px';
+    box.style.width = Math.round(tray.offsetWidth) + 'px';
+    box.style.height = Math.round(tray.offsetHeight) + 'px';
   }
 
-  /* visibility, not display. The hero and boost panels are two cells of
-     #sidebar's grid, and #sidebar is laid out at a nominal width and then
-     scaled — take them out of the flow and the row above the wave controls
-     collapses, which moves the wave controls, which moves the floor this card
-     just measured. Hidden in place they hold their boxes and nothing shifts. */
+  /* visibility, not display, and only the tray. Taking it out of the flow would
+     collapse the grid row it defines, which is the row the card was just
+     measured into. Hidden in place it holds its box and nothing moves. */
   function showDock(on) {
     $('#app').classList.toggle('upg-open', !on);
   }
@@ -2128,6 +2156,14 @@
     const g = UI.game;
     const box = $('#selpanel');
     if (!g) return;
+    /* Tell the 0.3s poll what the card is now showing. The poll redraws when
+       g.selected differs from what it last saw, and it does not run while the
+       game is paused — so a menu that cleared the selection left the poll still
+       remembering the old penguin, and re-selecting that same penguin after
+       resuming looked like no change at all and drew nothing. Every route that
+       redraws the card comes through here, so this is the one place the two can
+       be kept in step. */
+    lastSelected = g.selected;
     // a question about a penguin you are no longer looking at is not a question
     if (confirmAbout && confirmAbout !== g.selected) closeConfirm();
 
@@ -2954,15 +2990,11 @@
     root.style.setProperty('--map-inset-l', px(sa.left - gutL));
     root.style.setProperty('--map-inset-t', px(sa.top - gutT));
     root.style.setProperty('--map-inset-b', px(sa.bottom - gutB));
-    /* Both edges of the map, for the one card that floats over the map while
-       being position:fixed and therefore measured against the window rather
-       than against the map. Everything else that floats over the battlefield is
-       absolute inside #stage, which IS the map's box, and needs only the insets
-       above. --map-r is measured from the window's RIGHT edge, so the card can
-       be pinned to the far side of the map with a plain `right:` and never
-       has to know how wide it is. */
+    /* The map's left edge, for anything position:fixed that has to line up with
+       it — measured against the window, while everything else floating over the
+       battlefield is absolute inside #stage, which IS the map's box, and needs
+       only the insets above. */
     root.style.setProperty('--map-l', Math.round(gutL) + 'px');
-    root.style.setProperty('--map-r', Math.round(vw - gutL - mapW) + 'px');
     /* The vitals and the system buttons sit on the map rather than in the
        column, so they scale with the map rather than with the panels. Floored
        so they stay legible and tappable on a small block, capped so they do not

@@ -497,9 +497,11 @@ html.touch #btn-fs { display: none; }
   from { transform: none; }
   to   { transform: scale(0.985); }
 }
-#app.upg-open #palette,
-#app.upg-open #dock-hero,
-#app.upg-open #dock-powers {
+/* The tray, and only the tray. The hero chip, the boosts and the wave controls
+   are a different grid row and they stay put — they are the controls a wave
+   going wrong is reached for with, and a card being open is exactly when that
+   happens. */
+#app.upg-open #palette {
   visibility: hidden;
   animation: upgUnder 0.13s ease-out both;
 }
@@ -507,9 +509,7 @@ html.touch #btn-fs { display: none; }
    this too. The swap still happens; it just happens at once. */
 @media (prefers-reduced-motion: reduce) {
   #selpanel { animation: none; }
-  #app.upg-open #palette,
-  #app.upg-open #dock-hero,
-  #app.upg-open #dock-powers { animation: none; }
+  #app.upg-open #palette { animation: none; }
 }
 #selpanel[hidden] { display: none; }
 #selpanel::-webkit-scrollbar { width: 5px; }
@@ -581,16 +581,19 @@ html.touch #btn-fs { display: none; }
 /* What the next tier actually does, on the row that buys it — but only when the
    card is tall enough to give it whole lines.
 
-   Hidden by default, and that default is what a phone gets. Measured on an
-   iPhone the card is 326px, which leaves a row about 54px: a label, a name that
-   is sometimes two lines, and a price. A description in that is a description
-   with its second line sliced through the middle, which reads as a bug rather
-   than as brevity. Better to show two clean lines than three ragged ones — and
-   on a phone the sentence is still a press-and-hold away, as it always was.
+   Hidden by default, and that default is what a phone gets. The card takes the
+   build tray's slot, which on an iPhone is 238px, and that leaves a row about
+   45px: a label, a name that is sometimes two lines, and a price. A description
+   in that is a description with its second line sliced through the middle,
+   which reads as a bug rather than as brevity. Better to show two clean lines
+   than three ragged ones — and on a phone the sentence is still a press-and-
+   hold away, as it always was.
 
-   Above 360px of card the row has the room and the sentence comes back inline,
-   which is every desktop window and a tablet. The card is its own size
-   container, so this keys on the CARD and not the window. */
+   The threshold is the card's CONTENT box, not the box you can measure with a
+   ruler: container-type:size queries inside the padding, which here is 8px top
+   and bottom plus a border. A card that reads 360px on screen queries as 342.
+   The number below is the content one and it corresponds to a card of about
+   380px, which is every desktop window and a tablet. */
 .dsp-desc { display: none; }
 @container (min-height: 360px) {
   .dsp-desc {
