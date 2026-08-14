@@ -880,16 +880,46 @@
      battlefield and wave, the same multiplier the hero's own damage rides, so
      an ability stays meaningful in deep endless instead of becoming a rounding
      error. Kept here beside each hero rather than in a switch in the engine. */
+
+  /* ---- the share-of-the-animal half of a hero ability ----
+     Flat ability damage rides heroStrength, which is 1.05 per wave past 50.
+     Boss health rides 1.055 and orca health starts in the thousands, so flat
+     alone loses the race and then keeps losing it. Measured on Glacier Pass:
+     Avalanche Charge was 405 against a 29,283 HP Great Orca at wave 101, and
+     385 against the 212,801 HP KILLER WHALE at wave 100 — two tenths of one
+     per cent. It was landing. There was simply no way to see that it had.
+
+     A percentage of the target's own maximum health cannot become invisible,
+     whatever the health is. Two rails keep it from becoming the game:
+
+     Leviathans only. G.isLeviathan is the bosses and the orcas; ordinary sea
+     lions get nothing, because the flat damage already overkills them between
+     three and sixteen times over at every wave measured, and a percentage there
+     would only make swarms free.
+
+     And the whole cast is capped at HERO_BITE_CAP of the animal. The cap can
+     only ever take away bite, never flat, so no ability is weaker anywhere than
+     it was — it is there for very deep endless, where heroStrength eventually
+     outruns orca health and the flat alone would start one-shotting them. */
+  G.HERO_BITE_CAP = 0.12;
+  G.heroBite = (e, pct, flatDealt) =>
+    !G.isLeviathan(e) ? 0
+      : Math.max(0, Math.min(Math.round(e.maxHp * pct),
+        Math.round(e.maxHp * G.HERO_BITE_CAP) - flatDealt));
+
   G.HEROES = {
     hero_frost: {
       pebbles: 0,
       blurb: 'Heavy single-target damage. Grows into a boss-killer.',
       perLevel: { damage: 0.20, rate: 0.04 },       // per level above 1
       ability: { name: 'Avalanche Charge', icon: '🏔️', cd: 45, unlock: 3,
-                 desc: 'Smashes every sea lion on the field, ignoring armor. Scales with the herd.',
+                 desc: 'Smashes every sea lion on the field, ignoring armor. Takes an extra 1.5% off anything boss-sized.',
                  fire(g, t, s) {
                    const dmg = Math.round(30 * s);
-                   for (const e of [...g.enemies]) if (!e.dead) g.damageEnemy(e, dmg, null, { pure: true });
+                   for (const e of [...g.enemies]) {
+                     if (e.dead) continue;
+                     g.damageEnemy(e, dmg + G.heroBite(e, 0.015, dmg), null, { pure: true });
+                   }
                    g.effects.push({ kind: 'boom', x: G.W / 2, y: G.H / 2, r: 420, life: 0.4, max: 0.4 });
                  } },
     },
@@ -909,11 +939,27 @@
       blurb: 'Chills whole packs; her slow deepens as she levels.',
       perLevel: { damage: 0.15, slow: 0.025, range: 0.015 },
       ability: { name: 'Cold Snap', icon: '❄️', cd: 50, unlock: 3,
-                 desc: 'Freezes every sea lion solid for 2.5s (bosses 1s).',
+                 desc: 'Freezes every sea lion solid for 2.5s. Boss-sized ones hold still for less, but the cold leaves them soft: +35% damage for 5s.',
                  fire(g, t) {
                    for (const e of g.enemies) {
                      if (e.dead) continue;
-                     e.stunUntil = Math.max(e.stunUntil, g.time + (e.boss ? 1 : 2.5));
+                     /* G.isLeviathan, not e.boss. Only orca_king carries
+                        boss:true — a Great Orca is orca:true and boss:false —
+                        so the short freeze meant for the biggest animal in the
+                        game was being applied to the KILLER WHALE and the full
+                        2.5s to its escort. Exactly backwards. */
+                     const lev = G.isLeviathan(e);
+                     /* And a flat second buys the same absolute time at wave 25
+                        as at wave 125, by which point the wave is forty times
+                        harder. It grows with the run, to a ceiling. */
+                     const secs = lev ? Math.min(3, 1 + Math.max(0, g.wave - 50) * 0.02) : 2.5;
+                     e.stunUntil = Math.max(e.stunUntil, g.time + secs);
+                     /* Holding a boss still is only worth what the colony can
+                        put through the window, and against eight armour that is
+                        not much. A mark multiplies AFTER armour (see
+                        damageEnemy), so this is the half of the freeze that
+                        actually reaches a leviathan. */
+                     if (lev) g.applyFx(e, { mark: { amt: 0.35, d: 5 } });
                    }
                    g.effects.push({ kind: 'storm', x: G.W / 2, y: G.H / 2, r: 620, life: 0.6, max: 0.6 });
                  } },
@@ -923,15 +969,20 @@
       blurb: 'Shreds swarms and sees stealth. Pack Scout: Frostline penguins in her reach see what she sees.',
       perLevel: { damage: 0.10, rate: 0.05, range: 0.01 },
       ability: { name: 'Snow Flurry', icon: '🌨️', cd: 35, unlock: 3,
-                 desc: 'A blizzard of pebbles: heavy damage to everything near her.',
-                 fire(g, t, s) { g.splashAt(t.x, t.y, 230, Math.round(14 * s), t, 40); } },
+                 desc: 'A blizzard of pebbles: heavy damage to everything near her, and an extra 0.8% off anything boss-sized.',
+                 /* The smallest bite in the roster: the shortest cooldown, and
+                    Tilly is the swarm hero — a boss has to come to her. */
+                 fire(g, t, s) { g.splashAt(t.x, t.y, 230, Math.round(14 * s), t, 40, null, 0.008); } },
     },
     hero_rook: {
       pebbles: 7500,
       blurb: 'Reaches the whole battlefield, ignores armour, and hits bosses 60% harder.',
       perLevel: { damage: 0.18, rate: 0.03 },
       ability: { name: 'Harpoon Volley', icon: '🎯', cd: 45, unlock: 3,
-                 desc: 'Puts a harpoon through the eight biggest sea lions on the field.',
+                 desc: 'Puts a harpoon through the eight biggest sea lions on the field, and takes an extra 3% off anything boss-sized.',
+                 /* The largest bite in the roster, because Rook IS the
+                    boss-killer: eight targets only, a 45s cooldown, and a
+                    statline that already carries bossBonus. */
                  fire(g, t, s) {
                    const dmg = Math.round(70 * s);
                    const big = g.enemies.filter((e) => !e.dead)
@@ -940,7 +991,7 @@
                    for (const e of big) {
                      const ep = G.samplePath(g.paths[e.pathIdx], e.dist);
                      g.effects.push({ kind: 'snipeTrail', x: t.x, y: t.y, tx: ep.x, ty: ep.y, life: 0.2, max: 0.2 });
-                     g.damageEnemy(e, dmg, null, { pure: true });
+                     g.damageEnemy(e, dmg + G.heroBite(e, 0.030, dmg), null, { pure: true });
                    }
                  } },
     },
@@ -949,9 +1000,15 @@
       blurb: 'Arcs over ridges and igloos. Long reach, wide blast, slow hands.',
       perLevel: { damage: 0.15, range: 0.015 },
       ability: { name: 'Depth Barrage', icon: '💣', cd: 40, unlock: 3,
-                 desc: 'Walks six depth charges down the trail, each one a wide blast.',
+                 desc: 'Walks six depth charges down the trail, each one a wide blast, and takes an extra 1% off anything boss-sized.',
                  fire(g, t, s) {
                    const dmg = Math.round(22 * s);
+                   /* One Set for the whole barrage. A big animal is wide enough
+                      to stand inside two of the six blasts and take the flat
+                      damage twice, which it always has; taking the percentage
+                      twice would quietly make Marlow the best boss-killer in the
+                      game depending on where the whale happened to be standing. */
+                   const bitten = new Set();
                    /* Spread along the trail rather than around the hero: the
                       point of the barrage is to reach the part of the track a
                       lobbing tower is already covering. */
@@ -959,7 +1016,7 @@
                      const n = Math.max(1, Math.round(6 / g.paths.length));
                      for (let i = 0; i < n; i++) {
                        const p = G.samplePath(path, path.total * ((i + 0.5) / n));
-                       g.splashAt(p.x, p.y, 110, dmg, t, 14);
+                       g.splashAt(p.x, p.y, 110, dmg, t, 14, null, 0.010, bitten);
                      }
                    }
                  } },
@@ -973,11 +1030,17 @@
       blurb: 'Strips blubber and poisons the wound. Coven Warden: his Corrosion burn counts as a mystic curse, so Conduit and Plague Bearer can spread and refresh it.',
       perLevel: { damage: 0.13, rate: 0.03, range: 0.015 },
       ability: { name: 'Corrosion', icon: '🧪', cd: 40, unlock: 3,
-                 desc: 'Strips 3 armour from every sea lion on the field and leaves them burning.',
+                 desc: 'Strips 3 armour from every sea lion on the field and leaves them burning — boss-sized ones lose a further 0.2% a second.',
+                 /* The shred needed nothing: armour is a constant at every wave,
+                    the KILLER WHALE is armour 8 at wave 100 and armour 8 at wave
+                    300, so three casts bare it completely and that is already
+                    worth more than any hero's direct damage. Only the burn was
+                    losing the race. */
                  fire(g, t, s) {
+                   const dps = Math.round(6 * s);
                    for (const e of g.enemies) {
                      if (e.dead) continue;
-                     g.applyFx(e, { shred: 3, dot: { dps: Math.round(6 * s), d: 5 } });
+                     g.applyFx(e, { shred: 3, dot: { dps: dps + G.heroBite(e, 0.002, dps), d: 5 } });
                    }
                    g.effects.push({ kind: 'storm', x: G.W / 2, y: G.H / 2, r: 620, life: 0.6, max: 0.6 });
                  } },
@@ -987,13 +1050,20 @@
       blurb: 'A steady armour-piercing beam. Relentless on one target at a time.',
       perLevel: { damage: 0.12, rate: 0.04, range: 0.01 },
       ability: { name: 'Aurora Veil', icon: '🌌', cd: 40, unlock: 3,
-                 desc: 'Drops a curtain of light: everything on the field is slowed hard and scorched.',
+                 desc: 'Drops a curtain of light: sea lions are slowed hard and scorched, and boss-sized ones are stripped bare instead — +20% damage for 5s, plus 1% off them.',
                  fire(g, t, s) {
                    const dmg = Math.round(18 * s);
                    for (const e of [...g.enemies]) {
                      if (e.dead) continue;
-                     g.applyFx(e, { slow: { f: 0.4, d: 5 } });
-                     g.damageEnemy(e, dmg, null, { pure: true });
+                     /* The slow is a good crowd tool and nothing is wrong with
+                        it there. On a leviathan it is worth almost nothing and
+                        gets worse as the run goes on: the boss softening and
+                        then slowResist compound, so by wave 125 a 60% slow has
+                        become a 10% slow for two seconds. Spend it as a mark on
+                        those instead — the light strips rather than slows. */
+                     if (G.isLeviathan(e)) g.applyFx(e, { mark: { amt: 0.20, d: 5 } });
+                     else g.applyFx(e, { slow: { f: 0.4, d: 5 } });
+                     g.damageEnemy(e, dmg + G.heroBite(e, 0.010, dmg), null, { pure: true });
                    }
                    g.effects.push({ kind: 'storm', x: G.W / 2, y: G.H / 2, r: 640, life: 0.7, max: 0.7 });
                  } },
@@ -1004,8 +1074,14 @@
       perLevel: { damage: 0.08, bounty: 0.12, auraDmg: 0.008, range: 0.015 },
       ability: { name: 'Fish Haul', icon: '🐟', cd: 50, unlock: 3,
                  desc: 'Calls in the boats: a lump of fish, bigger on deeper waves.',
+                 /* The ceiling was 6, and sqrt(heroStrength) reaches it at wave
+                    121 — so the haul froze at 2,400 and stayed there for the
+                    rest of an endless run while everything it buys got steadily
+                    more expensive to keep up with. The square root is doing the
+                    right job; only the ceiling arrived too early. Nothing at or
+                    before wave 121 changes. */
                  fire(g, t, s) {
-                   const haul = Math.round(400 * Math.min(6, Math.max(1, Math.sqrt(s))));
+                   const haul = Math.round(400 * Math.min(20, Math.max(1, Math.sqrt(s))));
                    g.cash += haul;
                    g.texts.push({ x: t.x, y: t.y, txt: '+' + haul + '🐟', life: 1.4, kind: 'cash' });
                    g.effects.push({ kind: 'storm', x: t.x, y: t.y, r: 220, life: 0.6, max: 0.6 });

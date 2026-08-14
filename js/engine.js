@@ -949,7 +949,14 @@
       }
     }
 
-    splashAt(x, y, radius, dmg, tower, maxHit, exclude) {
+    /* `bite` is the hero-ability share-of-the-animal (see G.heroBite): a
+       fraction of a leviathan's own maximum health, added on top of the flat
+       damage and only for the two abilities that reach their targets through a
+       splash. `bitten` is an optional Set that survives across the several
+       blasts of one cast, so a boss standing inside two of them takes the
+       percentage once and the flat twice — which is how the flat has always
+       behaved and how a percentage plainly must not. */
+    splashAt(x, y, radius, dmg, tower, maxHit, exclude, bite, bitten) {
       const r2 = radius * radius;
       let hits = 0;
       // sort by distance so the closest are hit when capped
@@ -963,7 +970,12 @@
       inRange.sort((a, b) => a.d2 - b.d2);
       for (const { e } of inRange) {
         if (hits >= maxHit) break;
-        this.damageEnemy(e, dmg, tower);
+        let extra = 0;
+        if (bite && !(bitten && bitten.has(e))) {
+          extra = G.heroBite(e, bite, dmg);
+          if (bitten) bitten.add(e);
+        }
+        this.damageEnemy(e, dmg + extra, tower);
         hits++;
       }
       this.effects.push({ kind: 'boom', x, y, r: radius, life: 0.35, max: 0.35 });

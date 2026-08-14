@@ -145,9 +145,15 @@ hero costs is what it measured.
 | 🧪 **Warden Kell** | 4,000 🪨 | strips blubber, poisons the wound | 🧪 Corrosion — −3 armour on the field, and burning |
 | 🐟 **Purser Fen** | 4,500 🪨 | every kill the colony makes pays more | 🐟 Fish Haul — a lump of fish, bigger on deep waves |
 | 📯 **Commander Beak** | 5,000 🪨 | nearby penguins fight harder & faster | 📯 War Cry — everyone attacks 50% faster for 8s |
-| 🌌 **Aurora Sage** | 6,250 🪨 | steady armour-piercing beam | 🌌 Aurora Veil — the field slowed hard and scorched |
+| 🌌 **Aurora Sage** | 6,250 🪨 | steady armour-piercing beam | 🌌 Aurora Veil — the field slowed hard and scorched; boss-sized ones marked instead |
 | 🎯 **Bosun Rook** | 7,500 🪨 | reaches the whole map; +60% vs bosses | 🎯 Harpoon Volley — through the eight biggest |
-| ❄️ **Elder Shiver** | 7,500 🪨 | slows whole packs, deeper each level | ❄️ Cold Snap — freezes every sea lion for 2.5s |
+| ❄️ **Elder Shiver** | 7,500 🪨 | slows whole packs, deeper each level | ❄️ Cold Snap — freezes every sea lion for 2.5s, and softens boss-sized ones |
+
+Every damage ability also takes a **share of a boss's own health** on top of its flat
+number — 3% for Harpoon Volley down to 0.8% for Snow Flurry, capped at 12% of the animal
+across the whole cast. Ordinary sea lions are unaffected: the flat damage already kills
+them several times over. Without it, an ability that scales at 1.05 a wave was landing two
+tenths of one per cent on a wave-100 KILLER WHALE, which is a hit nobody could see.
 
 Heroes are permanent once recruited. One caveat on the measurements: the scripted defence
 spreads its towers for coverage rather than clustering them, so it puts barely any of them
@@ -323,7 +329,7 @@ The interface is a bottom command dock built for keyboard + mouse: build palette
 | Click a placed penguin | Its card appears bottom-left |
 | **Q** / **W** / **E** (selected) | Buy upgrade path 1 / 2 / 3 |
 | **T** (selected) | Cycle targeting: first / last / strong / close |
-| **X** (selected) | Sell |
+| **X** (selected) | Sell — straight away, no confirmation. The sell *button* asks first |
 | **Space** | Send next wave |
 | **Tab** | Cycle game speed 1× / 2× / 3× |
 | **P** | Quick pause · **M** mute |
