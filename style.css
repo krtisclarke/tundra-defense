@@ -524,6 +524,30 @@ html.touch #btn-fs { display: none; }
 .ds-title { min-width: 0; grid-row: 1; }
 .ds-head .ds-close { grid-row: 1; }
 .ds-head .ds-stats { grid-column: 1 / -1; grid-row: 2; }
+
+/* ---- a tall column turns the head into a portrait ----
+   Beside the name, the penguin can only ever be as wide as the leftovers — 67px
+   in a 230px column, which is a stamp, not a picture. Stacked, it gets the
+   column's whole width and roughly doubles, with the name reading as its
+   caption. This is what the top of a card about ONE penguin should look like.
+
+   Gated on height, not turned on everywhere, because the head grows by about
+   120px doing this and the three upgrade rows have to come out of the same
+   column. Below 560px — a phone in landscape, a short laptop window — there is
+   no such surplus and the row arrangement is still the right one. */
+@container (min-height: 560px) {
+  .ds-head {
+    position: relative;
+    display: flex; flex-direction: column; align-items: center;
+    gap: 4px;
+    text-align: center;
+  }
+  #selpanel .ds-head canvas { width: clamp(56px, 14cqh, 118px); height: clamp(56px, 14cqh, 118px); }
+  .ds-title, .ds-head .ds-stats { width: 100%; }
+  /* Out of the flow: in a centred column it would otherwise push the name off
+     centre, and the corner is where a thumb and a cursor both look for it. */
+  .ds-head .ds-close { position: absolute; top: 0; right: 0; }
+}
 /* Both lines are single-line by decree. The card has a fixed height, so a line
    that wraps does not just look cramped — it pushes the row below it out
    through the bottom of the card. Anything too long ellipses instead. */

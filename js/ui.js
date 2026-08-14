@@ -2016,12 +2016,12 @@
     box.innerHTML = '';
 
     const head = el('div', 'ds-head');
-    /* 160, not 40: the portrait grows with the column and reaches ~62px on a
-       desktop window, which is 124 real pixels on a 2× screen. drawTowerIcon
-       draws to whatever size the canvas is, so this is the only thing standing
-       between a big portrait and a soft one. */
+    /* 256, not 40: on a tall column the head becomes a portrait and this is
+       drawn at up to 118px, which is 236 real pixels on a 2× screen.
+       drawTowerIcon draws to whatever size the canvas is, so this number is the
+       only thing standing between a big portrait and a soft one. */
     const cv = document.createElement('canvas');
-    cv.width = 160; cv.height = 160;
+    cv.width = 256; cv.height = 256;
     G.drawTowerIcon(cv, t.type, t.up);
     head.appendChild(cv);
     const stats = [];
