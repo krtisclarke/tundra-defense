@@ -267,7 +267,30 @@
      Neither rect moves while a drag is happening. They are cached and thrown
      away whenever the layout could actually have changed. */
   let rectCache = null;
-  const invalidateRects = () => { rectCache = null; };
+  const invalidateRects = () => { rectCache = null; safeCache = null; };
+
+  /* What the screen's cutouts cost, in pixels off each edge. #app is padded by
+     env(safe-area-inset-*) in CSS, which carries everything laid out inside
+     it; this reads the same four numbers back for the things that are
+     position:fixed and therefore measured against the raw window — the hover
+     card, the selection column's ceiling. Zero on a screen with nothing
+     sticking into it, so this is a no-op almost everywhere.
+
+     Read off the padding rather than by parsing env() out of a stylesheet:
+     the browser has already resolved it, and it re-resolves on rotation. */
+  let safeCache = null;
+  function safeArea() {
+    if (safeCache) return safeCache;
+    const app = $('#app');
+    const cs = app ? getComputedStyle(app) : null;
+    safeCache = cs ? {
+      top: parseFloat(cs.paddingTop) || 0,
+      right: parseFloat(cs.paddingRight) || 0,
+      bottom: parseFloat(cs.paddingBottom) || 0,
+      left: parseFloat(cs.paddingLeft) || 0,
+    } : { top: 0, right: 0, bottom: 0, left: 0 };
+    return safeCache;
+  }
   function rects() {
     if (!rectCache) {
       const pal = $('#palette'), cv = UI.canvas;
@@ -586,8 +609,13 @@
     document.removeEventListener('pointerdown', d.off, true);
   }
 
+  /* Three at once, oldest retired early. A wave ending on a boss, on a tenth
+     wave, with a hero levelling can fire four of these inside a second, and a
+     stack that tall reaches a third of the way up a phone. */
+  const TOAST_MAX = 3;
   function toast(msg, kind) {
     const box = $('#toasts');
+    while (box.children.length >= TOAST_MAX) box.firstChild.remove();
     const t = el('div', 'toast' + (kind ? ' ' + kind : ''), msg);
     box.appendChild(t);
     setTimeout(() => t.classList.add('show'), 10);
@@ -1086,7 +1114,13 @@
     } else if (kind === 'leak') {
       sfx.leak();
     } else if (kind === 'bossDown') {
-      toast(`☠ ${payload} destroyed!`);
+      /* A boss going down is a MOMENT, and the game already has a channel for
+         moments: the banner that announces a wave. It is centred, it fades on
+         its own, and it takes no pointer events. As a toast it was a card
+         parked in the corner of a phone for two and a half seconds, over the
+         vitals and over the selection card, at exactly the point in a battle
+         when you most want to see the battlefield. */
+      banner(`☠ ${payload} down!`);
     } else if (kind === 'victory') {
       G.music.stop();
       bankXp();          // the final wave's sea lions count too
@@ -1463,7 +1497,12 @@
     const r = anchor.getBoundingClientRect();
     const tr = tip.getBoundingClientRect();
     const left = columnLeft();
-    const clampY = (y) => Math.max(8, Math.min(window.innerHeight - tr.height - 8, y));
+    /* The card is position:fixed, so the window's edges are its limits — and on
+       a phone the window's edges are not the safe area's. Both are folded in
+       here so a card can never open under a cutout. */
+    const sa = safeArea();
+    const minX = 8 + sa.left, maxX = window.innerWidth - sa.right - 8;
+    const clampY = (y) => Math.max(8 + sa.top, Math.min(window.innerHeight - sa.bottom - tr.height - 8, y));
     /* An upgrade row lives in the selection card on the LEFT, and the rule
        below would centre its description above the row — which put the card on
        top of the very list you are choosing from, hiding the other two paths
@@ -1473,18 +1512,18 @@
     if (panel) {
       const pr = panel.getBoundingClientRect();
       const x = pr.right + 10;
-      tip.style.left = (x + tr.width + 8 <= window.innerWidth
+      tip.style.left = (x + tr.width + 8 <= maxX
         ? x
-        : Math.max(8, pr.left - tr.width - 10)) + 'px';
+        : Math.max(minX, pr.left - tr.width - 10)) + 'px';
       tip.style.top = clampY(r.top + r.height / 2 - tr.height / 2) + 'px';
       return;
     }
     if (r.left >= left - 1 && left > tr.width + 16) {
-      tip.style.left = Math.max(8, left - tr.width - 10) + 'px';
+      tip.style.left = Math.max(minX, left - tr.width - 10) + 'px';
       tip.style.top = clampY(r.top + r.height / 2 - tr.height / 2) + 'px';
       return;
     }
-    const x = Math.max(8, Math.min(window.innerWidth - tr.width - 8, r.left + r.width / 2 - tr.width / 2));
+    const x = Math.max(minX, Math.min(maxX - tr.width, r.left + r.width / 2 - tr.width / 2));
     tip.style.left = x + 'px';
     tip.style.top = clampY(r.top - tr.height - 10) + 'px';
   }
@@ -1666,11 +1705,16 @@
     ab.id = 'hero-abil';
     ab.title = `${H.ability.name} — ${H.ability.desc}`;
     ab.onclick = fireHeroAbility;
-    if (placed) {
-      // the hero's own card is still a long-press away, and a tap on the ice
-      hoverTip(ab, () => showTooltip(ab, g.heroType));
-      attachLongPress(ab, () => showTooltip(ab, g.heroType));
-    }
+    /* No description card on this button, in either state. Once the hero is on
+       the ice this is not a hero any more, it is a weapon — and holding it, or
+       resting a cursor on it, opened the recruitment card for a penguin you
+       have already recruited and cannot recruit again. Worse on a finger: the
+       gesture for firing the ability is a press, so every hesitation on the way
+       to firing it put a card over the battlefield.
+
+       What the button does is on the button — icon, name, level and cooldown —
+       and its title says the rest on a mouse. The hero's own card is a tap on
+       the hero itself, out on the ice, where every other penguin's card is. */
     box.appendChild(ab);
     updateDockHero();
   }
@@ -1994,7 +2038,11 @@
        re-render. With two paths that hid the sell button; with three it hides
        most of the card. When the measurement is nonsense, don't set a ceiling
        at all and let the panel size to its content. */
-    const vh = window.innerHeight || document.documentElement.clientHeight || 0;
+    /* The floor of the window, less anything the screen keeps for itself: on a
+       phone in landscape the home indicator lives in the bottom inset, and a
+       column that ran to the raw viewport bottom put the sell button under it. */
+    const sa = safeArea();
+    const vh = (window.innerHeight || document.documentElement.clientHeight || 0) - sa.bottom;
     /* The ceiling has to be set with the top, not left to CSS. A panel taller
        than the space under the vitals will happily overflow UPWARDS out of its
        own box and cover them again — which is exactly what it did. */
@@ -2146,27 +2194,39 @@
       const key = ['Q', 'W', 'E'][p];
       const state = G.pathState(t.up, p);
 
-      /* Two lines, never three: the path and its progress on top, what you are
-         buying underneath. The price rides up on the first line beside the
-         dots — on its own line it cost sixteen pixels a row, and three rows of
-         that was the difference between the card fitting and the sell button
-         being pushed off the bottom.
+      /* Two lines, never three — but the SAME two lines in every state, which
+         they were not. An open path printed a keycap, a name and a price; a
+         shut one printed a padlock and a sentence in a smaller face; and a
+         path you had already bought into looked exactly like one you had not,
+         because the only thing separating them was which of three 5px dots
+         were tinted. So after your first upgrade the card stopped answering
+         the two questions it exists to answer: how far along am I, and can I
+         still go further.
 
-         No fish glyph on it, for the same reason the tray tiles do without one:
-         the emoji is 14px of a 107px line, which is what pushed "TRICK SHOT"
-         into an ellipsis, and a gold number already reads as a price. */
-      const dots = path.tiers.map((x, i) =>
-        `<i class="${i < tier ? 'on' : ''}"></i>`).join('');
+         One skeleton now. Line one is the path and how many of its three tiers
+         you own, stated in words. Line two is always a marker, a label and a
+         value: what you would buy next and what it costs, or why you cannot.
+         And a path you have money in wears a green edge, so which two you
+         committed to reads at a glance without counting anything.
+
+         The lock and the star live on line one beside the tally rather than in
+         front of the reason: line two is only ~105px wide once the ⓘ and the
+         price have had their share, and a leading glyph there took enough off
+         it to clip "Rolling Thunder" to "Rolling Thun…". */
+      const shutMark = state === 'mastered' ? '★' : state === 'open' ? '' : '🔒';
+      const owned = `<span class="dsp-tally${tier >= 3 ? ' max' : tier ? ' has' : ''}">` +
+        `${shutMark ? `<i>${shutMark}</i>` : ''}${tier}/${path.tiers.length}</span>`;
+      const head = `<span class="dsp-head">
+             <span class="dsp-name">${path.name}</span>
+             ${owned}
+           </span>`;
 
       let row;
       if (state === 'open') {
         const u = path.tiers[tier];
         const uCost = g.priceOf(u.cost);
-        row = el('button', 'ds-path open' + (g.cash < uCost ? ' poor' : ' can'),
-          `<span class="dsp-head">
-             <span class="dsp-name">${path.name}</span>
-             <span class="dsp-dots">${dots}</span>
-           </span>
+        row = el('button', 'ds-path open' + (tier ? ' owned' : '') + (g.cash < uCost ? ' poor' : ' can'),
+          `${head}
            <span class="dsp-next"><kbd>${key}</kbd> <span class="dsp-up">${u.name}</span>
              <span class="dsp-cost" title="${fmt(uCost)}">${num(uCost)}</span></span>
            ${ladder(path, tier)}`);
@@ -2176,18 +2236,21 @@
            press, rather than discovered afterwards from a greyed-out row. */
         if (!tier && chosen === G.PATH_LIMIT - 1) row.classList.add('commits');
         row.onclick = () => buyUpgrade(t, p);
+        /* What you already own, for the hover that the row's own two lines
+           have no room to spell out. */
+        row.title = tier
+          ? `${path.name}: you own ${path.tiers.slice(0, tier).map((x) => x.name).join(' → ')}. Next is ${u.name}.`
+          : `${path.name}: nothing bought yet. First is ${u.name}.`;
       } else {
-        const why = state === 'mastered' ? '★ mastered'
-          : state === 'locked' ? '🔒 two paths chosen'
-          : '🔒 capstone spent';
-        row = el('div', 'ds-path shut' + (state === 'mastered' ? ' done' : ''),
-          `<span class="dsp-head">
-             <span class="dsp-name">${path.name}</span>
-             <span class="dsp-dots">${dots}</span>
-           </span>
-           <span class="dsp-why">${why}</span>
+        const why = state === 'mastered' ? 'Path mastered'
+          : state === 'locked' ? 'Two paths chosen'
+          : 'Capstone spent';
+        row = el('div', 'ds-path shut' + (tier ? ' owned' : '') + (state === 'mastered' ? ' done' : ''),
+          `${head}
+           <span class="dsp-next"><span class="dsp-up">${why}</span></span>
            ${ladder(path, tier)}`);
-        row.title = G.PATH_LOCK_MSG[state] || '';
+        row.title = (tier ? `${path.name}: you own ${path.tiers.slice(0, tier).map((x) => x.name).join(' → ')}. ` : '') +
+          (G.PATH_LOCK_MSG[state] || '');
       }
       // the descriptions live here now: hover on a mouse, long-press on a finger
       const openInfo = () => showUpgradeTip(row, t.type, p, Math.min(tier, 2));
@@ -2668,7 +2731,14 @@
   function fitCanvas() {
     if (!UI.canvas) return;
     const root = document.documentElement;
-    const W = root.clientWidth - PAD, H = root.clientHeight - PAD;
+    /* The block is laid out inside #app, which is padded by the screen's safe
+       area — so the room it has is #app's CONTENT box, not the window. Asking
+       the window instead sized the block to include the strip under the
+       Dynamic Island and then let the grid push it back out, which is how the
+       battlefield ended up a little wider than the space it had. */
+    const sa = safeArea();
+    const W = root.clientWidth - sa.left - sa.right - PAD;
+    const H = root.clientHeight - sa.top - sa.bottom - PAD;
     const aspect = G.W / G.H;
     const playing = $('#dock').classList.contains('playing');
 

@@ -14,6 +14,24 @@
   --bad: #e56d77;
   --gold: #ffd97e;
   --shadow: 0 10px 32px rgba(0, 0, 0, 0.45), 0 2px 8px rgba(0, 0, 0, 0.35);
+
+  /* ---- the screen's own furniture ----
+     viewport-fit=cover is what lets the battlefield use the whole phone, and
+     the bargain it makes is that the Dynamic Island, the notch and the home
+     indicator are now INSIDE the viewport rather than outside it. In landscape
+     the island sits on the left or the right depending on which way the phone
+     was turned — so no edge of the screen is safe to pin anything to, and a
+     player who turns their phone the other way should not lose the column that
+     lives down the left.
+
+     Everything in the game is inset by these four numbers: #app is padded by
+     them, which carries the whole battlefield and its floating chrome, and the
+     handful of things that are position:fixed repeat them by hand. Zero on
+     every screen that has nothing sticking into it, which is most of them. */
+  --sat: env(safe-area-inset-top, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
 }
 
 html, body {
@@ -32,8 +50,16 @@ html, body {
   -webkit-tap-highlight-color: transparent;
 }
 
-/* dvh tracks the real viewport once mobile browser chrome slides away */
-#app { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
+/* dvh tracks the real viewport once mobile browser chrome slides away.
+   The padding is the safe area (see :root) — the whole in-battle layout is
+   laid out inside it, so the map, the tray, the vitals and the panels are all
+   clear of a cutout whichever way the phone is held. fitCanvas measures this
+   element's CONTENT box for exactly that reason. */
+#app {
+  display: flex; flex-direction: column;
+  height: 100vh; height: 100dvh;
+  padding: var(--sat) var(--sar) var(--sab) var(--sal);
+}
 
 #stage {
   flex: 1;
@@ -134,7 +160,7 @@ html.touch #place-hint { bottom: 58px; }
   align-items: center;
   justify-content: center;
   text-align: center;
-  padding: 30px;
+  padding: calc(30px + var(--sat)) calc(30px + var(--sar)) calc(30px + var(--sab)) calc(30px + var(--sal));
   gap: 6px;
 }
 #rotate-hint .rot-icon { font-size: 54px; animation: rotHint 2.2s ease-in-out infinite; }
@@ -201,7 +227,7 @@ html.touch #place-hint { bottom: 58px; }
    home-screen app is already fullscreen — it only covered the battlefield. */
 #btn-fs {
   position: fixed;
-  top: 14px; right: 16px;
+  top: calc(14px + var(--sat)); right: calc(16px + var(--sar));
   z-index: 30;
 }
 html.touch #btn-fs { display: none; }
@@ -253,9 +279,27 @@ html.touch #btn-fs { display: none; }
 }
 
 /* ---------- toasts ---------- */
-/* under the vitals, so the (variable-height) dock never covers them */
-#toasts { position: fixed; left: 16px; top: 70px; z-index: 50; display: flex; flex-direction: column; gap: 8px; }
+/* Along the foot of the screen, centred, newest nearest the bottom.
+   They used to stack down from the top-left corner, which on a phone is three
+   things at once: on top of the vitals you are reading, on top of the
+   selection card — which opens in exactly that corner and is BELOW them in the
+   stack — and, because the strip took pointer events, on top of the
+   battlefield you were trying to tap. A wave clearing while you lined up a
+   penguin ate the tap.
+
+   The foot of the map is the emptiest part of it, and pointer-events:none
+   means the worst a toast can now do is be looked at. */
+#toasts {
+  position: fixed;
+  left: 0; right: 0; bottom: calc(10px + var(--sab));
+  z-index: 50;
+  display: flex; flex-direction: column-reverse; align-items: center;
+  gap: 8px;
+  pointer-events: none;
+}
 .toast {
+  max-width: min(560px, 88vw);
+  text-align: center;
   background: var(--glass);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
@@ -267,11 +311,14 @@ html.touch #btn-fs { display: none; }
   font-weight: 600;
   box-shadow: var(--shadow);
   opacity: 0;
-  transform: translateX(-14px);
+  transform: translateY(12px);
   transition: all 0.28s cubic-bezier(0.2, 0.9, 0.3, 1.2);
 }
 .toast.show { opacity: 1; transform: none; }
 .toast.bad { border-left-color: var(--bad); }
+/* the toasts are decoration; the button that cancels a placement is not, and
+   it lives at the same end of the screen */
+#btn-cancel-place { z-index: 60; }
 
 /* ============ COMMAND DOCK ============ */
 #dock { display: none; }              /* only while a battle is on */
@@ -316,7 +363,11 @@ html.touch #btn-fs { display: none; }
    is wide, so a column down one edge covers trail the player is not aiming at. */
 #selpanel {
   position: fixed;
-  left: 12px;
+  /* Clear of a cutout on this edge. The column is the whole reason the safe
+     area matters here: held one way round an iPhone puts the Dynamic Island
+     exactly where this card opens, and the player had to turn the phone over
+     to read it. */
+  left: calc(12px + var(--sal));
   /* top and max-height are set from JS when the panel opens, so it starts below
      the vitals and never grows past the bottom of the window. Both have to come
      from the same measurement — a max-height left to CSS lets a tall panel
@@ -433,6 +484,7 @@ html.touch #btn-fs { display: none; }
    button would make every press on the ⓘ also a press on "buy this upgrade". */
 .ds-prow { display: flex; align-items: stretch; gap: 5px; min-width: 0; }
 .ds-prow .ds-path { flex: 1 1 auto; min-width: 0; }
+.ds-path { position: relative; }
 .ds-path.open { cursor: pointer; }
 .ds-path.open:hover { background: rgba(255, 255, 255, 0.075); }
 .ds-path.can { border-color: rgba(87, 212, 136, 0.7); }
@@ -442,28 +494,58 @@ html.touch #btn-fs { display: none; }
 .ds-path.shut { opacity: 0.45; }
 /* The one purchase that cannot be undone — it shuts the third path. */
 .ds-path.commits { border-color: rgba(212, 175, 55, 0.7); }
+/* A path you have already put fish into. Which two of the three you committed
+   to is the single most useful thing this card can say, and it was being said
+   by tinting a 5px dot. A green edge down the row says it from across the
+   table. Drawn rather than bordered so it cannot shift the row's box, and kept
+   off the flash animation's box-shadow. */
+.ds-path.owned::before {
+  content: '';
+  position: absolute; left: 0; top: 6px; bottom: 6px; width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--good);
+}
+/* gold is reserved for a path that is finished, not merely one with fish in it */
+.ds-path.done::before { background: var(--gold); }
 .dsp-head { display: flex; align-items: baseline; gap: 4px; }
 .dsp-name {
   flex: 0 1 auto; min-width: 0;
   /* No letter-spacing and 9px: "TRICK SHOT" is the longest path name in the
-     game and it has to fit beside the dots and the price in a 143px column. */
+     game and it has to fit beside the tally and the price in a 143px column. */
   font-size: clamp(9px, 1.7cqh, 12px); font-weight: 800; text-transform: uppercase;
   letter-spacing: 0; color: var(--dim);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.dsp-dots { flex: none; display: flex; gap: 3px; margin-left: auto; }
-.dsp-dots i {
-  width: clamp(4px, 0.85cqh, 6px); height: clamp(4px, 0.85cqh, 6px); border-radius: 50%;
-  background: rgba(255, 255, 255, 0.22);
+/* "1/3", not three small dots. The dots were the only thing on the row that
+   changed when you bought an upgrade, and at 5px across, 22% white against
+   green, they were not a change anyone noticed. A number cannot be missed and
+   it is no wider. */
+.dsp-tally {
+  flex: none; margin-left: auto;
+  font-size: clamp(9px, 1.65cqh, 12px); font-weight: 800;
+  font-variant-numeric: tabular-nums; letter-spacing: -0.2px;
+  padding: 1px 4px; border-radius: 999px;
+  color: var(--dim);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--line);
 }
-.dsp-dots i.on { background: var(--good); }
+.dsp-tally.has { color: #93e9b8; background: rgba(87, 212, 136, 0.16); border-color: rgba(87, 212, 136, 0.5); }
+.dsp-tally.max { color: #ffe6a8; background: rgba(255, 217, 126, 0.16); border-color: rgba(255, 217, 126, 0.55); }
+/* ★ mastered · 🔒 shut, riding in the tally rather than in front of the reason
+   on the line below — that line is only about 105px wide once the ⓘ and the
+   price have taken their share, and a glyph there clipped the upgrade's name. */
+.dsp-tally i { font-style: normal; font-size: 0.82em; margin-right: 1px; }
 /* The upgrade you are buying and what it costs, on one line — the price sits
    at the end of it rather than on the path-name line above, which needs its
-   whole width for "TRICK SHOT" beside the progress dots. */
+   whole width for "TRICK SHOT" beside the tally. A shut path fills the same
+   line with the reason instead, in the same face and the same place, so the
+   three rows read as three of one thing. */
 .dsp-next {
   display: flex; align-items: baseline; gap: 4px;
   font-size: clamp(12px, 2.35cqh, 16.5px); font-weight: 700; line-height: 1.2;
 }
+.ds-path.shut .dsp-up { font-weight: 700; color: var(--dim); font-size: clamp(11px, 2cqh, 14px); }
+.ds-path.done .dsp-up { color: var(--gold); }
 .dsp-up {
   flex: 1 1 auto; min-width: 0;
   display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
@@ -476,8 +558,6 @@ html.touch #btn-fs { display: none; }
   overflow-wrap: anywhere;
 }
 .dsp-cost { flex: none; font-size: clamp(11px, 2.05cqh, 14.5px); font-weight: 800; color: var(--gold); letter-spacing: -0.2px; }
-.dsp-why { font-size: clamp(11px, 2cqh, 14px); font-weight: 700; color: var(--dim); }
-.ds-path.done .dsp-why { color: var(--gold); }
 .ds-path kbd { margin-right: 3px; }
 /* one pulse the moment a row crosses from unaffordable to affordable */
 .ds-path.flash { animation: upgFlash 0.55s ease-out; }
@@ -933,6 +1013,9 @@ kbd {
 /* ---------- overlay screens ---------- */
 #overlay {
   position: fixed; inset: 0;
+  /* the menus are centred in the window, so only a cutout can reach them —
+     padding keeps a screen's edge out from under one */
+  padding: var(--sat) var(--sar) var(--sab) var(--sal);
   background: rgba(6, 10, 17, 0.7);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
@@ -949,7 +1032,10 @@ kbd {
   padding: 32px 38px;
   max-width: 900px;
   width: calc(100% - 40px);
-  max-height: calc(100vh - 60px);
+  /* #overlay is padded by the safe area and centres this box inside it, so the
+     ceiling has to come off the same budget or a tall menu grows back out
+     under the cutout it was just moved clear of. */
+  max-height: calc(100dvh - 60px - var(--sat) - var(--sab));
   overflow-y: auto;
   text-align: center;
   box-shadow: var(--shadow);
@@ -1918,11 +2004,10 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
   #btn-fs { top: 8px; right: 10px; }
   html.touch #hud-sys { right: 10px; }   /* no fullscreen button to clear */
   #banner { top: 44px; font-size: 20px; }
-  #toasts { top: 48px; left: 10px; }
   .toast { font-size: 12.5px; padding: 7px 12px; }
 
   /* menus have to fit a 390px-tall screen */
-  .screen { padding: 16px 18px; max-height: calc(100dvh - 20px); border-radius: 14px; }
+  .screen { padding: 16px 18px; max-height: calc(100dvh - 20px - var(--sat) - var(--sab)); border-radius: 14px; }
   .screen-head { top: -16px; margin: -16px -18px 12px; padding: 8px 10px; gap: 8px; }
   .screen-head h2 { font-size: 17px; }
   .screen-head .pebble-chip { padding: 4px 10px; font-size: 12px; }
