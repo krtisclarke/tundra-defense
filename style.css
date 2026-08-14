@@ -511,6 +511,21 @@ html.touch #btn-fs { display: none; }
   #selpanel { animation: none; }
   #app.upg-open #palette { animation: none; }
 }
+/* A question about this penguin puts its card out of reach until it is
+   answered — see setConfirming in ui.js for why the dialog's own scrim can no
+   longer do this. Dimmed as well as disabled: a card that ignores presses
+   without looking any different reads as the game having frozen. The wash is
+   the same 0.55 the scrim puts over the battlefield, so the two halves of the
+   screen go quiet together. */
+#app.confirming #selpanel {
+  filter: brightness(0.5) saturate(0.8);
+}
+/* The contents, not the card. The card itself has to stay hit-testable or the
+   press lands on the dock behind it, and the tap-outside handler reads that as
+   "you have gone somewhere else", drops the selection and closes the question
+   along with it. Inert children, live surface: a press on the dimmed card does
+   nothing at all, which is what the scrim used to do. */
+#app.confirming #selpanel > * { pointer-events: none; }
 #selpanel[hidden] { display: none; }
 #selpanel::-webkit-scrollbar { width: 5px; }
 #selpanel::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.16); border-radius: 3px; }

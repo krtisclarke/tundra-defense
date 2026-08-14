@@ -2067,9 +2067,28 @@
      always the safe answer — a dialog that cannot be dismissed is a dialog that
      eventually gets tapped through. */
   let confirmYes = null, confirmAbout = null;
+  /* While a question is up, the card it is about is not live.
+
+     #confirm is absolute inside #stage — it is the MAP's scrim — and that used
+     to be enough, because the card floated over the map too: the scrim covered
+     it, dimmed it and swallowed its taps. The card sits in the control column
+     now, outside the stage's box, so the scrim no longer reaches it and the
+     card was left fully tappable behind a dialog asking whether to destroy the
+     penguin it describes. Buying an upgrade from it while "Sell this?" was on
+     screen left the dialog quoting a refund that was no longer the one it would
+     pay: it said "Sell +102" and paid 168.
+
+     The keyboard has always been guarded this way — the keydown handler returns
+     while #confirm is open, so Q/W/E cannot buy either — so this is the same
+     rule for a finger rather than a new one. A class on #app rather than moving
+     the dialog, because where the dialog appears is not what went wrong. */
+  function setConfirming(on) {
+    $('#app').classList.toggle('confirming', !!on);
+  }
   function closeConfirm() {
     confirmYes = confirmAbout = null;
     $('#confirm').hidden = true;
+    setConfirming(false);
   }
   /* `about` is what the question concerns — a tower, so far. The panel closes
      the dialog when it rebuilds for a DIFFERENT penguin and leaves it alone
@@ -2086,6 +2105,7 @@
     setHTML($('#cf-yes'), yesLabel);
     hideTooltip();          // one thing floating over the map at a time
     $('#confirm').hidden = false;
+    setConfirming(true);
   }
   function wireConfirm() {
     $('#cf-no').onclick = closeConfirm;
