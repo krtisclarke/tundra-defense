@@ -2131,43 +2131,59 @@
      tray and the hero and boost panels step aside for it and step back when it
      closes, and the battlefield is never touched.
 
-     It takes the BUILD TRAY's slot and nothing else. The hero chip, the boosts
-     and the wave controls are a separate grid row and they simply stay — which
-     is the whole point: a freeze, the hero's ability and the pause button are
-     the controls you reach for in the moment a wave is going wrong, and that
-     moment is exactly when a penguin's card is likely to be open. An earlier
-     version had the card cover them and it was a genuine regression, because
-     the boosts have no keyboard shortcut and no other route on a phone: a
-     player reaching for one from muscle memory hit an upgrade row and spent
-     fish instead.
+     It takes the WHOLE column — the build tray, the hero chip, the boosts and
+     the wave controls — and not just the tray's row.
 
-     Measured off the tray rather than computed from the same numbers fitCanvas
-     used, because the tray's box is the product of a grid, a container query
-     and a margin, and a second opinion here could only disagree with the first.
-     offsetLeft/offsetWidth, not getBoundingClientRect: the tray carries a
-     transform while it is stepping aside, and a rect includes it — which had
-     the card re-measuring itself 1.5% small every time it re-rendered and
-     jumping a couple of pixels the moment you bought an upgrade. The offset
-     box is the untransformed one.
+     The first version took the tray alone and left the rest showing. That was
+     the wrong trade twice over. It gave the card 238px on a phone to hold
+     contents that need about 270, so the rows had to be squeezed and what an
+     upgrade DOES could not be shown at all: three lines a row simply did not
+     exist, and a player who cannot read an upgrade cannot plan one. And it made
+     the card an odd half-panel sitting in a column that was otherwise still the
+     dock. The full column is 382px on the same phone. The extra 144 is what
+     pays for the descriptions, with room left over.
 
-     A tray that measures near nothing is a layout that has not settled —
+     What it costs is the boosts and the wave controls while a card is open, and
+     the way out is the way in: the X, a tap on the battlefield, or Escape. The
+     hazard to keep an eye on is muscle memory — Send Wave lives where the sell
+     button now lands — which is why selling still asks first.
+
+     Measured off the panels rather than computed from the same numbers fitCanvas
+     used, because their boxes are the product of a grid, a container query and a
+     margin, and a second opinion here could only disagree with the first.
+     offsetTop/offsetHeight, not getBoundingClientRect: #sidebar carries a scale
+     transform and a rect includes it, which had the card re-measuring itself
+     small every time it re-rendered. The offset box is the untransformed one.
+
+     A column that measures near nothing is a layout that has not settled —
      mid-rotation, entering fullscreen, an installed app being restored — and
-     writing that rect would pin the card to a sliver. Left alone instead; the
-     card keeps whatever it had, and the CSS floor below covers the first open. */
+     writing that rect would pin the card to a sliver. Left alone instead, and
+     the card keeps whatever box it had. */
   function fitSelPanel(box) {
     const tray = $('#palette');
     if (!tray || tray.offsetWidth < 40 || tray.offsetHeight < 40) return;
     const par = tray.offsetParent;
     const px = par ? par.getBoundingClientRect() : { left: 0, top: 0 };
+    const top = px.top + tray.offsetTop;
+    /* The foot of the column is the panels' foot, and #panel-fit already keeps
+       its own bottom margin clear of the home indicator — so taking its box
+       rather than the grid row's means the card stops where the wave controls
+       stop, not in the strip iOS watches for a swipe up. Falls back to the tray
+       alone if the panels are not there to measure, which is every layout where
+       the dock is not playing. */
+    const pf = $('#panel-fit');
+    const foot = pf && pf.offsetHeight > 20
+      ? px.top + pf.offsetTop + pf.offsetHeight
+      : top + tray.offsetHeight;
     box.style.left = Math.round(px.left + tray.offsetLeft) + 'px';
-    box.style.top = Math.round(px.top + tray.offsetTop) + 'px';
+    box.style.top = Math.round(top) + 'px';
     box.style.width = Math.round(tray.offsetWidth) + 'px';
-    box.style.height = Math.round(tray.offsetHeight) + 'px';
+    box.style.height = Math.round(foot - top) + 'px';
   }
 
-  /* visibility, not display, and only the tray. Taking it out of the flow would
-     collapse the grid row it defines, which is the row the card was just
-     measured into. Hidden in place it holds its box and nothing moves. */
+  /* visibility, not display. Taking the panels out of the flow would collapse
+     the grid rows they define, which are the rows the card was just measured
+     into. Hidden in place they hold their boxes and nothing moves. */
   function showDock(on) {
     $('#app').classList.toggle('upg-open', !on);
   }
