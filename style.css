@@ -1312,6 +1312,27 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
   font-variant-numeric: tabular-nums;
 }
 .hero-abil { min-width: 96px; max-width: 132px; }
+/* Once the hero is on the ice, the panel IS the ability: the portrait beside it
+   was a control that could not do anything — a hero places once, so its only
+   remaining gesture was a drag that had to be refused. */
+.btn.hero-power {
+  flex: 1 1 auto;
+  min-width: 0; max-width: none; width: 100%;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 2px;
+  padding: 8px 8px;
+  text-align: center;
+  line-height: 1.2;
+}
+.hp-icon { font-size: 22px; line-height: 1.25; }
+.hp-name { font-size: 12px; font-weight: 800; color: var(--gold); }
+.hp-state {
+  font-size: 10.5px; font-weight: 650; color: var(--dim);
+  font-variant-numeric: tabular-nums;
+}
+.btn.hero-power:disabled { opacity: 0.62; }
+.btn.hero-power.ready .hp-state { color: var(--good); }
 .hero-abil.ready {
   border-color: var(--gold);
   color: var(--gold);
@@ -1689,6 +1710,13 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
   }
   #dock-hero .hero-chip canvas { width: 88%; height: auto; }
   #dock-hero .hero-abil { flex: none; min-width: 0; max-width: none; width: 100%; }
+  /* With no portrait beside it the power takes the whole panel. The dock is
+     drawn at 400px and scaled down, so these are nominal units — they land at
+     roughly half these numbers on a phone. */
+  #dock-hero .btn.hero-power { flex: 1 1 auto; height: 100%; gap: 4px; }
+  #dock-hero .hp-icon { font-size: 40px; }
+  #dock-hero .hp-name { font-size: 16px; }
+  #dock-hero .hp-state { font-size: 13px; }
   /* Two across and three down, not three and two. The box is taller than it is
      wide, so a 3x2 grid of squares is limited by width and leaves the height
      unused — 46px buttons under 125px of nothing. Turned on its side the same

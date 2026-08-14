@@ -1612,51 +1612,82 @@
     }
     box.style.display = 'flex';
     $('#sidebar').classList.remove('no-hero');
-    box.innerHTML = '<div class="dp-label">hero</div>';
-    const chip = el('button', 'hero-chip');
-    chip.id = 'hero-chip';
-    /* 160, not 40: the chip is a portrait filling its half of the panel now,
-       up to 165px, and drawTowerIcon draws to the canvas's own size. */
-    const cv = document.createElement('canvas');
-    cv.width = 160; cv.height = 160;
-    G.drawTowerIcon(cv, g.heroType);
-    chip.appendChild(cv);
-    chip.appendChild(el('span', 'hero-lv', ''));
-    chip.onclick = () => {
-      const gg = UI.game;
-      if (!gg || gg.over) return;
-      if (gg.heroTower) { gg.selected = gg.heroTower; gg.placingType = null; syncCancelBtn(); renderDockSel(); }
-      else armTower(gg.heroType);
-    };
-    hoverTip(chip, () => showTooltip(chip, g.heroType));
-    attachLongPress(chip, () => showTooltip(chip, g.heroType));
-    attachTrayDrag(chip, g.heroType);
-    box.appendChild(chip);
-    const ab = el('button', 'btn tiny hero-abil');
-    ab.id = 'hero-abil';
     const H = G.HEROES[g.heroType];
+    const placed = !!g.heroTower;
+    /* Two different panels, because there are two different jobs. A hero can be
+       placed once, so once it is on the ice the portrait is a control that
+       cannot do anything: it still dragged out and the ghost still followed the
+       finger, and the drop could only ever be refused. What the panel is for
+       after that is the signature ability. */
+    box.dataset.mode = placed ? 'power' : 'place';
+    box.innerHTML = `<div class="dp-label">${placed ? H.ability.name : 'hero'}</div>`;
+
+    if (!placed) {
+      const chip = el('button', 'hero-chip');
+      chip.id = 'hero-chip';
+      /* 160, not 40: the chip is a portrait filling its half of the panel,
+         up to 165px, and drawTowerIcon draws to the canvas's own size. */
+      const cv = document.createElement('canvas');
+      cv.width = 160; cv.height = 160;
+      G.drawTowerIcon(cv, g.heroType);
+      chip.appendChild(cv);
+      chip.appendChild(el('span', 'hero-lv', ''));
+      chip.onclick = () => {
+        const gg = UI.game;
+        if (!gg || gg.over || gg.heroTower) return;
+        armTower(gg.heroType);
+      };
+      hoverTip(chip, () => showTooltip(chip, g.heroType));
+      attachLongPress(chip, () => showTooltip(chip, g.heroType));
+      attachTrayDrag(chip, g.heroType);
+      box.appendChild(chip);
+    }
+
+    const ab = el('button', 'btn hero-abil' + (placed ? ' hero-power' : ' tiny'));
+    ab.id = 'hero-abil';
     ab.title = `${H.ability.name} — ${H.ability.desc}`;
     ab.onclick = fireHeroAbility;
+    if (placed) {
+      // the hero's own card is still a long-press away, and a tap on the ice
+      hoverTip(ab, () => showTooltip(ab, g.heroType));
+      attachLongPress(ab, () => showTooltip(ab, g.heroType));
+    }
     box.appendChild(ab);
     updateDockHero();
   }
 
   function updateDockHero() {
     const g = UI.game;
-    const chip = $('#hero-chip'), ab = $('#hero-abil');
-    if (!g || !g.heroType || !chip) return;
+    const box = $('#dock-hero'), ab = $('#hero-abil');
+    if (!g || !g.heroType || !ab) return;
     const H = G.HEROES[g.heroType];
     const placed = !!g.heroTower;
-    const cost = g.priceOf(G.TOWERS[g.heroType].cost);
-    chip.classList.toggle('placed', placed);
-    chip.classList.toggle('armed', g.placingType === g.heroType);
-    chip.classList.toggle('poor', !placed && g.cash < cost);
-    chip.querySelector('.hero-lv').textContent = placed ? 'Lv ' + g.heroLevel : '🐟' + cost;
+    /* Placing the hero (or selling it) swaps which panel this is, and the swap
+       has to happen here — updateHud is what runs after either. */
+    if (box.dataset.mode !== (placed ? 'power' : 'place')) { buildDockHero(); return; }
+
+    const chip = $('#hero-chip');
+    if (chip) {
+      const cost = g.priceOf(G.TOWERS[g.heroType].cost);
+      chip.classList.toggle('armed', g.placingType === g.heroType);
+      chip.classList.toggle('poor', g.cash < cost);
+      chip.querySelector('.hero-lv').textContent = '🐟' + cost;
+    }
+
     const ready = placed && g.heroLevel >= H.ability.unlock && g.time >= g.heroReadyAt && !g.over;
-    if (!placed) setHTML(ab, `${H.ability.icon} place your hero`);
-    else if (g.heroLevel < H.ability.unlock) setHTML(ab, `${H.ability.icon} unlocks at lvl ${H.ability.unlock}`);
-    else if (g.time < g.heroReadyAt) setHTML(ab, `${H.ability.icon} ${Math.ceil(g.heroReadyAt - g.time)}s`);
-    else setHTML(ab, `${H.ability.icon} <b>${H.ability.name}</b> <kbd>H</kbd>`);
+    if (!placed) {
+      setHTML(ab, `${H.ability.icon} place your hero`);
+    } else {
+      const state = g.heroLevel < H.ability.unlock
+        ? `unlocks at Lv ${H.ability.unlock}`
+        : g.time < g.heroReadyAt
+          ? `${Math.ceil(g.heroReadyAt - g.time)}s`
+          : (IS_TOUCH ? 'tap to fire' : 'press H');
+      setHTML(ab,
+        `<span class="hp-icon">${H.ability.icon}</span>
+         <span class="hp-name">${H.ability.name}</span>
+         <span class="hp-state">Lv ${g.heroLevel} · ${state}</span>`);
+    }
     ab.disabled = !ready;
     ab.classList.toggle('ready', ready);
   }
