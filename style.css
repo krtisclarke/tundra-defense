@@ -497,17 +497,25 @@ html.touch #btn-fs { display: none; }
   from { opacity: 0; transform: translateY(-10px) scale(1.04); }
   to   { opacity: 1; transform: none; }
 }
-/* The whole column steps aside, not just the tray: the build tray, the hero
-   chip, the boosts and the wave controls. The card needs the height — it holds
-   three upgrade rows WITH their descriptions, which the tray's row alone could
-   not fit — and a card occupying half a column while the other half carried on
-   as the dock never read as one thing anyway.
+/* The tray, the hero chip and the boosts step aside. #command — Send Wave, the
+   speed toggle, pause and auto — does NOT, at any size. It is the row you reach
+   for while a card is open rather than after closing one: a wave you want to
+   hold, a speed you want to drop, and above all pause, because stopping to read
+   an upgrade does not stop the battle.
+
+   Listed one by one rather than hiding #panel-fit, which is their shared
+   wrapper: hiding the wrapper takes the wave controls with it, and hiding a
+   parent cannot be undone by a child (visibility inherits, but a hidden
+   ancestor's box is still not painted for a visible descendant — it is, but the
+   scaled #sidebar's own panel background goes with it, and the controls end up
+   floating on the map with no card behind them).
 
    There is no companion animation on the way out. There was one, on the tray,
    and it could never have been seen: visibility goes the moment the class does,
    so it was 130ms of an invisible element scaling. Only the card moves. */
 #app.upg-open #palette,
-#app.upg-open #panel-fit {
+#app.upg-open #dock-hero,
+#app.upg-open #dock-powers {
   visibility: hidden;
 }
 /* Someone who has asked their phone to stop animating things has asked for
@@ -631,6 +639,13 @@ html.touch #btn-fs { display: none; }
 /* A path you cannot buy into has no next tier to describe — the row already
    says why it is shut, and that is the sentence that matters there. */
 .ds-path.shut .dsp-desc { display: none; }
+/* On a finger it lives in the ⓘ card instead. The column is 325px there — down
+   to the wave controls, which stay — and three rows carrying a sentence each
+   need about 40 more than that. Something had to go, and a sentence one press
+   away behind a button that says it is there beats the same sentence on screen
+   with the row it belongs to scrolled half out of sight. On a mouse there is
+   room for both, and the hover card is the third way in. */
+html.touch .dsp-desc { display: none; }
 .ds-path { position: relative; }
 .ds-path.open { cursor: pointer; }
 .ds-path.open:hover { background: rgba(255, 255, 255, 0.075); }
@@ -741,7 +756,9 @@ html.touch #btn-fs { display: none; }
   #selpanel .ds-head canvas { width: 28px; height: 28px; }
   #selpanel .ds-name { font-size: 12.5px; }
   #selpanel { gap: 6px; padding: 8px 9px; }
-  #selpanel .ds-path { min-height: 40px; padding: 6px 7px; }
+  /* 5px of side padding, not 7: the ⓘ beside the row takes 25 of the column's
+     128 and the name is what pays for it, so the row gives back what it can. */
+  #selpanel .ds-path { min-height: 40px; padding: 6px 5px; }
 }
 
 .ds-empty { text-align: left; }
@@ -810,7 +827,7 @@ html.touch #btn-fs { display: none; }
    sharing it evenly — bigger targets on a tall window, unchanged on a short
    one — and the bottom row is pinned to the foot by the auto margin. */
 .ds-upgs {
-  display: flex; flex-direction: column; gap: 6px;
+  display: flex; flex-direction: column; gap: 5px;
   flex: 1 1 auto; min-height: 0;
   /* The rows scroll HERE, and this is the one thing standing between a finger
      and a purchase it did not ask for.
@@ -856,7 +873,8 @@ html.touch #btn-fs { display: none; }
    700x360: two of the three rows lost their sentence, on seventeen of the
    twenty penguins, with no scrollbar to say anything was missing.
    Content-sized rows overflow honestly instead, and .ds-upgs scrolls. */
-.ds-upgs .ds-path { flex: 1 0 auto; min-height: 0; justify-content: center; }
+.ds-upgs .ds-prow { flex: 1 0 auto; min-height: 0; display: flex; align-items: stretch; gap: 3px; min-width: 0; }
+.ds-upgs .ds-prow .ds-path { flex: 1 1 auto; min-width: 0; justify-content: center; }
 /* And the sentence itself is not the part that gives. It is the only thing on
    the row that says what the fish buy. */
 .dsp-desc { flex: none; }
@@ -2308,10 +2326,46 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
   .lvl-sec-blurb { display: none; }
 }
 
-/* The card's width is the tray's width now (fitSelPanel), so the 178px floor
-   that used to live here is gone — and so is the ⓘ button it was paying for.
-   That button was a full-height strip down the edge of every row, 41px of a
-   148px one, and what it opened is now printed in the row itself. */
+/* ---- the ⓘ on each upgrade row, on touch only ----
+   What an upgrade does has to be reachable by pressing something that looks
+   like it can be pressed. Long-press was the only route and nobody found it:
+   there is nothing on screen advertising that a row can be held, and the row's
+   obvious gesture spends fish. A full-height strip down the edge of the row, so
+   the target is the row's whole height rather than the size of the glyph in it.
+
+   22px, not the 36 this was before. It comes out of a column that is about
+   148px wide — 128 of content — and every pixel it takes comes off the upgrade
+   name beside it. At 36 the name had 72px and broke "Contact" across two lines;
+   the old 178px width floor existed to pay for exactly that, and the column
+   does not have 178 to give. At 22, with the row's side padding cut to 5, the
+   name line gets 96 and the only words that still break are the ones that break
+   at any width on a phone — "Konglomerate", "Stonebreaker" — which is what the
+   clamp and its ellipsis are for.
+
+   Hidden on a mouse. Hover already opens the same card there and a third
+   control on every row would be furniture in a column short of room. */
+.ds-info { display: none; }
+html.touch .ds-info {
+  display: flex; align-items: center; justify-content: center;
+  flex: none;
+  width: 22px;
+  /* Its own colour, and not one already spoken for: gold is a price and green
+     is "you can afford this", so the ⓘ borrows the accent blue instead and
+     reads as a control rather than as another number on the row. */
+  color: var(--accent);
+  background: rgba(116, 220, 251, 0.09);
+  border: 1px solid rgba(116, 220, 251, 0.34);
+  border-radius: 8px;
+  padding: 0;
+  cursor: pointer;
+  font-family: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+html.touch .ds-info:active { background: rgba(116, 220, 251, 0.24); }
+/* A closed path is still worth reading about — seeing the road you did not take
+   is the whole point of there being three of them — so the button stays, dimmed
+   to match the row it belongs to. */
+html.touch .ds-path.shut + .ds-info { opacity: 0.5; }
 /* There is no keyboard to press, so the letter is 24px of a 143px row spent on
    a hint that cannot be acted on. Reclaimed, which is most of what the ⓘ costs.
    The dock does the same thing for the same reason. Whole panel, not just the

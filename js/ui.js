@@ -57,6 +57,13 @@
 
   const ICON_SOUND_ON = '<svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M3 9v6h4l5 5V4L7 9H3zm13.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4zM14 3.2v2.1c2.9.9 5 3.5 5 6.7s-2.1 5.8-5 6.7v2.1c4-.9 7-4.5 7-8.8s-3-7.9-7-8.8z"/></svg>';
   const ICON_SOUND_OFF = '<svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M3 9v6h4l5 5V4L7 9H3zm18.6 3 2-2-1.4-1.4-2 2-2-2L16.7 10l2 2-2 2 1.4 1.4 2-2 2 2 1.4-1.4-2-2z"/></svg>';
+  /* Drawn rather than typed: the ⓘ character renders as a different shape on
+     every platform and as a colour emoji on some. */
+  const ICON_INFO = '<svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" focusable="false">' +
+    '<circle cx="12" cy="12" r="9.1" fill="none" stroke="currentColor" stroke-width="1.9"/>' +
+    '<circle cx="12" cy="7.4" r="1.4" fill="currentColor"/>' +
+    '<path d="M12 10.7v6.4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></svg>';
+
   /* ---------- persistence ---------- */
   const store = {
     get(key, fallback) {
@@ -2131,49 +2138,49 @@
      tray and the hero and boost panels step aside for it and step back when it
      closes, and the battlefield is never touched.
 
-     It takes the WHOLE column — the build tray, the hero chip, the boosts and
-     the wave controls — and not just the tray's row.
+     It takes the column down as far as the WAVE CONTROLS and stops there.
 
-     The first version took the tray alone and left the rest showing. That was
-     the wrong trade twice over. It gave the card 238px on a phone to hold
-     contents that need about 270, so the rows had to be squeezed and what an
-     upgrade DOES could not be shown at all: three lines a row simply did not
-     exist, and a player who cannot read an upgrade cannot plan one. And it made
-     the card an odd half-panel sitting in a column that was otherwise still the
-     dock. The full column is 382px on the same phone. The extra 144 is what
-     pays for the descriptions, with room left over.
+     Three things live in that column under the tray: the hero chip, the six
+     boosts, and the row with Send Wave, the speed toggle, pause and auto. The
+     first two step aside for the card. The last does not, ever. Sending the
+     next wave, changing speed and pausing are not things to make a player close
+     a card to reach — pause especially, which is the one control you want when
+     you have stopped to read something and the battle has not stopped with you.
 
-     What it costs is the boosts and the wave controls while a card is open, and
-     the way out is the way in: the X, a tap on the battlefield, or Escape. The
-     hazard to keep an eye on is muscle memory — Send Wave lives where the sell
-     button now lands — which is why selling still asks first.
+     That is 325px on a phone in landscape, against 238 for the tray's row alone
+     and 382 for the whole column. 238 was not enough to hold three upgrade rows
+     and say what any of them did; 325 is, and it does not cost the wave
+     controls to get there.
 
-     Measured off the panels rather than computed from the same numbers fitCanvas
-     used, because their boxes are the product of a grid, a container query and a
-     margin, and a second opinion here could only disagree with the first.
-     offsetTop/offsetHeight, not getBoundingClientRect: #sidebar carries a scale
-     transform and a rect includes it, which had the card re-measuring itself
-     small every time it re-rendered. The offset box is the untransformed one.
+     The bottom edge comes from #command's rect rather than from a grid row,
+     because #command is inside #sidebar and #sidebar is scaled — its laid-out
+     box and the box on screen are different by a factor of about 0.39, and the
+     one the card has to stop above is the one on screen. The scale is static,
+     so the rect is stable to read. Everything else is offsets: the tray's own
+     box is untransformed and reads correctly that way.
 
      A column that measures near nothing is a layout that has not settled —
      mid-rotation, entering fullscreen, an installed app being restored — and
      writing that rect would pin the card to a sliver. Left alone instead, and
      the card keeps whatever box it had. */
+  /* Between the card's foot and the wave controls. Two, not four: the card is
+     within a few pixels of holding three rows without scrolling at the size
+     this is played at, and a gap is the cheapest place to find them. The two
+     panels still read as separate — they have their own edges. */
+  const CARD_GAP = 2;
   function fitSelPanel(box) {
     const tray = $('#palette');
     if (!tray || tray.offsetWidth < 40 || tray.offsetHeight < 40) return;
     const par = tray.offsetParent;
     const px = par ? par.getBoundingClientRect() : { left: 0, top: 0 };
     const top = px.top + tray.offsetTop;
-    /* The foot of the column is the panels' foot, and #panel-fit already keeps
-       its own bottom margin clear of the home indicator — so taking its box
-       rather than the grid row's means the card stops where the wave controls
-       stop, not in the strip iOS watches for a swipe up. Falls back to the tray
-       alone if the panels are not there to measure, which is every layout where
-       the dock is not playing. */
-    const pf = $('#panel-fit');
-    const foot = pf && pf.offsetHeight > 20
-      ? px.top + pf.offsetTop + pf.offsetHeight
+    /* Down to the wave controls, or to the foot of the tray if they are not
+       there to measure — which is every layout where the dock is not playing,
+       and the first frame of one that is. */
+    const cmd = $('#command');
+    const cr = cmd ? cmd.getBoundingClientRect() : null;
+    const foot = cr && cr.height > 10 && cr.top > top + 120
+      ? cr.top - CARD_GAP
       : top + tray.offsetHeight;
     box.style.left = Math.round(px.left + tray.offsetLeft) + 'px';
     box.style.top = Math.round(top) + 'px';
@@ -2182,8 +2189,10 @@
   }
 
   /* visibility, not display. Taking the panels out of the flow would collapse
-     the grid rows they define, which are the rows the card was just measured
-     into. Hidden in place they hold their boxes and nothing moves. */
+     the rows they define, which are the rows the card was just measured
+     against. Hidden in place they hold their boxes and nothing moves — and the
+     wave controls, which are not hidden, do not shift under a thumb that is
+     already on its way to them. */
   function showDock(on) {
     $('#app').classList.toggle('upg-open', !on);
   }
@@ -2427,11 +2436,8 @@
            ${ladder(path, tier)}`);
         row.title = G.PATH_LOCK_MSG[state] || '';
       }
-      /* The whole path — all three tiers, what you own, what is still ahead —
-         is a hover on a mouse and a hold on a finger. The row itself now says
-         what the NEXT tier does, which is what the ⓘ was reached for nine times
-         in ten; this is the tenth, for when you want to know where a path ends
-         before committing fish to it. */
+      /* The whole path — all three tiers, what each one does, what you own and
+         what is still ahead — on a hover, a hold, and a button that says so. */
       const openInfo = () => showUpgradeTip(row, t, p);
       hoverTip(row, openInfo);
       attachLongPress(row, openInfo);
@@ -2442,7 +2448,23 @@
          to say. */
       if (reopen === p) reopenInfo = openInfo;
 
-      upgRow.appendChild(row);
+      /* On a finger the path card gets a control of its own. Long-press was the
+         only way in and nobody found it: nothing on screen says a row can be
+         held, and the row's obvious gesture — a tap — spends fish. So the row
+         and the ⓘ are siblings rather than one inside the other, which keeps
+         them separate targets: a tap on the row still buys, and a tap on the ⓘ
+         can never be a mis-buy.
+
+         Hidden on a mouse, where hovering the row already opens the same card
+         and a third control per row would be furniture. */
+      const prow = el('div', 'ds-prow');
+      prow.appendChild(row);
+      const info = el('button', 'ds-info', ICON_INFO);
+      info.setAttribute('aria-label', `What ${path.name} does`);
+      info.title = `What ${path.name} does`;
+      info.onclick = (ev) => { ev.stopPropagation(); openInfo(); armTooltipDismiss(); };
+      prow.appendChild(info);
+      upgRow.appendChild(prow);
     }
     box.appendChild(upgRow);
 
@@ -2798,9 +2820,9 @@
     /* The panel stays up until you go somewhere else. Pressing inside it does
        nothing — that is where the upgrade buttons are — and the map is left to
        its own handler, which already picks a different penguin or clears the
-       selection depending on what you hit. Everything else, the tray included,
-       counts as leaving. Capture phase so it runs before the thing you pressed
-       re-renders the panel out from under this check. */
+       selection depending on what you hit. Everything else counts as leaving.
+       Capture phase so it runs before the thing you pressed re-renders the panel
+       out from under this check. */
     document.addEventListener('pointerdown', (ev) => {
       const g = UI.game;
       if (!g || !g.selected) return;
@@ -2808,8 +2830,15 @@
          here the press that answers "sell this penguin?" cleared the selection
          and re-rendered the panel first — which closes the dialog and drops the
          callback — and the click that followed landed on a button that no
-         longer had anything to do. Pressing Sell did nothing at all. */
-      if (ev.target.closest('#selpanel') || ev.target.closest('#confirm') || ev.target.closest('canvas#game')) return;
+         longer had anything to do. Pressing Sell did nothing at all.
+
+         #command is the wave controls, and they are the one thing beside the
+         card that keeps working while it is open — so using them must not shut
+         it. Sending the next wave, dropping to 1x or pausing are all things you
+         do BECAUSE you are part-way through reading a card, and closing it as
+         the price of pausing is the opposite of what pausing is for. */
+      if (ev.target.closest('#selpanel') || ev.target.closest('#confirm')
+          || ev.target.closest('#command') || ev.target.closest('canvas#game')) return;
       g.selected = null;
       renderDockSel();
     }, true);
