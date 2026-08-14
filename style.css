@@ -177,6 +177,49 @@ html.touch #btn-cancel-place.show { display: block; }
 html.touch #place-hint { bottom: calc(58px + var(--map-inset-b, 0px)); }
 @media (max-width: 700px) { #place-hint { font-size: 12px; padding: 6px 11px; } }
 
+/* ---------- "are you sure" ----------
+   Over the map, not over the screen: what is being asked about is one penguin,
+   and blacking out the battlefield to ask would be answering a bigger question
+   than the one on the card. The scrim is only dark enough to say the rest of
+   the board is not listening, and tapping it is the same as Cancel. */
+#confirm {
+  position: absolute;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  background: rgba(6, 11, 19, 0.55);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+#confirm[hidden] { display: none; }
+.cf-card {
+  width: min(340px, 100%);
+  background: linear-gradient(180deg, rgba(22, 33, 52, 0.99), rgba(13, 21, 34, 0.99));
+  border: 1px solid var(--line-strong);
+  border-radius: 14px;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.6);
+  padding: 16px 16px 14px;
+  text-align: center;
+}
+.cf-card h3 { font-size: 16.5px; font-weight: 800; margin-bottom: 6px; }
+.cf-card p { color: var(--dim); font-size: 13.5px; line-height: 1.45; margin-bottom: 14px; }
+.cf-card p b { color: var(--gold); }
+/* Cancel first and equal in size. The destructive one does not get to be the
+   big obvious button on a card whose whole job is to slow you down — but it is
+   the one wearing the colour, so neither is hunted for. */
+.cf-row { display: flex; gap: 9px; }
+.cf-row .btn { flex: 1 1 0; min-height: 46px; justify-content: center; font-size: 14px; }
+/* A short window in landscape has about 340px of height for everything. */
+@media (max-height: 430px) {
+  .cf-card { padding: 12px 13px 11px; }
+  .cf-card h3 { font-size: 15px; }
+  .cf-card p { font-size: 12.5px; margin-bottom: 10px; }
+  .cf-row .btn { min-height: 42px; }
+}
+
 /* portrait phones */
 #rotate-hint {
   display: none;
@@ -599,22 +642,31 @@ html.touch #btn-fs { display: none; }
 .ds-path kbd { margin-right: 3px; }
 /* one pulse the moment a row crosses from unaffordable to affordable */
 .ds-path.flash { animation: upgFlash 0.55s ease-out; }
-/* Its own row at the bottom, clear of everything, and it asks before it acts. */
-.sell-btn {
+/* Its own row at the bottom, clear of everything, and it asks before it acts —
+   in a dialog now, see #confirm.
+
+   It used to ask in place: one press turned the button red and said "Sell?",
+   a second press sold. The red never arrived on the device the confirmation
+   exists for. iOS leaves :hover stuck on whatever you last tapped, .btn:hover
+   is written after this block and carries the same specificity as .sell-btn.armed,
+   so the later rule won and the armed button kept the ordinary grey fill — with
+   the armed state's near-black text on top of it, which reads as a disabled
+   button rather than an armed one. A player who had just asked to sell a 14,000
+   fish penguin was looking at something that appeared to have refused.
+
+   .btn is also written after the block below, which is why the idle colours are
+   qualified: unqualified they lost the same argument and the button that sells
+   your penguin was the same colour as the button that changes its targeting. */
+.sell-btn.sell-btn {
   width: 100%;
   min-height: clamp(42px, 7.4cqh, 54px);
   margin-top: 2px;
   justify-content: center;
   font-size: clamp(13px, 2.3cqh, 15.5px);
-  color: var(--bad);
+  color: #ff9ba3;
   border-color: rgba(229, 109, 119, 0.45);
 }
-.sell-btn.armed {
-  background: rgba(229, 109, 119, 0.9);
-  border-color: var(--bad);
-  color: #1b0d10;
-  font-weight: 800;
-}
+.sell-btn.sell-btn:hover { background: rgba(224, 96, 106, 0.2); border-color: rgba(229, 109, 119, 0.7); }
 
 /* A short window gives the card less to work with, so the head shrinks. The
    rows themselves do not: they are three finger targets and a price, which is
@@ -1036,15 +1088,45 @@ kbd {
 }
 .tt-tier-dot { flex: none; width: 10px; text-align: center; font-size: 10px; }
 .tt-tier-desc { color: var(--dim); font-weight: 600; }
-.tt-tier.own { opacity: 0.55; }
-.tt-tier.own .tt-tier-dot { color: var(--good); }
+/* Bought, and it says so. A tier you own used to differ from one you do not by
+   a 10px dot and a change of opacity, which at arm's length on a phone is not a
+   difference at all — so after your first upgrade the card stopped answering
+   the question it is for. The tick, the word and the missing price are three
+   independent ways to read the same thing, and none of them needs good light. */
+.tt-tier.own { opacity: 0.62; }
+.tt-tier.own .tt-tier-dot { color: var(--good); font-size: 11px; }
+.tt-tier.own b { text-decoration: line-through; text-decoration-color: rgba(255, 255, 255, 0.32); }
 .tt-tier.next {
-  background: rgba(87, 212, 136, 0.12);
-  box-shadow: inset 0 0 0 1px rgba(87, 212, 136, 0.35);
+  background: rgba(87, 212, 136, 0.14);
+  box-shadow: inset 0 0 0 1px rgba(87, 212, 136, 0.45);
 }
 .tt-tier.next .tt-tier-dot { color: var(--good); }
-.tt-tier.later { opacity: 0.65; }
+.tt-tier.later { opacity: 0.6; }
 .tt-tier.later .tt-tier-dot { color: var(--dim); }
+/* The word beside the name. Small, but it is the only part of the row that
+   cannot be mistaken for anything else. */
+.tt-tag {
+  display: inline-block;
+  font-size: 8.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;
+  border-radius: 4px;
+  padding: 0 4px;
+  vertical-align: 1px;
+}
+.tt-tag.own { color: var(--good); border: 1px solid rgba(87, 212, 136, 0.4); }
+.tt-tag.next { color: #0d1a14; background: var(--good); }
+/* How far along the path, in the head, so it never has to be counted off the
+   rows below. Gold once every tier is bought. */
+.tt-tally {
+  flex: none;
+  font-size: 10px; font-weight: 800; letter-spacing: 0.3px;
+  color: var(--dim);
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  padding: 1px 7px;
+  font-variant-numeric: tabular-nums;
+}
+.tt-tally.has { color: var(--good); border-color: rgba(87, 212, 136, 0.45); }
+.tt-tally.max { color: var(--gold); border-color: rgba(212, 175, 55, 0.5); }
 .tt-stats b { color: var(--text); margin-left: 4px; font-variant-numeric: tabular-nums; }
 .tt-key { color: #6c8299; font-size: 10.5px; border-top: 1px solid var(--line); padding-top: 7px; }
 

@@ -69,6 +69,21 @@
 
       <!-- touch: cancel an armed penguin (replaces right-click) -->
       <button id="btn-cancel-place" title="Cancel placement">✕ cancel</button>
+
+      <!-- Asking before something that cannot be taken back. Selling is the only
+           one so far. It is a card over the map rather than a full screen: the
+           question is about one penguin, and covering the battlefield to ask it
+           would be answering a different question. -->
+      <div id="confirm" hidden>
+        <div class="cf-card" role="alertdialog" aria-modal="true" aria-labelledby="cf-title">
+          <h3 id="cf-title"></h3>
+          <p id="cf-body"></p>
+          <div class="cf-row">
+            <button class="btn" id="cf-no">Cancel</button>
+            <button class="btn danger" id="cf-yes"></button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Command dock. The build tray is separated from the other four panels by

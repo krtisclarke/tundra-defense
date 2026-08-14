@@ -234,7 +234,14 @@
        the cancel button underneath is the way out. */
     const hint = $('#place-hint');
     hint.classList.toggle('show', on);
-    if (!on) { hint.innerHTML = ''; return; }
+    /* setHTML, not innerHTML. setHTML remembers the last string it wrote to a
+       node and skips the write when nothing changed; emptying the node behind
+       its back left it remembering a sentence that was no longer there. So
+       picking up the SAME penguin a second time was a no-op — the pill opened
+       along the bottom of the map with nothing written in it, and stayed empty
+       for as long as the penguin was in hand. Every route out of a placement
+       comes through here, so this was every placement after the first. */
+    if (!on) { setHTML(hint, ''); return; }
     const def = G.TOWERS[g.placingType];
     const color = def.hero ? 'var(--gold)' : G.CLASSES[def.cls].color;
     setHTML(hint, IS_TOUCH
@@ -1017,7 +1024,7 @@
        null, so the flyout would have stayed on screen over the menu. */
     const sel = $('#selpanel');
     sel.hidden = true; sel.innerHTML = '';
-    sellArmedFor = null; clearTimeout(sellTimer);
+    closeConfirm();
     G.music.play('menu');
     buildLevelSelect();
     show('#screen-levels');
@@ -1535,7 +1542,7 @@
     tip.style.left = x + 'px';
     tip.style.top = clampY(r.top - tr.height - 10) + 'px';
   }
-  function hideTooltip() { clearTooltipDismiss(); $('#tooltip').style.display = 'none'; }
+  function hideTooltip() { clearTooltipDismiss(); openUpg = null; $('#tooltip').style.display = 'none'; }
 
   /* Hover opens a card and the matching mouseleave closes it again. That pair
      is a mouse contract, and on a touchscreen only half of it is honoured: what
@@ -1606,38 +1613,79 @@
     placeTip(anchor);
   }
 
-  /* Floating card for an upgrade — the whole path laid out, with the tier you
-     are about to buy highlighted, so the compact buttons lose no information. */
-  function showUpgradeTip(anchor, typeId, pathIdx, tier) {
+  /* Which penguin and which of its three paths the open upgrade card is about,
+     so renderDockSel can redraw the card instead of leaving it behind.
+
+     It used to be left behind. Buying an upgrade rebuilds the selection panel
+     and nothing touched the card floating beside it, so it went on describing
+     the penguin you had a second ago: the tier you had just bought still marked
+     as the one to buy next, at the price you had just paid, over a footer
+     saying "tap the row to buy Keen Eyes" when Keen Eyes was already yours. The
+     one card in the game whose whole job is to say where a path has got to was
+     the one thing on screen that did not know. */
+  let openUpg = null;
+
+  /* Floating card for an upgrade path — all three tiers, what you own, what
+     comes next and what it costs.
+
+     The tier is read off the tower here rather than passed in. It used to be an
+     argument, captured when the row was built, which is the other half of why
+     the card went stale: even a card opened fresh was quoting whatever the
+     panel knew when it last drew itself. */
+  function showUpgradeTip(anchor, t, pathIdx) {
     const g = UI.game;
+    const typeId = t.type;
     const def = G.TOWERS[typeId];
     const path = def.paths[pathIdx];
-    const u = path.tiers[tier];
+    const tier = (t.up && t.up[pathIdx]) || 0;
+    const state = G.pathState(t.up, pathIdx);
     const price = (raw) => (g ? g.priceOf(raw) : G.scaleCost(raw, 'medium'));
-    const cost = price(u.cost);
-    const afford = g && g.cash >= cost;
+    const next = state === 'open' ? path.tiers[tier] : null;
+    const cost = next ? price(next.cost) : 0;
+    const afford = next && g && g.cash >= cost;
+    openUpg = { t, pathIdx };
+
+    /* Every row says which of the three things it is in words — owned, next,
+       locked — rather than leaving it to a 10px dot and a change of opacity.
+       That dot was the only difference between a tier you had bought and one
+       you had not, and at arm's length on a phone it is not a difference. */
     const rows = path.tiers.map((x, i) => {
-      const state = i < tier ? 'own' : i === tier ? 'next' : 'later';
+      const owned = i < tier;
+      const isNext = i === tier && state === 'open';
+      const tag = owned ? '<span class="tt-tag own">owned</span>'
+        : isNext ? '<span class="tt-tag next">next</span>'
+          : '';
       const cap = i === 2 ? '<span class="tt-capstone">capstone</span> ' : '';
-      return `<div class="tt-tier ${state}">
-        <span class="tt-tier-dot">${i < tier ? '●' : i === tier ? '▸' : '○'}</span>
-        <span><b>${x.name}</b> <span class="tt-cost">${fmt(price(x.cost))}</span><br>
+      /* No price on something already bought — the number beside a tier you own
+         is the money you spent, not money you are being asked for, and the two
+         read identically. */
+      const money = owned ? '' : ` <span class="tt-cost">${fmt(price(x.cost))}</span>`;
+      return `<div class="tt-tier ${owned ? 'own' : isNext ? 'next' : 'later'}">
+        <span class="tt-tier-dot">${owned ? '✓' : isNext ? '▸' : '○'}</span>
+        <span><b>${x.name}</b>${money} ${tag}<br>
         <span class="tt-tier-desc">${cap}${x.desc}</span></span></div>`;
     }).join('');
-    const tip = $('#tooltip');
-    tip.innerHTML = `
-      <div class="tt-head"><b>${path.name}</b><span class="tt-cost">${fmt(cost)}</span></div>
-      <div class="tt-cls" style="color:${def.hero ? 'var(--gold)' : G.CLASSES[def.cls].color}">${def.name} — upgrade path ${pathIdx + 1} of ${def.paths.length}</div>
-      <div class="tt-tiers">${rows}</div>
-      <div class="tt-key">${afford
+
+    /* The head carries the tally, because "how far along this path am I" is the
+       question the card exists to answer and it should not need counting. */
+    const foot = next
+      ? (afford
         ? IS_TOUCH
           /* The keycap is hidden on touch, so the mouse wording came out as
              "Press  or click to buy" with a hole in it — and this is the card
              the ⓘ button exists to show, so a phone reads it far more often
              than a mouse ever did. */
-          ? `Tap the row to buy <b>${u.name}</b>`
-          : `Press <kbd>${['Q', 'W', 'E'][pathIdx]}</kbd> or click to buy <b>${u.name}</b>`
-        : `Need ${fmt(cost - (g ? g.cash : 0))} more`}</div>`;
+          ? `Tap the row to buy <b>${next.name}</b>`
+          : `Press <kbd>${['Q', 'W', 'E'][pathIdx]}</kbd> or click to buy <b>${next.name}</b>`
+        : `<b>${next.name}</b> needs ${fmt(cost - (g ? g.cash : 0))} more`)
+      : G.PATH_LOCK_MSG[state] || '';
+
+    const tip = $('#tooltip');
+    tip.innerHTML = `
+      <div class="tt-head"><b>${path.name}</b><span class="tt-tally${tier >= 3 ? ' max' : tier ? ' has' : ''}">${tier} of ${path.tiers.length}</span></div>
+      <div class="tt-cls" style="color:${def.hero ? 'var(--gold)' : G.CLASSES[def.cls].color}">${def.name} — upgrade path ${pathIdx + 1} of ${def.paths.length}</div>
+      <div class="tt-tiers">${rows}</div>
+      <div class="tt-key">${foot}</div>`;
     tip.style.display = 'block';
     placeTip(anchor);
   }
@@ -2000,18 +2048,54 @@
     show('#screen-shop');
   }
 
-  /* ---------- command dock: selection card ---------- */
-  /* Which penguin the sell button is currently asking about, and the timer that
-     un-asks. Module-level rather than per-render so any re-render — buying an
-     upgrade, the 0.3s selection poll, picking a different penguin — drops a
-     half-armed sell rather than leaving it primed under a finger. */
-  let sellArmedFor = null, sellTimer = null;
+  /* ---------- "are you sure" ----------
+     One card, reused. It answers by calling back rather than by returning a
+     promise so that nothing in the game has to become async to ask a question.
 
+     Every way out closes it: the button, Cancel, the scrim, Escape. Closing is
+     always the safe answer — a dialog that cannot be dismissed is a dialog that
+     eventually gets tapped through. */
+  let confirmYes = null, confirmAbout = null;
+  function closeConfirm() {
+    confirmYes = confirmAbout = null;
+    $('#confirm').hidden = true;
+  }
+  /* `about` is what the question concerns — a tower, so far. The panel closes
+     the dialog when it rebuilds for a DIFFERENT penguin and leaves it alone
+     otherwise. Closing on every rebuild was the first attempt and it took the
+     question away for reasons that have nothing to do with it: the selection
+     poll runs at 0.3s and fires on any change to what is in hand, so placing a
+     penguin and selling one in quick succession dismissed the dialog by
+     itself. */
+  function askConfirm(title, body, yesLabel, onYes, about) {
+    confirmYes = onYes;
+    confirmAbout = about || null;
+    setHTML($('#cf-title'), title);
+    setHTML($('#cf-body'), body);
+    setHTML($('#cf-yes'), yesLabel);
+    hideTooltip();          // one thing floating over the map at a time
+    $('#confirm').hidden = false;
+  }
+  function wireConfirm() {
+    $('#cf-no').onclick = closeConfirm;
+    $('#cf-yes').onclick = () => {
+      const go = confirmYes;
+      closeConfirm();
+      if (go) go();
+    };
+    /* The scrim, but only the scrim. currentTarget would fire for a press that
+       began on the card and drifted out onto the backdrop, which is a slip, not
+       an answer. */
+    $('#confirm').onclick = (ev) => { if (ev.target === $('#confirm')) closeConfirm(); };
+  }
+
+  /* ---------- command dock: selection card ---------- */
   function renderDockSel() {
     const g = UI.game;
     const box = $('#selpanel');
     if (!g) return;
-    sellArmedFor = null;                 // a fresh render is never mid-confirm
+    // a question about a penguin you are no longer looking at is not a question
+    if (confirmAbout && confirmAbout !== g.selected) closeConfirm();
 
     /* Closed is the resting state. The old card lived in the column and so was
        always on screen saying something, which is why it had to be a fixed
@@ -2201,6 +2285,11 @@
        you are about to buy picked out, and which the game already had. */
     const upgRow = el('div', 'ds-upgs');
     const chosen = t.up.filter((v) => v > 0).length;
+    /* Which path's card was open before this rebuild, if it was this penguin's.
+       Read now, because building the rows is what destroys the element the card
+       was anchored to. */
+    const reopen = openUpg && openUpg.t === t ? openUpg.pathIdx : null;
+    let reopenInfo = null;
     for (let p = 0; p < def.paths.length; p++) {
       const path = def.paths[p];
       const tier = t.up[p];
@@ -2263,9 +2352,15 @@
         row.title = G.PATH_LOCK_MSG[state] || '';
       }
       // the descriptions live here now: hover on a mouse, long-press on a finger
-      const openInfo = () => showUpgradeTip(row, t.type, p, Math.min(tier, 2));
+      const openInfo = () => showUpgradeTip(row, t, p);
       hoverTip(row, openInfo);
       attachLongPress(row, openInfo);
+      /* The card was open on this path when the panel was rebuilt, so redraw it
+         against the row that replaced the one it was anchored to. Buying is the
+         case: the panel rebuilds under a card that is still describing the tier
+         you just bought, which is exactly the moment the card has something new
+         to say. */
+      if (reopen === p) reopenInfo = openInfo;
 
       /* On a finger, the description also gets a button of its own. Long-press
          was the only way to reach it and nobody found it: there is nothing on
@@ -2298,38 +2393,56 @@
     }
     act.appendChild(makeSellButton(t));
     box.appendChild(act);
+
+    /* Last, once the panel is in the document and the rows have real positions:
+       the card is placed relative to the row it describes, and a row that has
+       not been laid out yet reports a zero rectangle. */
+    if (reopenInfo) reopenInfo();
   }
 
   /* Selling is destructive, refunds only 70% and has no undo, and it used to be
      a 10px-tall button one pixel beneath the upgrade you were aiming for — that
      is how penguins got sold by accident. It gets its own row at the bottom of
-     the panel now, well clear of anything else, and it asks first: one press
-     arms it for three seconds, a second press sells. The X hotkey is left as a
-     direct sell, because a deliberate keypress is not a mistap. */
+     the panel now, well clear of anything else, and it asks first.
+
+     It used to ask in place: one press turned the button red and said "Sell?",
+     a second press sold, and after three seconds it forgot. The red never
+     arrived on the device the whole confirmation exists for. iOS leaves :hover
+     stuck on whatever was last tapped, and .btn:hover is written after
+     .sell-btn.armed at the same specificity — so on a phone the armed button
+     kept the ordinary grey fill and picked up the armed state's near-black
+     text, which is what a disabled button looks like. Pressing sell appeared to
+     do nothing, and there was no way to find out that pressing it again would
+     empty the tile.
+
+     So it asks in a dialog, where a question can be a question and neither
+     answer depends on a colour landing. The X hotkey is still a direct sell,
+     because a deliberate keypress is not a mistap. */
   function makeSellButton(t) {
-    /* No fish glyph and no middot on the idle label. It shares the bottom row
-       with the targeting button in a column about 143px wide, and spelled out
-       in full it clipped to "Sel". The refund is gold, which reads as fish
-       everywhere else in the game, and the confirm state below has the room to
-       say it properly. */
-    const price = () => `+${num(t.invested * G.SELL_RATE)}`;
-    const idle = `<kbd>X</kbd> Sell <b>${price()}</b>`;
-    const sell = el('button', 'btn sell-btn', idle);
-    const disarm = () => {
-      if (sellArmedFor !== t) return;
-      sellArmedFor = null;
-      sell.classList.remove('armed');
-      setHTML(sell, idle);
-    };
-    sell.onclick = () => {
-      if (sellArmedFor === t) { clearTimeout(sellTimer); sellArmedFor = null; sellSelected(); return; }
-      sellArmedFor = t;
-      sell.classList.add('armed');
-      setHTML(sell, `Sell? · ${fmt(t.invested * G.SELL_RATE)}`);
-      clearTimeout(sellTimer);
-      sellTimer = setTimeout(disarm, 3000);
-    };
+    /* No fish glyph and no middot on the label. It shares the bottom row with
+       the targeting button in a column about 143px wide, and spelled out in
+       full it clipped to "Sel". The refund is gold, which reads as fish
+       everywhere else in the game, and the dialog has the room to say it
+       properly. */
+    const sell = el('button', 'btn sell-btn', `<kbd>X</kbd> Sell <b>+${num(t.invested * G.SELL_RATE)}</b>`);
+    sell.onclick = () => confirmSell(t);
     return sell;
+  }
+
+  /* Named, and the number spelled out in full. "Sell?" next to a figure was the
+     old inline confirm and it told you neither which penguin was about to go
+     nor that the refund is only seven tenths of what you put in. */
+  function confirmSell(t) {
+    const g = UI.game;
+    if (!g || !t) return;
+    const def = G.TOWERS[t.type];
+    const refund = Math.round(t.invested * G.SELL_RATE);
+    askConfirm(
+      `Sell ${def.name}?`,
+      `It leaves the ice for good. You get back <b>${fmt(refund)}</b> of the ${fmt(t.invested)} you put in.`,
+      `Sell +${num(refund)}`,
+      () => sellSelected(),
+      t);
   }
 
   /* Where the path GOES — the three tier names, nothing else. It is what the
@@ -2576,6 +2689,7 @@
       if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
 
       if (k === 'Escape') {
+        if (!$('#confirm').hidden) { closeConfirm(); return; }
         if ($('#screen-pause').classList.contains('active')) { closePauseMenu(); return; }
         if ($('#overlay').style.display === 'flex') return; // other screens keep their own buttons
         if (g.placingType) { g.placingType = null; }
@@ -2585,6 +2699,10 @@
         return;
       }
       if ($('#overlay').style.display === 'flex') return; // don't play the game under a menu
+      /* Nor under a question. X in particular: it is the direct sell, and
+         answering "sell this?" by pressing the sell key would sell the penguin
+         and leave the card still asking about it. */
+      if (!$('#confirm').hidden) return;
 
       if (k === ' ' || k === 'Spacebar' || ev.code === 'Space') { ev.preventDefault(); trySend(); return; }
       if (k === 'Tab') { ev.preventDefault(); cycleSpeed(); return; }
@@ -2621,7 +2739,12 @@
     document.addEventListener('pointerdown', (ev) => {
       const g = UI.game;
       if (!g || !g.selected) return;
-      if (ev.target.closest('#selpanel') || ev.target.closest('canvas#game')) return;
+      /* #confirm is a child of #stage rather than of the panel, so without it
+         here the press that answers "sell this penguin?" cleared the selection
+         and re-rendered the panel first — which closes the dialog and drops the
+         callback — and the click that followed landed on a button that no
+         longer had anything to do. Pressing Sell did nothing at all. */
+      if (ev.target.closest('#selpanel') || ev.target.closest('#confirm') || ev.target.closest('canvas#game')) return;
       g.selected = null;
       renderDockSel();
     }, true);
@@ -2968,6 +3091,7 @@
     buildAudioPanel($('#pause-audio'));
     applyAudioSettings();
     wireInput();
+    wireConfirm();
     $('#btn-fs').onclick = toggleFullscreen;
     document.addEventListener('fullscreenchange', updateFsButton);
     document.addEventListener('webkitfullscreenchange', updateFsButton);
