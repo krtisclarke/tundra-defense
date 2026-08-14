@@ -217,7 +217,24 @@
 
   function syncCancelBtn() {
     const g = UI.game;
-    $('#btn-cancel-place').classList.toggle('show', !!(g && g.placingType && !g.over));
+    const on = !!(g && g.placingType && !g.over);
+    $('#btn-cancel-place').classList.toggle('show', on);
+    /* The placement hint. This used to be the selection card's job, but that
+       card is a full-height column now — a third of the battlefield going dark
+       to say a penguin's name and two keys. One line along the bottom of the
+       map instead, where the cancel button already lives.
+
+       Touch gets the name only: there is no shift and no esc on a phone, and
+       the cancel button underneath is the way out. */
+    const hint = $('#place-hint');
+    hint.classList.toggle('show', on);
+    if (!on) { hint.innerHTML = ''; return; }
+    const def = G.TOWERS[g.placingType];
+    const color = def.hero ? 'var(--gold)' : G.CLASSES[def.cls].color;
+    setHTML(hint, IS_TOUCH
+      ? `<b style="color:${color}">${def.name}</b> — drag onto the map`
+      : `<b style="color:${color}">${def.name}</b> — click to place
+         · <kbd>shift</kbd> place several · <kbd>esc</kbd> cancel`);
   }
 
   /* Tray slots, touch: hold shows the penguin's description card; drag out of
@@ -1750,14 +1767,20 @@
     /* Closed is the resting state. The old card lived in the column and so was
        always on screen saying something, which is why it had to be a fixed
        height and why its contents were squeezed to fit. Out here it can simply
-       not be there, and take whatever room it needs when it is. */
-    if (!g.selected && !g.placingType) {
+       not be there, and take whatever room it needs when it is.
+
+       Closed while PLACING, too. The card opened during placement to say the
+       penguin's name and repeat two keyboard hints, which was tolerable when it
+       was a small box and absurd once it became a full-height column: a third
+       of the battlefield went dark at exactly the moment you were trying to
+       read the battlefield and choose a spot on it. #place-hint carries that
+       line along the bottom of the map now (see syncCancelBtn). */
+    if (!g.selected) {
       box.hidden = true;
       box.innerHTML = '';
       return;
     }
     box.hidden = false;
-    box.classList.toggle('placing', !!g.placingType);
     /* Start below the vitals rather than on top of them. Lives and fish are
        exactly what you are reading while you decide whether to buy an upgrade,
        and the panel is wide enough to cover all three counters. Measured rather
@@ -1787,18 +1810,6 @@
     const floorY = cr && cr.bottom > top + 160 ? cr.bottom : (vh ? vh - 8 : 0);
     box.style.height = floorY ? Math.round(floorY - top) + 'px' : '';
     box.style.maxHeight = vh ? Math.max(120, vh - top - 8) + 'px' : '';
-
-    if (g.placingType) {
-      const def = G.TOWERS[g.placingType];
-      const color = G.CLASSES[def.cls].color;
-      box.innerHTML = '';
-      box.appendChild(el('div', 'ds-placing', IS_TOUCH
-        ? `<b style="color:${color}">${def.name}</b> — drag onto the map to place.<br>
-           <span class="dim">A spot that won't take it keeps it in hand — drag again and lift.</span>`
-        : `<b style="color:${color}">${def.name}</b> — click the map to place.<br>
-           <span class="dim">Hold <kbd>Shift</kbd> for more · <kbd>Esc</kbd> cancel</span>`));
-      return;
-    }
 
     const t = g.selected;
 

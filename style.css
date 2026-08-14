@@ -74,6 +74,37 @@ html, body {
 }
 html.touch #btn-cancel-place.show { display: block; }
 
+/* The line that says what is in your hand. Along the bottom of the map, quiet
+   and out of the way — it replaces a full-height column that used to darken a
+   third of the battlefield to say the same thing. Sits above the cancel button
+   on touch, and takes the cancel button's place on a desktop, where that button
+   is never shown. */
+#place-hint {
+  display: none;
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  z-index: 6;
+  max-width: min(560px, 84%);
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: rgba(12, 20, 33, 0.86);
+  border: 1px solid var(--line-strong);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  color: var(--dim);
+  font-size: 13px; font-weight: 650; line-height: 1.35;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  pointer-events: none;   /* never in the way of the click it is describing */
+}
+#place-hint.show { display: block; }
+#place-hint kbd { margin: 0 1px; }
+/* the cancel button owns the bottom edge on touch, so the hint sits above it */
+html.touch #place-hint { bottom: 58px; }
+@media (max-width: 700px) { #place-hint { font-size: 12px; padding: 6px 11px; } }
+
 /* portrait phones */
 #rotate-hint {
   display: none;
@@ -311,8 +342,7 @@ html.touch #btn-fs { display: none; }
 #selpanel[hidden] { display: none; }
 #selpanel::-webkit-scrollbar { width: 5px; }
 #selpanel::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.16); border-radius: 3px; }
-/* while placing there is nothing to read, only a line to glance at */
-#selpanel.placing { width: min(300px, 38vw); }
+
 
 #selpanel .ds-head canvas { width: 30px; height: 30px; }
 /* Allowed to wrap to two lines here, and nowhere else. This column is about
@@ -429,7 +459,6 @@ html.touch #btn-fs { display: none; }
 .ds-empty { text-align: left; }
 .ds-lvl { font-weight: 800; font-size: 15.5px; margin-bottom: 3px; }
 .dim { color: var(--dim); font-size: 12.5px; line-height: 1.45; font-weight: 550; }
-.ds-placing { font-size: 13.5px; line-height: 1.5; }
 /* Portrait and name on the top line, stats across the full width beneath them.
    Side by side in a column this narrow the name and the stat line got 33px
    each: the name rendered as "Pe…" and the stats were not readable at all. */
