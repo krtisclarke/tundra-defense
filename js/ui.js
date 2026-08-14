@@ -277,8 +277,24 @@
   window.addEventListener('scroll', invalidateRects, true);
   window.addEventListener('orientationchange', invalidateRects);
 
+  /* Is this point on the cancel button? Used while a penguin is being carried,
+     because the tray slot holds an implicit pointer capture for the whole drag
+     — every move and the lift are delivered to the SLOT, so the button never
+     sees them and its own click never fires. Dropping a penguin on the big red
+     cancel button used to place the penguin underneath it, which is the exact
+     opposite of what it says. A little slop, because fingers are not precise. */
+  function overCancelBtn(x, y) {
+    const b = $('#btn-cancel-place');
+    if (!b || !b.classList.contains('show')) return false;
+    const r = b.getBoundingClientRect();
+    if (!r.width) return false;
+    const pad = 10;
+    return x >= r.left - pad && x <= r.right + pad && y >= r.top - pad && y <= r.bottom + pad;
+  }
+
   function attachTrayDrag(slot, id) {
     let timer = null, showing = false, carrying = false, swallow = false;
+    let sx = 0, sy = 0, settled = false;
     const clear = () => { if (timer) { clearTimeout(timer); timer = null; } };
 
     slot.addEventListener('pointerdown', (ev) => {
@@ -287,7 +303,8 @@
          click that tap-to-arm depends on (Chrome keeps it, per spec).
          Selection during drags is suppressed by CSS instead —
          user-select/touch-callout on .slot and html/body */
-      showing = false; carrying = false; swallow = false;
+      showing = false; carrying = false; swallow = false; settled = false;
+      sx = ev.clientX; sy = ev.clientY;
       clear();
       timer = setTimeout(() => {
         timer = null;
@@ -296,50 +313,91 @@
       }, 200);
     });
 
+    /* Pick the penguin up. Returns false when it cannot be taken, so the caller
+       knows not to claim the gesture. */
+    function beginCarry() {
+      const g = UI.game;
+      if (!g || g.over) return false;
+      clear();
+      if (showing) { hideTooltip(); showing = false; }
+      const lock = towerLockMsg(id);
+      if (lock) {
+        sfx.error(); buzz(30);
+        toast('🔒 ' + lock, 'bad');
+        swallow = true; settled = true;
+        return false;
+      }
+      const cost = g.priceOf(G.TOWERS[id].cost);
+      if (g.cash < cost) {
+        sfx.error(); buzz(30);
+        toast(`Need ${fmt(cost)} for a ${G.TOWERS[id].name}.`, 'bad');
+        swallow = true; settled = true;
+        return false;
+      }
+      carrying = true; swallow = true; settled = true;
+      g.placingType = id;
+      g.selected = null;
+      syncCancelBtn(); renderDockSel(); updateHud();
+      return true;
+    }
+
+    /* Which gesture is this? The tray scrolls vertically (touch-action: pan-y),
+       so the browser is entitled to claim anything with a vertical component —
+       and it did: dragging a penguin out on a diagonal became a tray scroll and
+       the drag was eaten by the pointercancel that follows.
+
+       So intent is decided from the first real movement instead of waiting for
+       the finger to cross the edge of the column: leftward and more sideways
+       than up-and-down is a penguin coming out, anything else is a scroll. The
+       tray is on the right and the map on the left, so "leftward" is the whole
+       signal. 0.7 leans the tie toward carrying, because a diagonal drag out is
+       the thing that was broken. */
+    function wantsCarry(x, y) {
+      const dx = x - sx, dy = y - sy;
+      return dx < -10 && Math.abs(dx) >= Math.abs(dy) * 0.7;
+    }
+
     slot.addEventListener('pointermove', (ev) => {
       if (ev.pointerType === 'mouse') return;
       const g = UI.game;
       if (!g || g.over) return;
-      const dockLeft = columnLeft();
-      if (!carrying && ev.clientX < dockLeft - 4) {
-        // finger left the pane: the description goes away and the penguin comes along
-        clear();
-        if (showing) { hideTooltip(); showing = false; }
-        const lock = towerLockMsg(id);
-        if (lock) {
-          sfx.error(); buzz(30);
-          toast('🔒 ' + lock, 'bad');
-          swallow = true;
-          return;
-        }
-        const cost = g.priceOf(G.TOWERS[id].cost);
-        if (g.cash < cost) {
-          sfx.error(); buzz(30);
-          toast(`Need ${fmt(cost)} for a ${G.TOWERS[id].name}.`, 'bad');
-          swallow = true;
-          return;
-        }
-        carrying = true; swallow = true;
-        g.placingType = id;
-        g.selected = null;
-        syncCancelBtn(); renderDockSel(); updateHud();
+      // a straight pull left past the column edge still counts, as it always did
+      if (!carrying && !settled && (wantsCarry(ev.clientX, ev.clientY) || ev.clientX < columnLeft() - 4)) {
+        beginCarry();
       }
-      if (carrying) g.mouse = canvasPos(ev);
+      if (carrying) {
+        g.mouse = canvasPos(ev);
+        // light the cancel button up while the finger is over it, so the drop reads
+        $('#btn-cancel-place').classList.toggle('hot', overCancelBtn(ev.clientX, ev.clientY));
+      }
     });
 
-    /* Once the description card is up — or a penguin is being carried — the
-       gesture is ours: stop the tray scroller from claiming the touch. With
-       selection now disabled, iOS otherwise hands a hold-then-drag to the
-       scroller and fires pointercancel, eating the drag. Quick strokes
-       (no card yet) still scroll the tray natively. */
+    /* Once the gesture is ours — a description card is up, a penguin is being
+       carried, or the first movement said "penguin" — stop the tray scroller
+       from claiming the touch. Quick vertical strokes still scroll natively. */
     slot.addEventListener('touchmove', (ev) => {
-      if (showing || carrying) ev.preventDefault();
+      if (showing || carrying) { ev.preventDefault(); return; }
+      const t = ev.touches && ev.touches[0];
+      if (!t || settled) return;
+      /* Decided here as well as in pointermove, because preventDefault has to
+         happen inside the touch event itself to keep the scroller off it. */
+      if (wantsCarry(t.clientX, t.clientY) && beginCarry()) ev.preventDefault();
     }, { passive: false });
 
     const done = (ev) => {
       if (ev.pointerType === 'mouse') return;
       clear();
       const g = UI.game;
+      $('#btn-cancel-place').classList.remove('hot');
+      if (carrying && g && g.placingType === id && overCancelBtn(ev.clientX, ev.clientY)) {
+        // dropped on cancel: put it back, spend nothing
+        g.placingType = null;
+        g.mouse = { x: -999, y: -999 };
+        sfx.sell(); buzz(12);
+        syncCancelBtn(); renderDockSel(); updateHud();
+        carrying = false;
+        return;
+      }
       if (carrying && g && g.placingType === id) {
         const pos = canvasPos(ev);
         const placed = g.placeTower(id, pos.x, pos.y);
@@ -367,6 +425,7 @@
     slot.addEventListener('pointercancel', () => {   // tray scroll took the gesture
       clear();
       if (showing) { hideTooltip(); showing = false; }
+      $('#btn-cancel-place').classList.remove('hot');
       if (carrying) {
         const g = UI.game;
         if (g && g.placingType === id) { g.placingType = null; g.mouse = { x: -999, y: -999 }; syncCancelBtn(); renderDockSel(); updateHud(); }

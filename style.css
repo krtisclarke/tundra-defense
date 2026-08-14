@@ -73,6 +73,16 @@ html, body {
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
 }
 html.touch #btn-cancel-place.show { display: block; }
+/* Lit while a carried penguin is over it, so letting go there plainly means
+   "put it back" rather than "place it here". The button never sees the pointer
+   itself — the tray slot holds the capture for the whole drag — so this is
+   driven from the drag handler. */
+#btn-cancel-place.hot {
+  background: rgba(240, 120, 128, 1);
+  border-color: #fff;
+  transform: translateX(-50%) scale(1.08);
+  box-shadow: 0 6px 22px rgba(224, 96, 106, 0.6);
+}
 
 /* The line that says what is in your hand. Along the bottom of the map, quiet
    and out of the way — it replaces a full-height column that used to darken a
