@@ -263,6 +263,15 @@
 
   <div id="toasts"></div>
 
+  <!-- Zero-sized, invisible, and its only job is to be measured. The four
+       env(safe-area-inset-*) numbers are needed in JS — fitCanvas positions the
+       battlefield around whatever is sticking into the screen — and the browser
+       will only hand them over as resolved pixels via a computed style. #app
+       used to be padded by them and this was read off #app; that padding is
+       gone, because paying map for a cutout is the trade this build stopped
+       making. -->
+  <div id="safe-probe" aria-hidden="true"></div>
+
   <!-- phones held upright: the battlefields are all wider than they are tall -->
   <div id="rotate-hint">
     <div class="rot-icon">📱</div>

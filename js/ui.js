@@ -269,19 +269,27 @@
   let rectCache = null;
   const invalidateRects = () => { rectCache = null; safeCache = null; };
 
-  /* What the screen's cutouts cost, in pixels off each edge. #app is padded by
-     env(safe-area-inset-*) in CSS, which carries everything laid out inside
-     it; this reads the same four numbers back for the things that are
-     position:fixed and therefore measured against the raw window — the hover
-     card, the selection column's ceiling. Zero on a screen with nothing
-     sticking into it, so this is a no-op almost everywhere.
+  /* What is sticking into each edge of the screen, in pixels — the Dynamic
+     Island, the notch, the home indicator. Zero on a screen with nothing
+     sticking into it, which is most of them, so all of this is a no-op almost
+     everywhere.
 
-     Read off the padding rather than by parsing env() out of a stylesheet:
-     the browser has already resolved it, and it re-resolves on rotation. */
+     Read off #safe-probe, a zero-sized hidden element whose padding is the four
+     env(safe-area-inset-*) values. Script cannot ask for env() directly; the
+     browser will only hand the numbers over already resolved, as a computed
+     style, and it re-resolves them on rotation. This used to read #app, which
+     carried them as real padding until that padding turned out to be costing
+     the battlefield up to 12% of its width (see #app in style.css). */
+  /* One of the numbers fitCanvas publishes on the root element, in pixels.
+     Written there rather than kept in a variable because the CSS reads them
+     too, and one source for both is the only way they cannot disagree. */
+  const cssPx = (name) =>
+    parseFloat(document.documentElement.style.getPropertyValue(name)) || 0;
+
   let safeCache = null;
   function safeArea() {
     if (safeCache) return safeCache;
-    const app = $('#app');
+    const app = $('#safe-probe');
     const cs = app ? getComputedStyle(app) : null;
     safeCache = cs ? {
       top: parseFloat(cs.paddingTop) || 0,
@@ -2052,7 +2060,12 @@
        wherever the content happened to end. Bounded by the MAP rather than the
        window — the map is what it is allowed to cover. */
     const cr = UI.canvas ? UI.canvas.getBoundingClientRect() : null;
-    const floorY = cr && cr.bottom > top + 160 ? cr.bottom : (vh ? vh - 8 : 0);
+    /* The map's floor, less any part of it a cutout has: the battlefield runs
+       to the foot of the screen now, so its last few pixels can be the home
+       indicator's, and the sell button is the control that would have landed
+       there. Zero almost everywhere. */
+    const mapFloor = cr ? cr.bottom - cssPx('--map-inset-b') : 0;
+    const floorY = cr && mapFloor > top + 160 ? mapFloor : (vh ? vh - 8 : 0);
     box.style.height = floorY ? Math.round(floorY - top) + 'px' : '';
     box.style.maxHeight = vh ? Math.max(120, vh - top - 8) + 'px' : '';
 
@@ -2716,7 +2729,16 @@
     const side = parseFloat(root.style.getPropertyValue('--sidew'));
     const half = parseFloat(root.style.getPropertyValue('--panelsh'));
     if (!side || !half) return;
-    const cellW = side - 8, cellH = half - 4;      /* the cell, less its margins */
+    /* The block runs to the edges of the screen now, so a cutout can end up
+       over the panels' own corner of it: the home indicator under the wave
+       controls, the island beside the boosts. #panel-fit keeps clear with a
+       margin — and the group has to be scaled to what is LEFT after that
+       margin, not to the whole cell, or #panel-fit's overflow:hidden simply
+       clips off the bottom of the group it was given. Zero on a screen with
+       nothing sticking into it. */
+    const inR = parseFloat(root.style.getPropertyValue('--dock-inset-r')) || 0;
+    const inB = parseFloat(root.style.getPropertyValue('--map-inset-b')) || 0;
+    const cellW = side - 8 - inR, cellH = half - 4 - inB;   /* the cell, less its margins */
     const scale = cellW / PANEL_W;
     root.style.setProperty('--pscale', scale.toFixed(4));
     root.style.setProperty('--panelh', Math.round(cellH / scale) + 'px');
@@ -2725,17 +2747,42 @@
   /* One path, no branch. There is no window size at which a different
      arrangement takes over — a window the block's shape does not match gets a
      margin, and that is the whole of it. */
+  /* How to spend the leftover margin along one axis. `total` is what is left
+     once the block has taken its size; `a` and `b` are what the two edges want
+     for their cutouts.
+
+     An even split — which is what a pair of 1fr gutters gives, and what this
+     replaced — is the wrong answer the moment only one edge has something in
+     it: half the margin sits on the empty side doing nothing while the island
+     covers the map. So the cutouts are paid first and whatever survives is
+     shared evenly, which leaves an ordinary window centred exactly as before
+     because there both edges want nothing. When the margin cannot cover both
+     cutouts it is shared in proportion to what each asked for, so the edge with
+     the real cutout still gets the larger share of a bad hand. */
+  function spendMargin(total, a, b) {
+    if (total <= 0) return [0, 0];
+    const want = a + b;
+    if (want <= 0) return [total / 2, total / 2];
+    if (want <= total) { const rest = (total - want) / 2; return [a + rest, b + rest]; }
+    return [total * (a / want), total * (b / want)];
+  }
+
   function fitCanvas() {
     if (!UI.canvas) return;
     const root = document.documentElement;
-    /* The block is laid out inside #app, which is padded by the screen's safe
-       area — so the room it has is #app's CONTENT box, not the window. Asking
-       the window instead sized the block to include the strip under the
-       Dynamic Island and then let the grid push it back out, which is how the
-       battlefield ended up a little wider than the space it had. */
+    /* The whole screen, cutouts included. This used to be the safe box — the
+       window less the four insets — and on an iPhone in landscape that handed
+       about 59px of the Dynamic Island's width straight to the letterbox. The
+       block is a fixed shape scaled to fit, so width taken off the budget is
+       width taken off the battlefield: up to 12% of it on the widest tier.
+
+       The block takes the screen and moves out of the cutout's way instead, and
+       what is under the cutout afterwards is map art rather than anything you
+       read or press. The chrome offsets itself by --map-inset-* below. */
     const sa = safeArea();
-    const W = root.clientWidth - sa.left - sa.right - PAD;
-    const H = root.clientHeight - sa.top - sa.bottom - PAD;
+    const vw = root.clientWidth, vh = root.clientHeight;
+    const W = vw - PAD;
+    const H = vh - PAD;
     const aspect = G.W / G.H;
     const playing = $('#dock').classList.contains('playing');
 
@@ -2758,6 +2805,37 @@
     root.style.setProperty('--trayh', Math.round(mapH * TRAY_SHARE) + 'px');
     root.style.setProperty('--panelsh', Math.round(mapH * (1 - TRAY_SHARE)) + 'px');
     root.style.setProperty('--panelw', PANEL_W + 'px');
+
+    /* Where the block sits. The four gutters are the grid's outer tracks (see
+       #app in style.css), spent on the cutouts first and shared evenly after
+       that — so a desktop window is centred exactly as it always was, and a
+       phone gets the block pushed off the island. */
+    const [gutL, gutR] = spendMargin(vw - blockW, sa.left, sa.right);
+    const [gutT, gutB] = spendMargin(vh - mapH, sa.top, sa.bottom);
+    root.style.setProperty('--gut-l', Math.round(gutL) + 'px');
+    root.style.setProperty('--gut-r', Math.round(gutR) + 'px');
+    root.style.setProperty('--gut-t', Math.round(gutT) + 'px');
+    root.style.setProperty('--gut-b', Math.round(gutB) + 'px');
+
+    /* And how far a cutout still reaches PAST the gutter, into the block. Zero
+       whenever the margin was enough to clear it, which on the two smaller
+       tiers is every iPhone. When it is not zero it is a handful of pixels of
+       map art, and it is the number every floating control adds to its own
+       offset so that none of them lands under the island or the home bar.
+
+       Left and top land on the map; right lands on the dock, because the dock
+       is what the block's right-hand edge is. Bottom lands on both. */
+    const px = (n) => Math.max(0, Math.round(n)) + 'px';
+    root.style.setProperty('--map-inset-l', px(sa.left - gutL));
+    root.style.setProperty('--map-inset-t', px(sa.top - gutT));
+    root.style.setProperty('--map-inset-b', px(sa.bottom - gutB));
+    root.style.setProperty('--dock-inset-r', px(sa.right - gutR));
+    /* The map's own left edge, for the one card that floats over the map while
+       being position:fixed and therefore measured against the window rather
+       than against the map. Everything else that floats over the battlefield is
+       absolute inside #stage, which IS the map's box, and needs only the inset
+       above. */
+    root.style.setProperty('--map-l', Math.round(gutL) + 'px');
     /* The vitals and the system buttons sit on the map rather than in the
        column, so they scale with the map rather than with the panels. Floored
        so they stay legible and tappable on a small block, capped so they do not

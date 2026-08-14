@@ -51,14 +51,37 @@ html, body {
 }
 
 /* dvh tracks the real viewport once mobile browser chrome slides away.
-   The padding is the safe area (see :root) — the whole in-battle layout is
-   laid out inside it, so the map, the tray, the vitals and the panels are all
-   clear of a cutout whichever way the phone is held. fitCanvas measures this
-   element's CONTENT box for exactly that reason. */
+
+   No padding. This element WAS padded by the four insets, so the whole
+   in-battle layout was laid out inside the safe box — which is the correct
+   answer for a document and the wrong one for a game. An iPhone in landscape
+   reports around 59px for the Dynamic Island, and because the battlefield is a
+   block of fixed proportions scaled to fit, every one of those pixels came
+   straight off the map: up to 12% of the battlefield spent keeping a strip of
+   decorative snow out from under a cutout. That is a trade a player notices
+   and a cutout is not.
+
+   The block takes the whole screen again and is POSITIONED around the cutouts
+   instead — see fitCanvas, which sets the four gutters below. What genuinely
+   must never sit under a cutout is the chrome you read and press: the vitals,
+   the selection column, the cancel button, the dock. Those offset themselves
+   by --map-inset-* / --dock-inset-*, which is how far a cutout still reaches
+   into the map or the dock once the block has moved as far away as it can. */
 #app {
   display: flex; flex-direction: column;
   height: 100vh; height: 100dvh;
+}
+
+/* Zero-sized and invisible; it exists to be measured. safeArea() in ui.js
+   reads these four paddings back as resolved pixels, which is the only way to
+   get at env() from script. #app carried them until the padding above went. */
+#safe-probe {
+  position: fixed;
+  top: 0; left: 0;
+  width: 0; height: 0;
   padding: var(--sat) var(--sar) var(--sab) var(--sal);
+  visibility: hidden;
+  pointer-events: none;
 }
 
 #stage {
@@ -85,7 +108,12 @@ html, body {
   display: none;
   position: absolute;
   left: 50%;
-  bottom: 12px;
+  /* Clear of the home indicator. The map runs to the foot of the screen now —
+     that strip is worth more as battlefield than as blank margin — but the
+     bottom of the screen is also where iOS watches for a swipe up, and a
+     button sitting in it is a button that sometimes sends you to the app
+     switcher instead of cancelling a placement. */
+  bottom: calc(12px + var(--map-inset-b, 0px));
   transform: translateX(-50%);
   z-index: 6;
   background: rgba(224, 96, 106, 0.92);
@@ -124,7 +152,7 @@ html.touch #btn-cancel-place.show { display: block; }
   left: 0; right: 0;
   margin: 0 auto;
   width: fit-content;
-  bottom: 12px;
+  bottom: calc(12px + var(--map-inset-b, 0px));
   z-index: 6;
   max-width: min(640px, 92%);
   padding: 7px 14px;
@@ -146,7 +174,7 @@ html.touch #btn-cancel-place.show { display: block; }
 #place-hint.show { display: block; }
 #place-hint kbd { margin: 0 1px; }
 /* the cancel button owns the bottom edge on touch, so the hint sits above it */
-html.touch #place-hint { bottom: 58px; }
+html.touch #place-hint { bottom: calc(58px + var(--map-inset-b, 0px)); }
 @media (max-width: 700px) { #place-hint { font-size: 12px; padding: 6px 11px; } }
 
 /* portrait phones */
@@ -368,8 +396,16 @@ html.touch #btn-fs { display: none; }
   /* Clear of a cutout on this edge. The column is the whole reason the safe
      area matters here: held one way round an iPhone puts the Dynamic Island
      exactly where this card opens, and the player had to turn the phone over
-     to read it. */
-  left: calc(12px + var(--sal));
+     to read it.
+
+     This one is position:fixed, so it is measured against the window while
+     everything else floating over the battlefield is absolute inside #stage
+     and measured against the map. Hence both numbers: --map-l is where the
+     map's left edge landed, --map-inset-l is how much of a cutout is still
+     over it after the block moved as far away as the leftover margin allowed.
+     The sum is "the leftmost place on the map that can be read", which on the
+     two smaller battlefields is simply the map's edge. */
+  left: calc(var(--map-l, 0px) + var(--map-inset-l, 0px) + 12px);
   /* top and max-height are set from JS when the panel opens, so it starts below
      the vitals and never grows past the bottom of the window. Both have to come
      from the same measurement — a max-height left to CSS lets a tall panel
@@ -1658,17 +1694,26 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
    it (a window dragged out long and thin) gets one either side. Either way the
    remainder is a frame around the block, not a hole inside it.
 
-   #app becomes a four-track grid in each direction — a 1fr gutter, the map, the
-   column, a 1fr gutter — so the block centres on both axes without anything
-   being positioned by hand. #dock dissolves so its panels can be placed
-   directly. All four measurements come from fitCanvas. */
+   #app becomes a four-track grid in each direction — a gutter, the map, the
+   column, a gutter — so the block sits on both axes without anything being
+   positioned by hand. #dock dissolves so its panels can be placed directly. All
+   the measurements come from fitCanvas.
+
+   The gutters are set in pixels rather than left at 1fr, which is what centred
+   the block. Centring is the wrong answer on a screen with something sticking
+   into one edge: half the margin ends up on the empty side doing nothing while
+   the Dynamic Island sits on the battlefield. fitCanvas spends the margin on
+   whichever edges have a cutout first and splits what is left over evenly, so
+   an ordinary window still gets an even frame and a phone gets the block pushed
+   clear. They fall back to 1fr so the layout still centres if script has not
+   run yet. */
 /* This is the only in-level layout there is. It is not behind a media query:
    there is no window size at which the pieces move somewhere else. A window
    the block does not match gets a margin, never a different arrangement. */
   #app {
     display: grid;
-    grid-template-columns: 1fr var(--mapw, 1fr) var(--sidew, 0px) 1fr;
-    grid-template-rows: 1fr var(--trayh, 1fr) var(--panelsh, 1fr) 1fr;
+    grid-template-columns: var(--gut-l, 1fr) var(--mapw, 1fr) var(--sidew, 0px) var(--gut-r, 1fr);
+    grid-template-rows: var(--gut-t, 1fr) var(--trayh, 1fr) var(--panelsh, 1fr) var(--gut-b, 1fr);
   }
   /* Exactly the map's box, not the full window height. Everything that floats
      over the battlefield — the vitals, the system buttons, the banner, the
@@ -1677,9 +1722,15 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
   #stage { grid-column: 2; grid-row: 2 / span 2; padding: 0; }
   #dock.playing { display: contents; }
   /* and they scale with the block for the same reason the panels do: the whole
-     thing has to look like one drawing at any size */
-  #hud-stats { top: 0; left: 0; transform: scale(var(--uiscale, 1)); transform-origin: top left; margin: 14px 0 0 16px; }
-  #hud-sys { top: 0; right: 0; transform: scale(var(--uiscale, 1)); transform-origin: top right; margin: 14px 16px 0 0; }
+     thing has to look like one drawing at any size.
+
+     The margins carry --map-inset-*, which is whatever a cutout still reaches
+     into the map after the block has moved as far off it as the leftover
+     margin allowed. Usually zero. When it is not, the lives and fish counters
+     step in far enough to stay readable rather than disappearing behind an
+     island the player cannot move. */
+  #hud-stats { top: 0; left: 0; transform: scale(var(--uiscale, 1)); transform-origin: top left; margin: calc(14px + var(--map-inset-t, 0px)) 0 0 calc(16px + var(--map-inset-l, 0px)); }
+  #hud-sys { top: 0; right: 0; transform: scale(var(--uiscale, 1)); transform-origin: top right; margin: calc(14px + var(--map-inset-t, 0px)) 16px 0 0; }
   #banner { transform: translateX(-50%) scale(var(--uiscale, 1)); }
 
   /* Build tray: the top half of the column, two penguins across, scrolling for
@@ -1699,9 +1750,13 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
        An auto row cannot do it: the tile's height comes from its width, so the
        row and the tile end up defining each other and the row collapses to
        12px, which is what had them overlapping. */
-    grid-auto-rows: calc((var(--sidew, 400px) - 38px) / 3.75);
+    grid-auto-rows: calc((var(--sidew, 400px) - 38px - var(--dock-inset-r, 0px)) / 3.75);
     align-content: start;
-    margin: 0 0 4px 8px;
+    /* Same margin as the panel group beneath it, for the same reason: the block
+       reaches the screen's edge, so anything sticking into that edge has to be
+       kept off the tiles. Both the margin and the row height above carry it, or
+       the tiles stop being square. */
+    margin: 0 var(--dock-inset-r, 0px) 4px 8px;
     padding: 8px;
     background: linear-gradient(180deg, rgba(18, 28, 45, 0.97), rgba(11, 18, 30, 0.99));
     border: 1px solid var(--line-strong);
@@ -1802,7 +1857,12 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
   #panel-fit {
     grid-column: 3; grid-row: 3;
     min-width: 0; min-height: 0;
-    margin: 4px 0 0 8px;
+    /* The right and bottom margins are whatever a cutout still reaches into
+       this corner of the block — the home indicator under the wave controls,
+       an island beside the boosts. Zero on nearly every screen. fitPanels
+       subtracts the same two numbers before it works out the group's scale, so
+       the group shrinks to fit the margin rather than being clipped by it. */
+    margin: 4px var(--dock-inset-r, 0px) var(--map-inset-b, 0px) 8px;
     display: grid;
     /* start, not centre: the group is scaled from its top-left corner and sized
        to fill this box exactly, so centring the unscaled box first threw it
