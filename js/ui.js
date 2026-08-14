@@ -57,6 +57,12 @@
 
   const ICON_SOUND_ON = '<svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M3 9v6h4l5 5V4L7 9H3zm13.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4zM14 3.2v2.1c2.9.9 5 3.5 5 6.7s-2.1 5.8-5 6.7v2.1c4-.9 7-4.5 7-8.8s-3-7.9-7-8.8z"/></svg>';
   const ICON_SOUND_OFF = '<svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M3 9v6h4l5 5V4L7 9H3zm18.6 3 2-2-1.4-1.4-2 2-2-2L16.7 10l2 2-2 2 1.4 1.4 2-2 2 2 1.4-1.4-2-2z"/></svg>';
+  /* Drawn rather than typed: the ⓘ character renders as a different shape on
+     every platform and as a colour emoji on some. */
+  const ICON_INFO = '<svg viewBox="0 0 24 24" width="19" height="19" aria-hidden="true" focusable="false">' +
+    '<circle cx="12" cy="12" r="9.1" fill="none" stroke="currentColor" stroke-width="1.9"/>' +
+    '<circle cx="12" cy="7.4" r="1.4" fill="currentColor"/>' +
+    '<path d="M12 10.7v6.4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></svg>';
 
   /* ---------- persistence ---------- */
   const store = {
@@ -563,7 +569,12 @@
     tipDismiss = {
       off,
       arm: setTimeout(() => document.addEventListener('pointerdown', off, true), 0),
-      bail: setTimeout(off, 4000),
+      /* The backstop only exists so a card can never be stranded — the next tap
+         anywhere is what actually closes it. Four seconds was doing a second
+         job it was not meant to: the upgrade card is three tier names and three
+         descriptions, about twelve seconds of reading, and it used to vanish a
+         third of the way through. */
+      bail: setTimeout(off, 14000),
     };
   }
   function clearTooltipDismiss() {
@@ -1571,7 +1582,15 @@
       <div class="tt-head"><b>${path.name}</b><span class="tt-cost">${fmt(cost)}</span></div>
       <div class="tt-cls" style="color:${def.hero ? 'var(--gold)' : G.CLASSES[def.cls].color}">${def.name} — upgrade path ${pathIdx + 1} of ${def.paths.length}</div>
       <div class="tt-tiers">${rows}</div>
-      <div class="tt-key">${afford ? `Press <kbd>${['Q', 'W', 'E'][pathIdx]}</kbd> or click to buy <b>${u.name}</b>` : `Need ${fmt(cost - (g ? g.cash : 0))} more`}</div>`;
+      <div class="tt-key">${afford
+        ? IS_TOUCH
+          /* The keycap is hidden on touch, so the mouse wording came out as
+             "Press  or click to buy" with a hole in it — and this is the card
+             the ⓘ button exists to show, so a phone reads it far more often
+             than a mouse ever did. */
+          ? `Tap the row to buy <b>${u.name}</b>`
+          : `Press <kbd>${['Q', 'W', 'E'][pathIdx]}</kbd> or click to buy <b>${u.name}</b>`
+        : `Need ${fmt(cost - (g ? g.cash : 0))} more`}</div>`;
     tip.style.display = 'block';
     placeTip(anchor);
   }
@@ -1997,10 +2016,12 @@
     box.innerHTML = '';
 
     const head = el('div', 'ds-head');
-    /* 96, not 40: the card shows this at 58px now rather than as a 34px stamp,
-       and drawTowerIcon draws to whatever size the canvas is. */
+    /* 160, not 40: the portrait grows with the column and reaches ~62px on a
+       desktop window, which is 124 real pixels on a 2× screen. drawTowerIcon
+       draws to whatever size the canvas is, so this is the only thing standing
+       between a big portrait and a soft one. */
     const cv = document.createElement('canvas');
-    cv.width = 96; cv.height = 96;
+    cv.width = 160; cv.height = 160;
     G.drawTowerIcon(cv, t.type, t.up);
     head.appendChild(cv);
     const stats = [];
@@ -2065,11 +2086,14 @@
          arrives on a hidden threshold feels arbitrary; a number you watch
          climb is the whole appeal of levelling on kills.
 
-         Two single lines and a bar, and no more: the card is a fixed height
-         and the action row still has to fit beneath this. Written long, this
-         note ran to 89px in the ~50px it actually has and pushed the sell
-         button out through the bottom of the card. The wordy version lives in
-         the tooltip. */
+         The top two lines are the live ones and stay single lines: they are a
+         number, a bar and a hotkey, and they have to survive a card only 322px
+         tall on a phone. Underneath them, .hn-more says what this champion is
+         FOR and what the ability actually does — the same words that were only
+         in the hover tooltip. It is hidden until the column has the height to
+         spare, exactly like the upgrade rows' tier ladder, because the reason
+         it was cut was never that it wasn't worth reading. On a desktop this
+         card was two lines of text in a 654px column: 65% of it was empty. */
       const prog = G.heroProgress(g.heroKills);
       const xpLine = prog
         ? `<b>${num(prog.into)}</b> / ${num(prog.need)} sea lions to Lv ${prog.next}` +
@@ -2078,7 +2102,10 @@
       const abil = g.heroLevel < H.ability.unlock
         ? `${H.ability.icon} ${H.ability.name} · <b>Lv ${H.ability.unlock}</b>`
         : `${H.ability.icon} <b>${H.ability.name}</b> · <kbd>H</kbd>`;
-      const note = el('div', 'ds-hero-note', `<span class="hn-line">${xpLine}</span><span class="hn-line">${abil}</span>`);
+      const note = el('div', 'ds-hero-note',
+        `<span class="hn-line">${xpLine}</span><span class="hn-line">${abil}</span>` +
+        `<span class="hn-more"><span class="hn-blurb">${H.blurb}</span>` +
+        `<span class="hn-abil">${H.ability.icon} ${H.ability.desc}</span></span>`);
       note.title = (prog
         ? `${num(prog.into)} of ${num(prog.need)} sea lions toward Level ${prog.next}. Heroes level on sea lions felled while they stand on the field, and each level costs more than the last.`
         : `Level ${G.HERO_MAX_LEVEL} is the ceiling. Damage still rises with the herd's strength on deeper waves.`) +
@@ -2163,9 +2190,26 @@
         row.title = G.PATH_LOCK_MSG[state] || '';
       }
       // the descriptions live here now: hover on a mouse, long-press on a finger
-      hoverTip(row, () => showUpgradeTip(row, t.type, p, Math.min(tier, 2)));
-      attachLongPress(row, () => showUpgradeTip(row, t.type, p, Math.min(tier, 2)));
-      upgRow.appendChild(row);
+      const openInfo = () => showUpgradeTip(row, t.type, p, Math.min(tier, 2));
+      hoverTip(row, openInfo);
+      attachLongPress(row, openInfo);
+
+      /* On a finger, the description also gets a button of its own. Long-press
+         was the only way to reach it and nobody found it: there is nothing on
+         screen that says a row can be held, and the row's obvious gesture — a
+         tap — spends fish instead. So the row and the ⓘ are siblings rather
+         than one inside the other, which keeps them separate targets: a tap on
+         the row still buys, and a tap on the ⓘ can never be a mis-buy.
+         Touch-only, from CSS — on a mouse the hover card already does this and
+         a third control per row would be clutter. */
+      const prow = el('div', 'ds-prow');
+      prow.appendChild(row);
+      const info = el('button', 'ds-info', ICON_INFO);
+      info.setAttribute('aria-label', `What ${path.name} does`);
+      info.title = `What ${path.name} does`;
+      info.onclick = (ev) => { ev.stopPropagation(); openInfo(); armTooltipDismiss(); };
+      prow.appendChild(info);
+      upgRow.appendChild(prow);
     }
     box.appendChild(upgRow);
 

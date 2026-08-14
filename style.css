@@ -336,6 +336,13 @@ html.touch #btn-fs { display: none; }
      was just eating battlefield. */
   width: min(calc(var(--sidew, 320px) - 8px), 230px);
   max-width: 44vw;
+  /* A floor on a finger, because a finger costs width. The ⓘ takes 41px of the
+     row, and on a phone the tray is only 151px wide, which left "Follow-
+     Through" 47px and clipped it mid-word. Long upgrade names were already
+     tight at that width — "Stonebreaker" never fitted — so this pays for the
+     button and the pre-existing squeeze at once. 178px is 21% of a phone in
+     landscape, well inside the 44vw ceiling that stops a small screen being
+     covered. */
 
   z-index: 45;
   background: var(--glass);
@@ -362,17 +369,33 @@ html.touch #btn-fs { display: none; }
 #selpanel::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.16); border-radius: 3px; }
 
 
-#selpanel .ds-head canvas { width: 30px; height: 30px; }
+/* ---- everything in the column is sized against the column ----
+   The panel runs from under the vitals to the foot of the map, so on a desktop
+   it is about twice the height it is on a phone in landscape — and it used to
+   spend all of that on empty gaps between three small rows. cqh is a percent of
+   the panel's own height, so instead the contents grow into the room: a phone
+   lands on the minimum of every clamp below and looks exactly as it did, and a
+   desktop gets a portrait twice the size and text you can read at a glance
+   while a wave is running.
+
+   Every one is a clamp with a real pixel floor, never a bare cqh. The panel's
+   height is set from JS and there are moments — mid-rotation, entering
+   fullscreen — when that measurement is not there yet, and a bare cqh would
+   round the whole card down to nothing at exactly the wrong time. */
+#selpanel .ds-head canvas {
+  width: clamp(30px, 9.7cqh, 72px);
+  height: clamp(30px, 9.7cqh, 72px);
+}
 /* Allowed to wrap to two lines here, and nowhere else. This column is about
    143px wide and "Pebble Flinger" ellipsed to "Peb…" — which is the one thing
    on the card that must always be readable, because it is how you know which
    penguin you are looking at. */
 #selpanel .ds-name {
-  font-size: 13.5px; line-height: 1.15;
+  font-size: clamp(13.5px, 2.55cqh, 18px); line-height: 1.15;
   white-space: normal; overflow: visible; text-overflow: clip;
 }
 #selpanel .ds-stats {
-  white-space: normal; font-size: 10.5px; color: #d3e2f2;
+  white-space: normal; font-size: clamp(10.5px, 1.9cqh, 13.5px); color: #d3e2f2;
   margin-top: 0; letter-spacing: -0.3px;
 }
 /* A real target, not a glyph: 34px square is the smallest thing a thumb hits
@@ -398,13 +421,18 @@ html.touch #btn-fs { display: none; }
   display: flex; flex-direction: column; gap: 2px;
   width: 100%;
   text-align: left;
-  padding: 6px 7px;
+  padding: clamp(6px, 1.2cqh, 11px) clamp(7px, 1.3cqh, 10px);
   min-height: 42px;
   border: 1px solid var(--line-strong);
   border-radius: 9px;
   background: rgba(255, 255, 255, 0.035);
   font: inherit; color: var(--text);
 }
+/* A row and its info button, side by side. They are siblings rather than one
+   inside the other so that they are two separate targets — a button nested in a
+   button would make every press on the ⓘ also a press on "buy this upgrade". */
+.ds-prow { display: flex; align-items: stretch; gap: 5px; min-width: 0; }
+.ds-prow .ds-path { flex: 1 1 auto; min-width: 0; }
 .ds-path.open { cursor: pointer; }
 .ds-path.open:hover { background: rgba(255, 255, 255, 0.075); }
 .ds-path.can { border-color: rgba(87, 212, 136, 0.7); }
@@ -419,13 +447,13 @@ html.touch #btn-fs { display: none; }
   flex: 0 1 auto; min-width: 0;
   /* No letter-spacing and 9px: "TRICK SHOT" is the longest path name in the
      game and it has to fit beside the dots and the price in a 143px column. */
-  font-size: 9px; font-weight: 800; text-transform: uppercase;
+  font-size: clamp(9px, 1.7cqh, 12px); font-weight: 800; text-transform: uppercase;
   letter-spacing: 0; color: var(--dim);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .dsp-dots { flex: none; display: flex; gap: 3px; margin-left: auto; }
 .dsp-dots i {
-  width: 4px; height: 4px; border-radius: 50%;
+  width: clamp(4px, 0.85cqh, 6px); height: clamp(4px, 0.85cqh, 6px); border-radius: 50%;
   background: rgba(255, 255, 255, 0.22);
 }
 .dsp-dots i.on { background: var(--good); }
@@ -434,15 +462,21 @@ html.touch #btn-fs { display: none; }
    whole width for "TRICK SHOT" beside the progress dots. */
 .dsp-next {
   display: flex; align-items: baseline; gap: 4px;
-  font-size: 12px; font-weight: 700; line-height: 1.2;
+  font-size: clamp(12px, 2.35cqh, 16.5px); font-weight: 700; line-height: 1.2;
 }
 .dsp-up {
   flex: 1 1 auto; min-width: 0;
   display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
   overflow: hidden;
+  /* A single long word — "Konglomerate", "Stonebreaker" — is wider than the row
+     on a phone whatever else is done, and without this it was sliced off
+     mid-letter with no sign anything was missing. Broken instead, so the clamp
+     can put an ellipsis on it and the row admits there is more to read. On a
+     desktop card the words fit and this never fires. */
+  overflow-wrap: anywhere;
 }
-.dsp-cost { flex: none; font-size: 11px; font-weight: 800; color: var(--gold); letter-spacing: -0.2px; }
-.dsp-why { font-size: 11px; font-weight: 700; color: var(--dim); }
+.dsp-cost { flex: none; font-size: clamp(11px, 2.05cqh, 14.5px); font-weight: 800; color: var(--gold); letter-spacing: -0.2px; }
+.dsp-why { font-size: clamp(11px, 2cqh, 14px); font-weight: 700; color: var(--dim); }
 .ds-path.done .dsp-why { color: var(--gold); }
 .ds-path kbd { margin-right: 3px; }
 /* one pulse the moment a row crosses from unaffordable to affordable */
@@ -450,10 +484,10 @@ html.touch #btn-fs { display: none; }
 /* Its own row at the bottom, clear of everything, and it asks before it acts. */
 .sell-btn {
   width: 100%;
-  min-height: 42px;
+  min-height: clamp(42px, 7.4cqh, 54px);
   margin-top: 2px;
   justify-content: center;
-  font-size: 13px;
+  font-size: clamp(13px, 2.3cqh, 15.5px);
   color: var(--bad);
   border-color: rgba(229, 109, 119, 0.45);
 }
@@ -518,12 +552,15 @@ html.touch #btn-fs { display: none; }
 .ds-upgs {
   display: flex; flex-direction: column; gap: 6px;
   flex: 1 1 auto; min-height: 0;
-  /* Spread down the column rather than bunching under the head. The three rows
-     are the reason the card exists, so on a tall window they get the height
-     instead of it collecting as a gap above the sell button. */
-  justify-content: space-between;
 }
-.ds-upgs .ds-path { flex: 0 1 auto; justify-content: center; }
+/* The rows GROW into the column's spare height rather than being pushed apart
+   by it. space-between did the second thing: three 94px rows in a 531px column
+   left 249px of nothing between them — 38% of the panel was gap — and the rows
+   themselves stayed the size they are on a phone. Growing them is what gives
+   the type above room to scale up, and what the comment here always claimed
+   was happening. */
+.ds-upgs .ds-prow { flex: 1 1 auto; min-height: 0; }
+.ds-upgs .ds-path { justify-content: center; }
 .ds-actions { margin-top: auto; }
 .btn.upg-mini {
   flex: 1;
@@ -573,8 +610,15 @@ html.touch #btn-fs { display: none; }
 .ds-actions { display: flex; gap: 6px; flex: none; flex-wrap: nowrap; align-items: stretch; }
 .ds-actions .ds-target { flex: 0 0 auto; }
 .ds-actions .sell-btn { flex: 1 1 auto; margin-top: 0; min-width: 0; }
-/* #selpanel for specificity — .btn.tiny sets its own padding and was winning */
-#selpanel .ds-actions .btn { padding: 7px 11px; line-height: 1.35; white-space: nowrap; }
+/* #selpanel for specificity — .btn.tiny sets its own padding and font size and
+   was winning. Both buttons on this row grow with the column for the same
+   reason everything above them does: a 42px foot under three 160px rows reads
+   as an afterthought. */
+#selpanel .ds-actions .btn {
+  padding: 7px 11px; line-height: 1.35; white-space: nowrap;
+  font-size: clamp(13px, 2.3cqh, 15.5px);
+  min-height: clamp(42px, 7.4cqh, 54px);
+}
 .ds-actions .btn.danger { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 
 /* build palette: one grid of twenty penguins, ten across here — two classes to
@@ -1344,11 +1388,34 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
 }
 /* no vertical padding: with the XP bar in it this block was the one pixel that
    armed the card's scrollbar */
-.ds-hero-note { flex: none; font-size: 11.5px; color: var(--dim); line-height: 1.35; padding: 0 2px; }
+/* It takes the column's spare height rather than leaving it below the sell
+   button, for the same reason the upgrade rows do. */
+.ds-hero-note {
+  flex: 1 1 auto; min-height: 0;
+  display: flex; flex-direction: column;
+  font-size: clamp(11.5px, 2.05cqh, 14px); color: var(--dim); line-height: 1.4; padding: 0 2px;
+}
 .ds-hero-note b { color: var(--gold); }
 /* Each line is exactly one line. See the note in renderDockSel: this block sits
    between the head and the action row inside a card of fixed height. */
-.hn-line { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hn-line { display: block; flex: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* What the champion is for and what the ability does — the wordy half, shown
+   only where there is height to spend on it. Same gate as the tier ladder. */
+.hn-more { display: none; }
+@container (min-height: 430px) {
+  /* Top-aligned, not centred. Centred, the prose floated away from the rule
+     that introduces it and left a gap above AND below — two holes instead of
+     one. It sits under its own hairline and the slack collects once, at the
+     foot of the card, where it reads as the card's bottom margin. */
+  .hn-more {
+    display: flex; flex-direction: column; justify-content: flex-start; gap: 9px;
+    flex: 1 1 auto; min-height: 0;
+    font-size: clamp(11.5px, 2.4cqh, 16px); line-height: 1.45;
+    margin-top: 7px; padding-top: 8px;
+    border-top: 1px solid var(--line);
+  }
+  .hn-abil { color: #d3e2f2; }
+}
 /* progress to the hero's next level — inline, so it costs the dock no height */
 .hero-xp {
   display: block; width: 100%; height: 4px; margin: 3px 0 2px;
@@ -1878,6 +1945,46 @@ h2 { margin-bottom: 18px; font-size: 26px; letter-spacing: 0.3px; }
   .lvl-sec-blurb { display: none; }
 }
 
+/* ---- the ⓘ on each upgrade row, on touch only ----
+   What an upgrade does used to be reachable only by holding the row down. That
+   is a gesture with nothing on screen to advertise it, on a row whose obvious
+   gesture — a tap — spends fish, so in practice the descriptions were not
+   reachable at all on a phone. This is the same card behind a control that says
+   it is a control: a full-height strip down the edge of the row, so the target
+   is the row's whole height rather than the size of the glyph in it.
+
+   It is hidden on a mouse. Hover already opens the card there, and a third
+   control on every row would be furniture in a column that is short of room. */
+.ds-info { display: none; }
+html.touch #selpanel { width: clamp(178px, calc(var(--sidew, 320px) - 8px), 230px); }
+html.touch .ds-info {
+  display: flex; align-items: center; justify-content: center;
+  flex: none;
+  width: 36px;
+  /* Its own colour, and not one already spoken for: gold is a price and green
+     is "you can afford this", so the ⓘ borrows the accent blue instead and
+     reads as a control rather than as another number on the row. */
+  color: var(--accent);
+  background: rgba(116, 220, 251, 0.09);
+  border: 1px solid rgba(116, 220, 251, 0.34);
+  border-radius: 9px;
+  padding: 0;
+  cursor: pointer;
+  font-family: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+html.touch .ds-info:active { background: rgba(116, 220, 251, 0.24); }
+/* A closed path is still worth reading about — seeing the road you did not take
+   is the whole point of there being three of them — so the button stays, dimmed
+   to match the row it belongs to. */
+html.touch .ds-path.shut + .ds-info { opacity: 0.5; }
+/* There is no keyboard to press, so the letter is 24px of a 143px row spent on
+   a hint that cannot be acted on. Reclaimed, which is most of what the ⓘ costs.
+   The dock does the same thing for the same reason. Whole panel, not just the
+   rows: the hero card's sell button is the one place a stray keycap survived,
+   because it sits outside the .ds-actions row the narrow-card rule covers. */
+html.touch #selpanel kbd { display: none; }
+
 /* bigger touch targets wherever the input is a finger */
 html.touch .btn { padding: 10px 15px; }
 html.touch .btn.tiny { padding: 9px 12px; }
@@ -1898,11 +2005,11 @@ html.touch .btn.upg-mini { padding-left: 8px; }
    a phone — and the two buttons tighten so "Sell · +196" fits beside the
    targeting mode instead of being clipped to "Sel". The path rows keep their
    letters: those are the controls the card exists for. */
+/* #selpanel on each of these for the same reason as above — they have to beat
+   the ID-qualified sizing on .ds-actions .btn, not just .btn.tiny. */
 @container (max-width: 200px) {
   .ds-actions kbd { display: none; }
-  .ds-actions .btn { font-size: 11px; padding: 7px 6px; }
-  .ds-actions .sell-btn { min-height: 38px; }
-  .ds-actions .ds-target { min-height: 38px; }
+  #selpanel .ds-actions .btn { font-size: 11px; padding: 7px 6px; min-height: 38px; }
 }
 
 /* The tier ladder under each row: where this path goes, names only. Hidden by
@@ -1912,13 +2019,14 @@ html.touch .btn.upg-mini { padding-left: 8px; }
 .dsp-tiers { display: none; }
 @container (min-height: 430px) {
   .dsp-tiers {
-    display: flex; flex-direction: column; gap: 1px;
-    margin-top: 3px; padding-top: 3px;
+    display: flex; flex-direction: column; gap: clamp(1px, 0.35cqh, 3px);
+    margin-top: clamp(3px, 0.8cqh, 6px); padding-top: clamp(3px, 0.8cqh, 6px);
     border-top: 1px solid var(--line);
   }
   .dsp-tier {
     display: flex; gap: 4px; align-items: baseline;
-    font-size: 9.5px; font-weight: 650; line-height: 1.25; color: var(--dim);
+    font-size: clamp(9.5px, 1.8cqh, 12.5px);
+    font-weight: 650; line-height: 1.4; color: var(--dim);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   .dsp-tier i { flex: none; width: 7px; font-style: normal; text-align: center; }
