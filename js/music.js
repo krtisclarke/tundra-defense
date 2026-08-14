@@ -209,6 +209,19 @@
     }
   }
 
+  /* How often the scheduler wakes up, and how far ahead of the clock it queues
+     notes. WebAudio plays what it has been given on its own thread, so the only
+     job of this timer is to stay comfortably ahead of it — and it was waking
+     the main thread 33 times a second to hand over 160ms of music it already
+     had 130ms of. Over a battle that is eighty thousand wakeups for nothing,
+     and a CPU that is woken ten times a second never gets to sleep properly,
+     which is the shape of a battery complaint.
+
+     100ms apart with a 300ms horizon keeps two full intervals of slack — a tick
+     can be 200ms late and the music still does not gap — for a third of the
+     wakeups. */
+  const PUMP_MS = 100, HORIZON = 0.3;
+
   function pump() {
     if (!M.track || !M.actx) return;
     if (M.actx.state === 'suspended') { M.actx.resume(); return; }
@@ -216,7 +229,7 @@
     // If the clock got ahead of us (context was suspended at start, or the tab
     // was throttled), skip forward instead of dumping the backlog as a burst.
     if (M.nextTime < now - 0.04) M.nextTime = now + 0.06;
-    const horizon = now + 0.16;
+    const horizon = now + HORIZON;
     while (M.nextTime < horizon) {
       scheduleStep(M.nextTime);
       M.nextTime += stepDur();
@@ -238,7 +251,7 @@
       // start after any already-scheduled notes from the previous track finish,
       // so track switches don't overlap into a smear
       M.nextTime = M.actx.currentTime + 0.18;
-      M.timer = setInterval(pump, 30);
+      M.timer = setInterval(pump, PUMP_MS);
     },
     stop() {
       if (M.timer) { clearInterval(M.timer); M.timer = null; }
@@ -261,7 +274,7 @@
         if (M.actx && M.actx.state === 'suspended') M.actx.resume();
         // don't dump the silent interval's worth of notes as a burst
         if (M.actx) M.nextTime = M.actx.currentTime + 0.06;
-        M.timer = setInterval(pump, 30);
+        M.timer = setInterval(pump, PUMP_MS);
       }
     },
     setTempoScale(x) {

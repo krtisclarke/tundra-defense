@@ -56,6 +56,62 @@
     return cv;
   }
 
+  /* ---------- sprite sheets ----------
+     A sea lion is forty-odd fills and strokes of vector art, and a late
+     endless wave fields ninety of them at once. Rebuilt from scratch sixty
+     times a second, that measured as 26ms of a 33ms frame — the CPU never got
+     a moment off, which is exactly what a phone battery notices. Two thirds of
+     an hour on a level 2 run and 11% of the battery was gone.
+
+     But the animal is the SAME PICTURE every frame. What changes is where it
+     is, which way it points, and the handful of parts that genuinely move. So
+     the still half is painted once into an offscreen canvas — one per (type,
+     stealth state, freckle pattern) — and blitted from then on; only the tail,
+     the flipper and the glows are still drawn by hand.
+
+     Baked at the device's own pixel scale, so the blit is 1:1 and the picture
+     is exactly as crisp as the vector art was. The scale is re-read at the top
+     of every frame and the sheets are thrown away when it really moves — a
+     resize, a rotation, entering fullscreen. */
+  const spriteCache = new Map();
+  let spriteScale = 0;
+
+  function syncSpriteScale(ctx) {
+    let s = 1;
+    if (ctx.getTransform) { const m = ctx.getTransform(); s = Math.abs(m.a) || 1; }
+    /* Quantised to eighths. A ResizeObserver tick can move the real scale by a
+       thousandth, and rebuilding every sheet for a difference nobody can see
+       is the exact cost this cache exists to avoid. */
+    const q = Math.max(0.5, Math.min(3, Math.round(s * 8) / 8));
+    if (q !== spriteScale) { spriteScale = q; spriteCache.clear(); }
+  }
+
+  /* `pad` is [left, right, top, bottom] around the origin, in the units the
+     paint callback draws in. The callback gets a context already centred on
+     that origin and scaled to device pixels, so it can be lifted verbatim out
+     of the code that used to draw straight to the screen. */
+  function sprite(key, pad, paint) {
+    const hit = spriteCache.get(key);
+    if (hit) return hit;
+    const s = spriteScale || 1;
+    const cv = document.createElement('canvas');
+    cv.width = Math.max(1, Math.ceil((pad[0] + pad[1]) * s));
+    cv.height = Math.max(1, Math.ceil((pad[2] + pad[3]) * s));
+    const c = cv.getContext('2d');
+    c.setTransform(s, 0, 0, s, pad[0] * s, pad[2] * s);
+    paint(c);
+    const sp = { cv, x: -pad[0], y: -pad[2], w: cv.width / s, h: cv.height / s };
+    /* A board is at most a few dozen penguins and a dozen species of sea lion,
+       two sheets apiece; the ceiling is for the combinations a long battle
+       leaves behind as it upgrades through them. Cheaper to rebuild the lot
+       once than to grow a bitmap pile nothing will look at again. */
+    if (spriteCache.size > 256) spriteCache.clear();
+    spriteCache.set(key, sp);
+    return sp;
+  }
+
+  function blitSprite(ctx, sp) { ctx.drawImage(sp.cv, sp.x, sp.y, sp.w, sp.h); }
+
   let noiseTile = null;
   function getNoiseTile() {
     if (noiseTile) return noiseTile;
@@ -1102,50 +1158,16 @@
      third costume. The rule of two means a penguin only ever wears two paths at
      once, so what the silhouette needs to say is "how far along", not "which of
      three" — the coloured pips above its head already answer that. */
-  function drawPenguin(ctx, x, y, r0, typeId, aim, t, up) {
-    const look = (typeId && G.LOOKS[typeId]) || {};
-    const tierA = up ? (up[0] || 0) : 0;
-    const tierB = up ? Math.max(up[1] || 0, up[2] || 0) : 0;
-    const tiers = tierA + tierB;
-    const r = r0 * (look.scale || 1) * (1 + tiers * 0.03);
+  /* The still half of a penguin: the props it wears on its back, its feet, the
+     shaded body and belly, and the gear sash. Two radial gradients and a dozen
+     fills, none of which changes between frames — so in a battle it is baked
+     into a sprite (see the cache at the top of the file) and blitted. The shop
+     icons still draw it the long way; they are painted once, not sixty times a
+     second, and they are drawn at sizes the battle never asks for. */
+  function paintPenguinBody(ctx, r, look, tierA, tierB, clsColor) {
     const body = look.tint || '#2b3138';
     const belly = look.belly || '#f4f6f8';
     const ink = shade(body.startsWith('#') ? body : '#2b3138', -70);
-    const twDef = typeId && G.TOWERS[typeId];
-    const clsColor = (twDef && G.CLASSES[twDef.cls] && G.CLASSES[twDef.cls].color) || '#e05252';
-
-    ctx.save();
-    ctx.translate(x, y);
-
-    // directional cast shadow (light from top-left)
-    ctx.fillStyle = 'rgba(25,42,62,0.10)';
-    ctx.beginPath(); ctx.ellipse(r * 0.3, r * 0.8, r * 1.15, r * 0.46, 0, 0, TAU); ctx.fill();
-    ctx.fillStyle = 'rgba(25,42,62,0.20)';
-    ctx.beginPath(); ctx.ellipse(r * 0.16, r * 0.76, r * 0.9, r * 0.36, 0, 0, TAU); ctx.fill();
-
-    // veteran ground ring (4+ total tiers)
-    if (tiers >= 4) {
-      ctx.strokeStyle = clsColor;
-      ctx.save(); ctx.globalAlpha = 0.4 + Math.sin(t * 2.5) * 0.12;
-      ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.ellipse(r * 0.1, r * 0.76, r * 1.05, r * 0.42, 0, 0, TAU); ctx.stroke();
-      ctx.restore();
-    }
-
-    // gear-path cape billows out behind (tier 2+), gold-trimmed at tier 3
-    if (tierB >= 2) {
-      const sway = Math.sin(t * 2.2) * r * 0.07;
-      ctx.fillStyle = shade(clsColor, -12);
-      ctx.beginPath();
-      ctx.moveTo(-r * 0.34, -r * 0.62);
-      ctx.quadraticCurveTo(-r * 1.3, -r * 0.1 + sway, -r * 1.12, r * 0.72 + sway);
-      ctx.quadraticCurveTo(-r * 0.55, r * 0.95, -r * 0.12, r * 0.7);
-      ctx.lineTo(r * 0.05, -r * 0.5);
-      ctx.closePath(); ctx.fill();
-      ctx.strokeStyle = tierB >= 3 ? '#ffd166' : shade(clsColor, -46);
-      ctx.lineWidth = r * (tierB >= 3 ? 0.1 : 0.06);
-      ctx.stroke();
-    }
 
     if (look.prop === 'jetpack') {
       ctx.fillStyle = look.propColor || '#e07b39';
@@ -1198,6 +1220,76 @@
       }
       ctx.restore();
     }
+  }
+
+  /* The hat, and the gold halo a maxed gear path puts around it. shadowBlur is
+     the most expensive thing a 2D context can be asked for, and it was being
+     asked for once per capstone penguin per frame; baked, it costs nothing. */
+  function paintPenguinHat(ctx, r, look, tierB) {
+    if (tierB >= 3) {
+      ctx.save();
+      ctx.shadowColor = 'rgba(255,209,102,0.85)'; ctx.shadowBlur = r * 0.5;
+      drawHat(ctx, r * 1.18, look, 0);
+      ctx.restore();
+    } else {
+      drawHat(ctx, r * 1.18, look, 0);
+    }
+  }
+
+  function drawPenguin(ctx, x, y, r0, typeId, aim, t, up, cache) {
+    const look = (typeId && G.LOOKS[typeId]) || {};
+    const tierA = up ? (up[0] || 0) : 0;
+    const tierB = up ? Math.max(up[1] || 0, up[2] || 0) : 0;
+    const tiers = tierA + tierB;
+    const r = r0 * (look.scale || 1) * (1 + tiers * 0.03);
+    const body = look.tint || '#2b3138';
+    const ink = shade(body.startsWith('#') ? body : '#2b3138', -70);
+    const twDef = typeId && G.TOWERS[typeId];
+    const clsColor = (twDef && G.CLASSES[twDef.cls] && G.CLASSES[twDef.cls].color) || '#e05252';
+    /* Keyed on everything the baked art depends on, and on nothing else. r is
+       a function of the type and the tiers, so it does not need to be in it. */
+    const skey = cache ? typeId + '|' + tierA + '|' + tierB : null;
+
+    ctx.save();
+    ctx.translate(x, y);
+
+    // directional cast shadow (light from top-left)
+    ctx.fillStyle = 'rgba(25,42,62,0.10)';
+    ctx.beginPath(); ctx.ellipse(r * 0.3, r * 0.8, r * 1.15, r * 0.46, 0, 0, TAU); ctx.fill();
+    ctx.fillStyle = 'rgba(25,42,62,0.20)';
+    ctx.beginPath(); ctx.ellipse(r * 0.16, r * 0.76, r * 0.9, r * 0.36, 0, 0, TAU); ctx.fill();
+
+    // veteran ground ring (4+ total tiers)
+    if (tiers >= 4) {
+      ctx.strokeStyle = clsColor;
+      ctx.save(); ctx.globalAlpha = 0.4 + Math.sin(t * 2.5) * 0.12;
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.ellipse(r * 0.1, r * 0.76, r * 1.05, r * 0.42, 0, 0, TAU); ctx.stroke();
+      ctx.restore();
+    }
+
+    // gear-path cape billows out behind (tier 2+), gold-trimmed at tier 3
+    if (tierB >= 2) {
+      const sway = Math.sin(t * 2.2) * r * 0.07;
+      ctx.fillStyle = shade(clsColor, -12);
+      ctx.beginPath();
+      ctx.moveTo(-r * 0.34, -r * 0.62);
+      ctx.quadraticCurveTo(-r * 1.3, -r * 0.1 + sway, -r * 1.12, r * 0.72 + sway);
+      ctx.quadraticCurveTo(-r * 0.55, r * 0.95, -r * 0.12, r * 0.7);
+      ctx.lineTo(r * 0.05, -r * 0.5);
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = tierB >= 3 ? '#ffd166' : shade(clsColor, -46);
+      ctx.lineWidth = r * (tierB >= 3 ? 0.1 : 0.06);
+      ctx.stroke();
+    }
+
+    if (skey) {
+      const tall = look.prop === 'periscope' ? r * 1.8 : r * 1.2;
+      blitSprite(ctx, sprite('peng|' + skey, [r * 1.15, r * 1.15, tall, r * 1.15],
+        (c) => paintPenguinBody(c, r, look, tierA, tierB, clsColor)));
+    } else {
+      paintPenguinBody(ctx, r, look, tierA, tierB, clsColor);
+    }
 
     const flap = Math.sin(t * 6) * 0.15;
     ctx.fillStyle = body;
@@ -1235,13 +1327,11 @@
 
     // oversized hat & weapon: role reads at a glance. The weapon grows with
     // its path, and a maxed path glows gold.
-    if (tierB >= 3) {
-      ctx.save();
-      ctx.shadowColor = 'rgba(255,209,102,0.85)'; ctx.shadowBlur = r * 0.5;
-      drawHat(ctx, r * 1.18, look, t);
-      ctx.restore();
+    if (skey) {
+      blitSprite(ctx, sprite('hat|' + skey, [r * 1.5, r * 1.5, r * 2.4, r * 1.3],
+        (c) => paintPenguinHat(c, r, look, tierB)));
     } else {
-      drawHat(ctx, r * 1.18, look, t);
+      paintPenguinHat(ctx, r, look, tierB);
     }
     const propS = 1 + tierA * 0.13;
     const propR = r * 1.32 * propS;
@@ -1719,7 +1809,7 @@
       px -= Math.cos(tw.aim) * 5.5 * fireF;
       py -= Math.sin(tw.aim) * 5.5 * fireF;
     }
-    drawPenguin(ctx, px, py, pr, tw.type, tw.aim, t + tw.id, tw.up);
+    drawPenguin(ctx, px, py, pr, tw.type, tw.aim, t + tw.id, tw.up, true);
 
     if (tw.type === 'jetpack') {
       ctx.save();
@@ -1790,68 +1880,31 @@
     ctx.closePath();
   }
 
-  function drawSeaLion(ctx, game, e, t) {
-    const def = G.ENEMIES[e.type];
-    const p = G.samplePath(game.paths[e.pathIdx], e.dist);
-    const wob = Math.sin(t * 8 + e.wob) * 0.07;
-    const r = e.size;
-    const hidden = e.stealth && e.revealUntil <= game.time;
+  /* Everything below is drawn nose-right and belly-down, and the caller turns
+     it down the trail. Which way the animal is FACING is therefore a mirror,
+     never a rotation past vertical: rotating a right-facing drawing by 180°
+     puts its belly on the ceiling, and that is what had the whole herd
+     swimming on its back down every leg of the trail that runs right to left.
+
+     Mirrored across its own spine instead — nose still leads, belly still
+     down. Keyed on the segment's angle rather than the wobbled one: the wobble
+     is ±0.07 either side, so on a vertical leg an angle-with-wobble crosses
+     zero eight times a second and the sea lion would strobe. */
+  function facesLeft(ang) { return Math.cos(ang) < 0; }
+
+  /* The still half of a sea lion: body, markings, head, and whatever its
+     species wears. Painted once per (type, stealth, freckles) into a sprite and
+     blitted after that — see the sprite cache at the top of this file. The
+     parts that actually move (tail, flipper, snort, pulses) are not in here;
+     drawSeaLion still draws those by hand every frame. */
+  function paintSeaLion(ctx, type, r, hidden, variant) {
+    const def = G.ENEMIES[type];
     const col = def.color;
-
-    // boss menace glow
-    if (e.boss) {
-      const glowCol = e.type === 'leviathan' ? '80,215,230' : '225,70,70';
-      ctx.save();
-      ctx.globalAlpha = 0.3 + Math.sin(t * 3) * 0.08;
-      const gg = ctx.createRadialGradient(p.x, p.y, r * 0.4, p.x, p.y, r * 1.75);
-      gg.addColorStop(0, `rgba(${glowCol},0.5)`);
-      gg.addColorStop(1, `rgba(${glowCol},0)`);
-      ctx.fillStyle = gg;
-      ctx.beginPath(); ctx.arc(p.x, p.y, r * 1.75, 0, TAU); ctx.fill();
-      ctx.restore();
-    }
-
-    ctx.save();
-    ctx.translate(p.x, p.y);
-    if (hidden) ctx.globalAlpha = 0.45;
-    const ang = p.ang + wob;
-    ctx.rotate(ang);
-    const squish = Math.sin(t * 7 + e.wob) * 0.025;
-    ctx.scale(1 + squish, 1 - squish);
-
-    // cast shadow, offset toward world down-right regardless of facing
-    const sdx = Math.cos(-ang) * 4 - Math.sin(-ang) * 6;
-    const sdy = Math.sin(-ang) * 4 + Math.cos(-ang) * 6;
-    ctx.fillStyle = 'rgba(25,42,62,0.10)';
-    ctx.beginPath(); ctx.ellipse(sdx * 1.4, r * 0.42 + sdy, r * 1.3, r * 0.44, 0, 0, TAU); ctx.fill();
-    ctx.fillStyle = 'rgba(25,42,62,0.18)';
-    ctx.beginPath(); ctx.ellipse(sdx, r * 0.44 + sdy * 0.6, r * 1.08, r * 0.36, 0, 0, TAU); ctx.fill();
-
-    // orcas get their own body entirely, then fall through to the shared
-    // status pips and health bar below
-    if (e.orca) {
-      drawOrcaBody(ctx, e, r, col, t);
-      ctx.restore();
-      drawEnemyStatus(ctx, game, e, def, r, p, t);
-      return;
-    }
-
-    // tail flippers
-    ctx.fillStyle = shade(col, -12);
-    const tailWag = Math.sin(t * 10 + e.wob) * 0.3;
-    ctx.save();
-    ctx.translate(-r * 1.02, 0); ctx.rotate(tailWag);
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.quadraticCurveTo(-r * 0.35, -r * 0.12, -r * 0.6, -r * 0.42);
-    ctx.quadraticCurveTo(-r * 0.42, -r * 0.05, -r * 0.38, 0);
-    ctx.quadraticCurveTo(-r * 0.42, r * 0.05, -r * 0.6, r * 0.42);
-    ctx.quadraticCurveTo(-r * 0.35, r * 0.12, 0, 0);
-    ctx.closePath(); ctx.fill();
-    ctx.restore();
+    const boss = !!def.boss;
+    ctx.globalAlpha = hidden ? 0.45 : 1;
 
     // speedster: motion-blur ghost trail
-    if (e.type === 'speedster') {
+    if (type === 'speedster') {
       for (let gi = 2; gi >= 1; gi--) {
         ctx.save();
         ctx.translate(-r * 0.6 * gi, 0);
@@ -1884,9 +1937,12 @@
     ctx.beginPath(); ctx.ellipse(-r * 0.02, -r * 0.2, r * 0.8, r * 0.17, 0, 0, TAU); ctx.fill();
     ctx.globalAlpha = 0.45;
     ctx.beginPath(); ctx.ellipse(r * 0.7, -r * 0.22, r * 0.2, r * 0.1, 0.3, 0, TAU); ctx.fill();
-    // mottled spots (seeded per enemy)
-    if (!e.boss && e.type !== 'stealth') {
-      const rnd = mulberry32(((e.wob * 100000) | 0) + def.rank * 977);
+    /* Mottled spots. Seeded off the sprite's freckle variant rather than off
+       the individual animal: a herd of three patterns reads exactly as varied
+       as a herd of ninety did, and it is the difference between three sheets
+       per species and one per sea lion on the field. */
+    if (!boss && type !== 'stealth') {
+      const rnd = mulberry32(variant * 31013 + def.rank * 977);
       ctx.globalAlpha = 0.4;
       ctx.fillStyle = shade(col, -30);
       const n = 4 + (rnd() * 4 | 0);
@@ -1899,7 +1955,7 @@
       }
     }
     // barnacles for the big ones
-    if (e.type === 'colossus' || e.type === 'leviathan') {
+    if (type === 'colossus' || type === 'leviathan') {
       const rnd = mulberry32(def.rank * 31337);
       ctx.globalAlpha = 0.9;
       for (let i = 0; i < 7; i++) {
@@ -1910,19 +1966,6 @@
         ctx.beginPath(); ctx.arc(sx, sy, r * 0.022, 0, TAU); ctx.fill();
       }
     }
-    // leviathan rune cracks
-    if (e.type === 'leviathan') {
-      ctx.globalAlpha = 0.5 + Math.sin(t * 2.5) * 0.3;
-      ctx.strokeStyle = '#6fe8e0';
-      ctx.lineWidth = 1.8;
-      ctx.beginPath();
-      ctx.moveTo(-r * 0.75, -r * 0.1);
-      ctx.lineTo(-r * 0.5, -r * 0.32); ctx.lineTo(-r * 0.28, -r * 0.16); ctx.lineTo(-r * 0.02, -r * 0.4);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(r * 0.15, r * 0.3); ctx.lineTo(r * 0.35, r * 0.08) ; ctx.lineTo(r * 0.52, r * 0.22);
-      ctx.stroke();
-    }
     ctx.restore();
 
     // bold cartoon outline
@@ -1932,19 +1975,6 @@
     sealBody(ctx, r);
     ctx.stroke();
     ctx.globalAlpha = hidden ? 0.45 : 1;
-
-    // front flipper
-    ctx.fillStyle = shade(col, -18);
-    ctx.save();
-    ctx.translate(-r * 0.05, r * 0.34);
-    ctx.rotate(0.55 + wob * 1.6);
-    ctx.beginPath();
-    ctx.ellipse(0, r * 0.2, r * 0.16, r * 0.4, 0, 0, TAU);
-    ctx.fill();
-    ctx.strokeStyle = shade(col, -34); ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(0, r * 0.1); ctx.lineTo(0, r * 0.5); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(-r * 0.07, r * 0.12); ctx.lineTo(-r * 0.09, r * 0.48); ctx.stroke();
-    ctx.restore();
 
     // head (ghosted like the body when the sea lion is unrevealed stealth)
     const ghost = hidden ? 0.45 : 1;
@@ -1981,7 +2011,7 @@
     }
 
     /* --- type identity --- */
-    switch (e.type) {
+    switch (type) {
       case 'pup':
         ctx.fillStyle = '#15181d'; // extra-big puppy eye
         ctx.beginPath(); ctx.arc(r * 0.68, -r * 0.17, r * 0.13, 0, TAU); ctx.fill();
@@ -2022,14 +2052,6 @@
           ctx.lineTo(r * 0.42 + Math.cos(i * 0.42 + Math.PI) * r * 0.62, Math.sin(i * 0.42) * r * 0.66);
           ctx.stroke();
         }
-        // angry snort puffs from the nose
-        const ph = (t * 1.1 + e.wob) % 1;
-        if (ph < 0.4) {
-          const pf = ph / 0.4;
-          ctx.fillStyle = `rgba(255,255,255,${(1 - pf) * 0.7})`;
-          ctx.beginPath(); ctx.arc(r * (1.3 + pf * 0.5), -r * 0.06, r * 0.09 + pf * r * 0.1, 0, TAU); ctx.fill();
-          ctx.beginPath(); ctx.arc(r * (1.28 + pf * 0.45), r * 0.18, r * 0.07 + pf * r * 0.09, 0, TAU); ctx.fill();
-        }
         break;
       }
       case 'stealth':
@@ -2056,20 +2078,11 @@
         }
         break;
       case 'regen': {
-        const pulse = 0.5 + Math.sin(t * 5) * 0.3;
-        ctx.strokeStyle = `rgba(110,230,150,${pulse * 0.75})`;
-        ctx.lineWidth = 3;
-        ctx.beginPath(); ctx.arc(0, 0, r * 1.18, 0, TAU); ctx.stroke();
-        ctx.strokeStyle = `rgba(110,230,150,${pulse * 0.3})`;
-        ctx.beginPath(); ctx.arc(0, 0, r * (1.3 + pulse * 0.15), 0, TAU); ctx.stroke();
+        // the still half: two mossy patches. The rings and the cross pulse, so
+        // they are drawn live in drawSeaLionLive.
         ctx.fillStyle = 'rgba(110,210,140,0.6)';
         ctx.beginPath(); ctx.ellipse(-r * 0.35, -r * 0.3, r * 0.2, r * 0.13, 0.4, 0, TAU); ctx.fill();
         ctx.beginPath(); ctx.ellipse(r * 0.1, -r * 0.42, r * 0.16, r * 0.1, -0.3, 0, TAU); ctx.fill();
-        // floating heal cross
-        ctx.fillStyle = `rgba(140,255,170,${pulse})`;
-        const cy = -r * 0.85 - Math.sin(t * 3) * r * 0.08;
-        ctx.fillRect(-r * 0.05, cy - r * 0.16, r * 0.1, r * 0.32);
-        ctx.fillRect(-r * 0.16, cy - r * 0.05, r * 0.32, r * 0.1);
         break;
       }
       case 'brute':
@@ -2142,14 +2155,152 @@
         break;
       case 'leviathan':
         drawTusks(ctx, r, 1.5);
-        // seaweed + glowing gaze
+        // seaweed; the rune cracks and the gaze pulse are drawn live
         ctx.strokeStyle = 'rgba(50,120,90,0.9)'; ctx.lineWidth = r * 0.06; ctx.lineCap = 'round';
         ctx.beginPath(); ctx.moveTo(-r * 0.55, -r * 0.5); ctx.quadraticCurveTo(-r * 0.4, 0, -r * 0.6, r * 0.5); ctx.stroke();
-        ctx.fillStyle = `rgba(110,235,225,${0.7 + Math.sin(t * 4) * 0.3})`;
-        ctx.beginPath(); ctx.arc(r * 0.68, -r * 0.17, r * 0.07, 0, TAU); ctx.fill();
         scarPair(ctx, r);
         break;
     }
+  }
+
+  /* The half that has to be redrawn: anything whose shape or brightness is a
+     function of the clock. Everything here sits clear of the head and the
+     silhouette, so drawing it over the blitted sprite lands the same picture
+     the old single pass did. */
+  function drawSeaLionLive(ctx, e, r, t, ghost) {
+    switch (e.type) {
+      case 'bull': {
+        // angry snort puffs from the nose
+        const ph = (t * 1.1 + e.wob) % 1;
+        if (ph < 0.4) {
+          const pf = ph / 0.4;
+          ctx.fillStyle = `rgba(255,255,255,${(1 - pf) * 0.7})`;
+          ctx.beginPath(); ctx.arc(r * (1.3 + pf * 0.5), -r * 0.06, r * 0.09 + pf * r * 0.1, 0, TAU); ctx.fill();
+          ctx.beginPath(); ctx.arc(r * (1.28 + pf * 0.45), r * 0.18, r * 0.07 + pf * r * 0.09, 0, TAU); ctx.fill();
+        }
+        break;
+      }
+      case 'regen': {
+        const pulse = 0.5 + Math.sin(t * 5) * 0.3;
+        ctx.strokeStyle = `rgba(110,230,150,${pulse * 0.75})`;
+        ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(0, 0, r * 1.18, 0, TAU); ctx.stroke();
+        ctx.strokeStyle = `rgba(110,230,150,${pulse * 0.3})`;
+        ctx.beginPath(); ctx.arc(0, 0, r * (1.3 + pulse * 0.15), 0, TAU); ctx.stroke();
+        // floating heal cross
+        ctx.fillStyle = `rgba(140,255,170,${pulse})`;
+        const cy = -r * 0.85 - Math.sin(t * 3) * r * 0.08;
+        ctx.fillRect(-r * 0.05, cy - r * 0.16, r * 0.1, r * 0.32);
+        ctx.fillRect(-r * 0.16, cy - r * 0.05, r * 0.32, r * 0.1);
+        break;
+      }
+      case 'leviathan':
+        // rune cracks, breathing
+        ctx.globalAlpha = 0.5 + Math.sin(t * 2.5) * 0.3;
+        ctx.strokeStyle = '#6fe8e0';
+        ctx.lineWidth = 1.8;
+        ctx.beginPath();
+        ctx.moveTo(-r * 0.75, -r * 0.1);
+        ctx.lineTo(-r * 0.5, -r * 0.32); ctx.lineTo(-r * 0.28, -r * 0.16); ctx.lineTo(-r * 0.02, -r * 0.4);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(r * 0.15, r * 0.3); ctx.lineTo(r * 0.35, r * 0.08); ctx.lineTo(r * 0.52, r * 0.22);
+        ctx.stroke();
+        ctx.globalAlpha = ghost;
+        // glowing gaze
+        ctx.fillStyle = `rgba(110,235,225,${0.7 + Math.sin(t * 4) * 0.3})`;
+        ctx.beginPath(); ctx.arc(r * 0.68, -r * 0.17, r * 0.07, 0, TAU); ctx.fill();
+        break;
+    }
+  }
+
+  function drawSeaLion(ctx, game, e, t) {
+    const def = G.ENEMIES[e.type];
+    const p = G.samplePath(game.paths[e.pathIdx], e.dist);
+    const wob = Math.sin(t * 8 + e.wob) * 0.07;
+    const r = e.size;
+    const hidden = e.stealth && e.revealUntil <= game.time;
+    const col = def.color;
+    const ghost = hidden ? 0.45 : 1;
+
+    /* boss menace glow — a cached sprite at a moving opacity, not a fresh
+       radial gradient and a big gradient-filled arc every frame */
+    if (e.boss) {
+      const glowCol = e.type === 'leviathan' ? '80,215,230' : '225,70,70';
+      const rad = Math.round(r * 1.75);
+      const gs = glowSprite(rad, Math.round(r * 0.4), glowCol);
+      ctx.save();
+      ctx.globalAlpha = (0.3 + Math.sin(t * 3) * 0.08) * 0.5;
+      ctx.drawImage(gs, p.x - rad, p.y - rad);
+      ctx.restore();
+    }
+
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    if (hidden) ctx.globalAlpha = 0.45;
+    const ang = p.ang + wob;
+    ctx.rotate(ang);
+    const squish = Math.sin(t * 7 + e.wob) * 0.025;
+    ctx.scale(1 + squish, 1 - squish);
+
+    // cast shadow, offset toward world down-right regardless of facing
+    const sdx = Math.cos(-ang) * 4 - Math.sin(-ang) * 6;
+    const sdy = Math.sin(-ang) * 4 + Math.cos(-ang) * 6;
+    ctx.fillStyle = 'rgba(25,42,62,0.10)';
+    ctx.beginPath(); ctx.ellipse(sdx * 1.4, r * 0.42 + sdy, r * 1.3, r * 0.44, 0, 0, TAU); ctx.fill();
+    ctx.fillStyle = 'rgba(25,42,62,0.18)';
+    ctx.beginPath(); ctx.ellipse(sdx, r * 0.44 + sdy * 0.6, r * 1.08, r * 0.36, 0, 0, TAU); ctx.fill();
+
+    /* Facing, after the shadow so the shadow keeps pointing at the world's
+       ground rather than at the animal's. See facesLeft. */
+    if (facesLeft(p.ang)) ctx.scale(1, -1);
+
+    // orcas get their own body entirely, then fall through to the shared
+    // status pips and health bar below
+    if (e.orca) {
+      drawOrcaBody(ctx, e, r, col, t);
+      ctx.restore();
+      drawEnemyStatus(ctx, game, e, def, r, p, t);
+      return;
+    }
+
+    // tail flippers — under the body, so they go on before the sprite
+    ctx.fillStyle = shade(col, -12);
+    const tailWag = Math.sin(t * 10 + e.wob) * 0.3;
+    ctx.save();
+    ctx.translate(-r * 1.02, 0); ctx.rotate(tailWag);
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.quadraticCurveTo(-r * 0.35, -r * 0.12, -r * 0.6, -r * 0.42);
+    ctx.quadraticCurveTo(-r * 0.42, -r * 0.05, -r * 0.38, 0);
+    ctx.quadraticCurveTo(-r * 0.42, r * 0.05, -r * 0.6, r * 0.42);
+    ctx.quadraticCurveTo(-r * 0.35, r * 0.12, 0, 0);
+    ctx.closePath(); ctx.fill();
+    ctx.restore();
+
+    /* The animal itself, in one blit. Three freckle patterns per species is
+       all the variety ninety individually-seeded sea lions ever showed. */
+    const variant = ((e.wob * 1000) | 0) % 3;
+    const key = 'seal|' + e.type + '|' + (hidden ? 'h' : '') + variant;
+    ctx.globalAlpha = 1;
+    blitSprite(ctx, sprite(key, [r * 2.4, r * 1.7, r * 1.25, r * 1.05],
+      (c) => paintSeaLion(c, e.type, r, hidden, variant)));
+    ctx.globalAlpha = ghost;
+
+    // front flipper — clear of the head, so it can go on over the sprite
+    ctx.fillStyle = shade(col, -18);
+    ctx.save();
+    ctx.translate(-r * 0.05, r * 0.34);
+    ctx.rotate(0.55 + wob * 1.6);
+    ctx.beginPath();
+    ctx.ellipse(0, r * 0.2, r * 0.16, r * 0.4, 0, 0, TAU);
+    ctx.fill();
+    ctx.strokeStyle = shade(col, -34); ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, r * 0.1); ctx.lineTo(0, r * 0.5); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-r * 0.07, r * 0.12); ctx.lineTo(-r * 0.09, r * 0.48); ctx.stroke();
+    ctx.restore();
+
+    drawSeaLionLive(ctx, e, r, t, ghost);
 
     ctx.restore();
     drawEnemyStatus(ctx, game, e, def, r, p, t);
@@ -2158,6 +2309,11 @@
   /* slow/stun/poison pips and the health bar — drawn upright, never rotated,
      shared by the sea lions and the orcas */
   function drawEnemyStatus(ctx, game, e, def, r, p, t) {
+    /* An untouched sea lion has nothing to say. Most of a wave is untouched
+       most of the time, and this was still opening and closing a context state
+       for every one of them, every frame, to draw nothing. */
+    if (e.hp >= e.maxHp && e.slowUntil <= game.time && e.stunUntil <= game.time &&
+        e.dotUntil <= game.time && e.vulnUntil <= game.time && e.bleedUntil <= game.time) return;
     ctx.save();
     ctx.translate(p.x, p.y);
     if (e.slowUntil > game.time) {
@@ -2218,55 +2374,16 @@
      fins swept back, the dorsal blade standing proud of the water, and the
      markings that make the animal unmistakable — white eye ovals at the bow
      and the grey saddle behind the fin. Drawn nose-right, like every other
-     creature here, so the caller's rotation carries it down the track. */
-  function drawOrcaBody(ctx, e, r, col, t) {
-    const swim = Math.sin(t * 3.4 + e.wob);
+     creature here, so the caller's rotation carries it down the track.
+
+     Split the same way the sea lions are: the wake, the flukes and the
+     pectorals swim, so they are drawn every frame; the hull and its markings
+     are a sprite. Everything that moves is astern of everything that does not,
+     which is why the live half can go on first and the blit can finish the
+     job in one call. */
+  function paintOrcaBody(ctx, type, r, col) {
     const ink = '#0b1119';
     const belly = '#f4f9ff';
-
-    // wake: a bow spray and a churned trail, so it reads as swimming
-    ctx.save();
-    ctx.globalAlpha = 0.5;
-    ctx.fillStyle = 'rgba(232,246,255,0.55)';
-    ctx.beginPath();
-    ctx.ellipse(-r * 1.5, 0, r * 0.72, r * 0.5, 0, 0, TAU);
-    ctx.fill();
-    ctx.globalAlpha = 0.32;
-    ctx.beginPath();
-    ctx.ellipse(-r * 2.15, swim * r * 0.16, r * 0.5, r * 0.3, 0, 0, TAU);
-    ctx.fill();
-    ctx.restore();
-
-    // tail stock + flukes
-    const wag = swim * 0.34;
-    ctx.save();
-    ctx.translate(-r * 0.92, 0);
-    ctx.rotate(wag);
-    ctx.fillStyle = shade(col, -6);
-    ctx.strokeStyle = ink; ctx.lineWidth = Math.max(1.4, r * 0.055); ctx.lineJoin = 'round';
-    ctx.beginPath();
-    ctx.moveTo(r * 0.12, 0);
-    ctx.quadraticCurveTo(-r * 0.28, -r * 0.1, -r * 0.66, -r * 0.5);
-    ctx.quadraticCurveTo(-r * 0.3, -r * 0.14, -r * 0.24, 0);
-    ctx.quadraticCurveTo(-r * 0.3, r * 0.14, -r * 0.66, r * 0.5);
-    ctx.quadraticCurveTo(-r * 0.28, r * 0.1, r * 0.12, 0);
-    ctx.closePath(); ctx.fill(); ctx.stroke();
-    ctx.restore();
-
-    // pectoral fins, swept back and paddling gently
-    for (const side of [-1, 1]) {
-      ctx.save();
-      ctx.translate(r * 0.18, side * r * 0.42);
-      ctx.rotate(side * (0.5 + swim * 0.12));
-      ctx.fillStyle = shade(col, -10);
-      ctx.strokeStyle = ink; ctx.lineWidth = Math.max(1.2, r * 0.045);
-      ctx.beginPath();
-      ctx.moveTo(0, 0);
-      ctx.quadraticCurveTo(-r * 0.1, side * r * 0.42, -r * 0.5, side * r * 0.56);
-      ctx.quadraticCurveTo(-r * 0.28, side * r * 0.16, -r * 0.16, 0);
-      ctx.closePath(); ctx.fill(); ctx.stroke();
-      ctx.restore();
-    }
 
     // body — dark above, gradient to a lit crown along the back
     const bodyGrad = ctx.createLinearGradient(0, -r * 0.6, 0, r * 0.6);
@@ -2319,11 +2436,13 @@
     ctx.fill();
     ctx.restore();
 
-    // dorsal fin — tall blade, upright on the bulls and kings
-    const finH = e.type === 'orca_king' ? 1.15 : e.type === 'orca_great' ? 0.95 : 0.78;
+    /* Dorsal fin — tall blade, upright on the bulls and kings. It used to lean
+       with the swim by 0.05 of a radian, which on a blade this size moves its
+       tip by a twentieth of the animal's length. Baked upright: nothing on
+       screen is measurably different and it keeps the hull to one blit. */
+    const finH = type === 'orca_king' ? 1.15 : type === 'orca_great' ? 0.95 : 0.78;
     ctx.save();
     ctx.translate(-r * 0.06, 0);
-    ctx.rotate(swim * 0.05);
     ctx.fillStyle = shade(col, 16);
     ctx.strokeStyle = ink; ctx.lineWidth = Math.max(1.4, r * 0.06); ctx.lineJoin = 'round';
     ctx.beginPath();
@@ -2341,7 +2460,7 @@
     ctx.restore();
 
     // the KILLER WHALE bares its teeth
-    if (e.type === 'orca_king') {
+    if (type === 'orca_king') {
       ctx.fillStyle = belly;
       ctx.strokeStyle = 'rgba(11,17,25,0.6)';
       ctx.lineWidth = Math.max(0.8, r * 0.02);
@@ -2356,6 +2475,58 @@
         ctx.closePath(); ctx.fill(); ctx.stroke();
       }
     }
+  }
+
+  function drawOrcaBody(ctx, e, r, col, t) {
+    const swim = Math.sin(t * 3.4 + e.wob);
+    const ink = '#0b1119';
+
+    // wake: a bow spray and a churned trail, so it reads as swimming
+    ctx.save();
+    ctx.globalAlpha = 0.5;
+    ctx.fillStyle = 'rgba(232,246,255,0.55)';
+    ctx.beginPath();
+    ctx.ellipse(-r * 1.5, 0, r * 0.72, r * 0.5, 0, 0, TAU);
+    ctx.fill();
+    ctx.globalAlpha = 0.32;
+    ctx.beginPath();
+    ctx.ellipse(-r * 2.15, swim * r * 0.16, r * 0.5, r * 0.3, 0, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+
+    // tail stock + flukes
+    const wag = swim * 0.34;
+    ctx.save();
+    ctx.translate(-r * 0.92, 0);
+    ctx.rotate(wag);
+    ctx.fillStyle = shade(col, -6);
+    ctx.strokeStyle = ink; ctx.lineWidth = Math.max(1.4, r * 0.055); ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(r * 0.12, 0);
+    ctx.quadraticCurveTo(-r * 0.28, -r * 0.1, -r * 0.66, -r * 0.5);
+    ctx.quadraticCurveTo(-r * 0.3, -r * 0.14, -r * 0.24, 0);
+    ctx.quadraticCurveTo(-r * 0.3, r * 0.14, -r * 0.66, r * 0.5);
+    ctx.quadraticCurveTo(-r * 0.28, r * 0.1, r * 0.12, 0);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.restore();
+
+    // pectoral fins, swept back and paddling gently
+    for (const side of [-1, 1]) {
+      ctx.save();
+      ctx.translate(r * 0.18, side * r * 0.42);
+      ctx.rotate(side * (0.5 + swim * 0.12));
+      ctx.fillStyle = shade(col, -10);
+      ctx.strokeStyle = ink; ctx.lineWidth = Math.max(1.2, r * 0.045);
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.quadraticCurveTo(-r * 0.1, side * r * 0.42, -r * 0.5, side * r * 0.56);
+      ctx.quadraticCurveTo(-r * 0.28, side * r * 0.16, -r * 0.16, 0);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.restore();
+    }
+
+    blitSprite(ctx, sprite('orca|' + e.type, [r * 1.15, r * 1.2, r * 1.35, r * 0.7],
+      (c) => paintOrcaBody(c, e.type, r, col)));
   }
 
   function drawTusks(ctx, r, s) {
@@ -2760,16 +2931,28 @@
 
   /* ---------- main render ---------- */
   let clock = 0;
+  /* Reused between frames instead of two fresh arrays a frame. At ninety sea
+     lions and thirty penguins that is 7,200 throwaway array slots a second
+     handed to the garbage collector for nothing. */
+  const zEnemies = [], zTowers = [];
+  function ordered(into, from, key) {
+    into.length = 0;
+    for (let i = 0; i < from.length; i++) into.push(from[i]);
+    into.sort(key);
+    return into;
+  }
+
   G.render = function (ctx, game, dt) {
     clock += dt;
+    syncSpriteScale(ctx);
     const terr = getTerrain(game.level, G.W, game.endless && game.wave >= G.ORCA_WAVE);
     ctx.drawImage(terr.canvas, 0, 0, G.W, G.H);
     drawSceneryFX(ctx, game.level, terr.meta, clock);
     drawZones(ctx, game, clock);
     drawSpikes(ctx, game, clock);
-    const sorted = [...game.enemies].sort((a, b) => a.dist - b.dist);
+    const sorted = ordered(zEnemies, game.enemies, (a, b) => a.dist - b.dist);
     // painter's order: lower towers draw over higher ones for a depth cue
-    for (const t of [...game.towers].sort((a, b) => a.y - b.y)) drawTowerBody(ctx, game, t, clock);
+    for (const t of ordered(zTowers, game.towers, (a, b) => a.y - b.y)) drawTowerBody(ctx, game, t, clock);
     for (const e of sorted) drawSeaLion(ctx, game, e, clock);
     drawProjectiles(ctx, game);
     drawEffects(ctx, game);
