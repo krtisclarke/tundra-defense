@@ -57,13 +57,6 @@
 
   const ICON_SOUND_ON = '<svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M3 9v6h4l5 5V4L7 9H3zm13.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4zM14 3.2v2.1c2.9.9 5 3.5 5 6.7s-2.1 5.8-5 6.7v2.1c4-.9 7-4.5 7-8.8s-3-7.9-7-8.8z"/></svg>';
   const ICON_SOUND_OFF = '<svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M3 9v6h4l5 5V4L7 9H3zm18.6 3 2-2-1.4-1.4-2 2-2-2L16.7 10l2 2-2 2 1.4 1.4 2-2 2 2 1.4-1.4-2-2z"/></svg>';
-  /* Drawn rather than typed: the ⓘ character renders as a different shape on
-     every platform and as a colour emoji on some. */
-  const ICON_INFO = '<svg viewBox="0 0 24 24" width="19" height="19" aria-hidden="true" focusable="false">' +
-    '<circle cx="12" cy="12" r="9.1" fill="none" stroke="currentColor" stroke-width="1.9"/>' +
-    '<circle cx="12" cy="7.4" r="1.4" fill="currentColor"/>' +
-    '<path d="M12 10.7v6.4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></svg>';
-
   /* ---------- persistence ---------- */
   const store = {
     get(key, fallback) {
@@ -1024,6 +1017,7 @@
        null, so the flyout would have stayed on screen over the menu. */
     const sel = $('#selpanel');
     sel.hidden = true; sel.innerHTML = '';
+    showDock(true);   // or the tray comes back invisible next battle
     closeConfirm();
     G.music.play('menu');
     buildLevelSelect();
@@ -2090,6 +2084,46 @@
   }
 
   /* ---------- command dock: selection card ---------- */
+  /* The card takes the control column's own slot rather than floating over the
+     battlefield.
+
+     It used to open down the left of the map, which meant that reading a
+     penguin's upgrades cost you 178px of the thing you were reading them about
+     — a quarter of the battlefield on a phone — and put the card in the one
+     place an iPhone's Dynamic Island also wants. Here it covers nothing: the
+     tray and the hero and boost panels step aside for it and step back when it
+     closes, and the battlefield is never touched.
+
+     Measured off the real elements rather than rebuilt from the same numbers
+     fitCanvas used. The tray gives the left edge, the width and the top; the
+     wave controls give the floor, because those stay live underneath — being
+     unable to pause or send a wave while a penguin's card is open is the one
+     thing this arrangement could have cost, and it does not.
+
+     A zero-width tray is a layout that has not settled — mid-rotation, entering
+     fullscreen, an installed app being restored — and writing that rect would
+     pin the card to nothing. The last good one is kept instead. */
+  function fitSelPanel(box) {
+    const tray = $('#palette'), cmd = $('#command');
+    const tr = tray ? tray.getBoundingClientRect() : null;
+    if (!tr || tr.width < 40 || tr.height < 40) return;
+    const cr = cmd ? cmd.getBoundingClientRect() : null;
+    const floor = cr && cr.top > tr.top + 140 ? cr.top - 6 : tr.bottom;
+    box.style.left = Math.round(tr.left) + 'px';
+    box.style.width = Math.round(tr.width) + 'px';
+    box.style.top = Math.round(tr.top) + 'px';
+    box.style.height = Math.round(floor - tr.top) + 'px';
+  }
+
+  /* visibility, not display. The hero and boost panels are two cells of
+     #sidebar's grid, and #sidebar is laid out at a nominal width and then
+     scaled — take them out of the flow and the row above the wave controls
+     collapses, which moves the wave controls, which moves the floor this card
+     just measured. Hidden in place they hold their boxes and nothing shifts. */
+  function showDock(on) {
+    $('#app').classList.toggle('upg-open', !on);
+  }
+
   function renderDockSel() {
     const g = UI.game;
     const box = $('#selpanel');
@@ -2111,47 +2145,12 @@
     if (!g.selected) {
       box.hidden = true;
       box.innerHTML = '';
+      showDock(true);
       return;
     }
     box.hidden = false;
-    /* Start below the vitals rather than on top of them. Lives and fish are
-       exactly what you are reading while you decide whether to buy an upgrade,
-       and the panel is wide enough to cover all three counters. Measured rather
-       than guessed at, because the vitals are scaled by the block's own factor
-       and sit at the top of the MAP, not the top of the window. */
-    const hud = $('#hud-stats');
-    const below = hud && hud.offsetParent !== null ? hud.getBoundingClientRect().bottom : 0;
-    const top = Math.max(8, Math.round(below) + 8);
-    box.style.top = top + 'px';
-    /* How much room there actually is. A viewport that measures zero is a
-       layout that has not settled — mid-transition, entering fullscreen, a
-       phone mid-rotation — and taking it at face value clamped the panel to
-       its 120px floor and left it clipped there until something else forced a
-       re-render. With two paths that hid the sell button; with three it hides
-       most of the card. When the measurement is nonsense, don't set a ceiling
-       at all and let the panel size to its content. */
-    /* The floor of the window, less anything the screen keeps for itself: on a
-       phone in landscape the home indicator lives in the bottom inset, and a
-       column that ran to the raw viewport bottom put the sell button under it. */
-    const sa = safeArea();
-    const vh = (window.innerHeight || document.documentElement.clientHeight || 0) - sa.bottom;
-    /* The ceiling has to be set with the top, not left to CSS. A panel taller
-       than the space under the vitals will happily overflow UPWARDS out of its
-       own box and cover them again — which is exactly what it did. */
-    /* A column, not a card that happens to be on the left: it runs from under
-       the vitals to the bottom of the battlefield, so the three paths get room
-       to breathe and the sell button sits at the foot of it rather than
-       wherever the content happened to end. Bounded by the MAP rather than the
-       window — the map is what it is allowed to cover. */
-    const cr = UI.canvas ? UI.canvas.getBoundingClientRect() : null;
-    /* The map's floor, less any part of it a cutout has: the battlefield runs
-       to the foot of the screen now, so its last few pixels can be the home
-       indicator's, and the sell button is the control that would have landed
-       there. Zero almost everywhere. */
-    const mapFloor = cr ? cr.bottom - cssPx('--map-inset-b') : 0;
-    const floorY = cr && mapFloor > top + 160 ? mapFloor : (vh ? vh - 8 : 0);
-    box.style.height = floorY ? Math.round(floorY - top) + 'px' : '';
-    box.style.maxHeight = vh ? Math.max(120, vh - top - 8) + 'px' : '';
+    fitSelPanel(box);
+    showDock(false);
 
     const t = g.selected;
 
@@ -2315,9 +2314,13 @@
          wears a green edge — gold once it is finished — so which two you
          committed to reads at a glance without counting anything.
 
-         What the tiers you own are CALLED is the one thing two lines cannot
-         hold, and it already has a home: the ⓘ (a hover on a mouse) lays out
-         the whole path with the ones you own marked. */
+         Three lines now, not two. The card moved into the control column,
+         which is about 30px narrower than the width the rows were tuned to —
+         and what pays for that is the ⓘ button, which took 41px out of every
+         row and is gone. Losing it leaves the name MORE room than it had, and
+         the description it used to hide comes back into the row itself, which
+         is what the column's spare height is for. Nothing is now a tap away
+         that used to be on screen. */
       const shutMark = state === 'mastered' ? '★' : state === 'open' ? '' : '🔒';
       const owned = `<span class="dsp-tally${tier >= 3 ? ' max' : tier ? ' has' : ''}">` +
         `${shutMark ? `<i>${shutMark}</i>` : ''}${tier}/${path.tiers.length}</span>`;
@@ -2334,6 +2337,7 @@
           `${head}
            <span class="dsp-next"><kbd>${key}</kbd> <span class="dsp-up">${u.name}</span>
              <span class="dsp-cost" title="${fmt(uCost)}">${num(uCost)}</span></span>
+           <span class="dsp-desc">${u.desc}</span>
            ${ladder(path, tier)}`);
         row.dataset.cost = uCost;   // updateHud re-checks this as fish come in
         /* The one purchase that cannot be taken back: buying into a second path
@@ -2351,7 +2355,11 @@
            ${ladder(path, tier)}`);
         row.title = G.PATH_LOCK_MSG[state] || '';
       }
-      // the descriptions live here now: hover on a mouse, long-press on a finger
+      /* The whole path — all three tiers, what you own, what is still ahead —
+         is a hover on a mouse and a hold on a finger. The row itself now says
+         what the NEXT tier does, which is what the ⓘ was reached for nine times
+         in ten; this is the tenth, for when you want to know where a path ends
+         before committing fish to it. */
       const openInfo = () => showUpgradeTip(row, t, p);
       hoverTip(row, openInfo);
       attachLongPress(row, openInfo);
@@ -2362,22 +2370,7 @@
          to say. */
       if (reopen === p) reopenInfo = openInfo;
 
-      /* On a finger, the description also gets a button of its own. Long-press
-         was the only way to reach it and nobody found it: there is nothing on
-         screen that says a row can be held, and the row's obvious gesture — a
-         tap — spends fish instead. So the row and the ⓘ are siblings rather
-         than one inside the other, which keeps them separate targets: a tap on
-         the row still buys, and a tap on the ⓘ can never be a mis-buy.
-         Touch-only, from CSS — on a mouse the hover card already does this and
-         a third control per row would be clutter. */
-      const prow = el('div', 'ds-prow');
-      prow.appendChild(row);
-      const info = el('button', 'ds-info', ICON_INFO);
-      info.setAttribute('aria-label', `What ${path.name} does`);
-      info.title = `What ${path.name} does`;
-      info.onclick = (ev) => { ev.stopPropagation(); openInfo(); armTooltipDismiss(); };
-      prow.appendChild(info);
-      upgRow.appendChild(prow);
+      upgRow.appendChild(row);
     }
     box.appendChild(upgRow);
 
@@ -2394,49 +2387,10 @@
     act.appendChild(makeSellButton(t));
     box.appendChild(act);
 
-    /* Both of these need the panel to be in the document with its real size:
-       the side it opens on is chosen by measuring it, and the ⓘ card is placed
-       relative to the row it describes, which reports a zero rectangle until it
-       has been laid out. */
-    placeSelPanel(box, t);
+    /* Last, once the rows are in the document with real positions: the hover
+       card is placed relative to the row it describes, and a row that has not
+       been laid out yet reports a zero rectangle. */
     if (reopenInfo) reopenInfo();
-  }
-
-  /* Which side of the map the card opens on.
-
-     The left, normally — that is the side with room, and it is where the
-     matching column on the right has always been mirrored from. But the card is
-     a full-height column and the penguin you just tapped might be standing
-     underneath it, and the one thing you cannot do while deciding whether to
-     spend fish on a penguin is look at it. So if the card lands on top of it,
-     the card moves to the far side of the map instead, hard against the build
-     tray.
-
-     Decided by measuring rather than by arithmetic: the card's width comes from
-     a clamp against the column width and the viewport, and the map's scale
-     changes per battlefield, so anything computed here would be a second
-     opinion that could disagree with the first. Both reads happen before the
-     browser paints, so nothing flickers.
-
-     If BOTH sides would cover it — a narrow window where the card is most of
-     the map — it stays on the left. Moving it would trade one cover for
-     another and cost the player the side they are used to. */
-  function placeSelPanel(box, t) {
-    const cr = UI.canvas ? UI.canvas.getBoundingClientRect() : null;
-    if (!cr || !cr.width) return;
-    const scale = cr.width / G.W;
-    const px = cr.left + t.x * scale;
-    /* The penguin's own footprint, plus the ring drawn around a selected one,
-       so the card clears the whole thing and not just its centre point. */
-    const half = Math.max(18, (G.TOWER_R + 14) * scale);
-    const covers = () => {
-      const r = box.getBoundingClientRect();
-      return px + half > r.left && px - half < r.right;
-    };
-    box.classList.remove('on-right');
-    if (!covers()) return;
-    box.classList.add('on-right');
-    if (covers()) box.classList.remove('on-right');
   }
 
   /* Selling is destructive, refunds only 70% and has no undo, and it used to be
@@ -3021,6 +2975,12 @@
     UI.canvas.style.height = Math.round(mapH) + 'px';
     applyBacking(mapW);  // draw at the resolution it is actually displayed at
     invalidateRects();   // the column and the canvas just moved
+    /* The card sits in the column's slot, so the slot moving is the one thing
+       that can strand it. Re-measured rather than re-rendered: rebuilding the
+       whole card on every resize tick would throw away a half-scrolled panel
+       and re-run every price lookup for a box that only changed shape. */
+    const sel = $('#selpanel');
+    if (sel && !sel.hidden) fitSelPanel(sel);
   }
 
   /* ---------- main loop ---------- */
