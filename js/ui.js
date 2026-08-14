@@ -2203,16 +2203,19 @@
          the two questions it exists to answer: how far along am I, and can I
          still go further.
 
-         One skeleton now. Line one is the path and how many of its three tiers
-         you own, stated in words. Line two is always a marker, a label and a
-         value: what you would buy next and what it costs, or why you cannot.
-         And a path you have money in wears a green edge, so which two you
+         One skeleton now. Line one is the path name and how many of its three
+         tiers you own, as a number in a chip — with the padlock or the star in
+         the chip too, because line two is only about 105px wide once the ⓘ and
+         the price have had their share, and a leading glyph there took enough
+         off it to clip "Rolling Thunder" to "Rolling Thun…". Line two is
+         always a label and an optional value: what you would buy next and what
+         it costs, or why you cannot buy anything. And a path you have fish in
+         wears a green edge — gold once it is finished — so which two you
          committed to reads at a glance without counting anything.
 
-         The lock and the star live on line one beside the tally rather than in
-         front of the reason: line two is only ~105px wide once the ⓘ and the
-         price have had their share, and a leading glyph there took enough off
-         it to clip "Rolling Thunder" to "Rolling Thun…". */
+         What the tiers you own are CALLED is the one thing two lines cannot
+         hold, and it already has a home: the ⓘ (a hover on a mouse) lays out
+         the whole path with the ones you own marked. */
       const shutMark = state === 'mastered' ? '★' : state === 'open' ? '' : '🔒';
       const owned = `<span class="dsp-tally${tier >= 3 ? ' max' : tier ? ' has' : ''}">` +
         `${shutMark ? `<i>${shutMark}</i>` : ''}${tier}/${path.tiers.length}</span>`;
@@ -2236,11 +2239,6 @@
            press, rather than discovered afterwards from a greyed-out row. */
         if (!tier && chosen === G.PATH_LIMIT - 1) row.classList.add('commits');
         row.onclick = () => buyUpgrade(t, p);
-        /* What you already own, for the hover that the row's own two lines
-           have no room to spell out. */
-        row.title = tier
-          ? `${path.name}: you own ${path.tiers.slice(0, tier).map((x) => x.name).join(' → ')}. Next is ${u.name}.`
-          : `${path.name}: nothing bought yet. First is ${u.name}.`;
       } else {
         const why = state === 'mastered' ? 'Path mastered'
           : state === 'locked' ? 'Two paths chosen'
@@ -2249,8 +2247,7 @@
           `${head}
            <span class="dsp-next"><span class="dsp-up">${why}</span></span>
            ${ladder(path, tier)}`);
-        row.title = (tier ? `${path.name}: you own ${path.tiers.slice(0, tier).map((x) => x.name).join(' → ')}. ` : '') +
-          (G.PATH_LOCK_MSG[state] || '');
+        row.title = G.PATH_LOCK_MSG[state] || '';
       }
       // the descriptions live here now: hover on a mouse, long-press on a finger
       const openInfo = () => showUpgradeTip(row, t.type, p, Math.min(tier, 2));

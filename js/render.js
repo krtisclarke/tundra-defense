@@ -86,13 +86,25 @@
     if (q !== spriteScale) { spriteScale = q; spriteCache.clear(); }
   }
 
+  /* A board is at most a few dozen penguins and a dozen species of sea lion,
+     two sheets apiece — but a hundred waves upgrade through a lot of tier
+     combinations, and each one they leave behind is a bitmap nothing will look
+     at again. So the sheets in use are kept and the abandoned ones are dropped:
+     a Map iterates in insertion order and a hit re-inserts, which makes the
+     front of it exactly the sheets nothing has drawn for the longest. */
+  const SPRITE_MAX = 320;
+
   /* `pad` is [left, right, top, bottom] around the origin, in the units the
      paint callback draws in. The callback gets a context already centred on
      that origin and scaled to device pixels, so it can be lifted verbatim out
      of the code that used to draw straight to the screen. */
   function sprite(key, pad, paint) {
     const hit = spriteCache.get(key);
-    if (hit) return hit;
+    if (hit) {
+      spriteCache.delete(key);
+      spriteCache.set(key, hit);
+      return hit;
+    }
     const s = spriteScale || 1;
     const cv = document.createElement('canvas');
     cv.width = Math.max(1, Math.ceil((pad[0] + pad[1]) * s));
@@ -101,11 +113,7 @@
     c.setTransform(s, 0, 0, s, pad[0] * s, pad[2] * s);
     paint(c);
     const sp = { cv, x: -pad[0], y: -pad[2], w: cv.width / s, h: cv.height / s };
-    /* A board is at most a few dozen penguins and a dozen species of sea lion,
-       two sheets apiece; the ceiling is for the combinations a long battle
-       leaves behind as it upgrades through them. Cheaper to rebuild the lot
-       once than to grow a bitmap pile nothing will look at again. */
-    if (spriteCache.size > 256) spriteCache.clear();
+    while (spriteCache.size >= SPRITE_MAX) spriteCache.delete(spriteCache.keys().next().value);
     spriteCache.set(key, sp);
     return sp;
   }
@@ -2385,6 +2393,24 @@
     const ink = '#0b1119';
     const belly = '#f4f9ff';
 
+    /* Pectoral fins, swept back. They used to paddle by 0.12 of a radian on
+       top of their 0.5 rest angle — seven degrees, next to the flukes' twenty,
+       on a fin a fifth the size. Baked at rest: what reads as swimming is the
+       tail, and this keeps the animal to two blits. */
+    for (const side of [-1, 1]) {
+      ctx.save();
+      ctx.translate(r * 0.18, side * r * 0.42);
+      ctx.rotate(side * 0.5);
+      ctx.fillStyle = shade(col, -10);
+      ctx.strokeStyle = ink; ctx.lineWidth = Math.max(1.2, r * 0.045);
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.quadraticCurveTo(-r * 0.1, side * r * 0.42, -r * 0.5, side * r * 0.56);
+      ctx.quadraticCurveTo(-r * 0.28, side * r * 0.16, -r * 0.16, 0);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.restore();
+    }
+
     // body — dark above, gradient to a lit crown along the back
     const bodyGrad = ctx.createLinearGradient(0, -r * 0.6, 0, r * 0.6);
     bodyGrad.addColorStop(0, shade(col, 46));
@@ -2477,12 +2503,13 @@
     }
   }
 
-  function drawOrcaBody(ctx, e, r, col, t) {
-    const swim = Math.sin(t * 3.4 + e.wob);
-    const ink = '#0b1119';
-
-    // wake: a bow spray and a churned trail, so it reads as swimming
-    ctx.save();
+  /* The wake: a bow spray and a churned trail astern. Two big soft ellipses,
+     and an orca is a big animal — thirty of them in a deep endless wave meant
+     sixty large alpha fills a frame, which measured as the single most
+     expensive thing left on the board. The churn used to bob by a sixth of a
+     radius with the swim; it is painted at rest instead, and the flukes wag
+     over the top of it, which is what actually reads as swimming. */
+  function paintOrcaWake(ctx, r) {
     ctx.globalAlpha = 0.5;
     ctx.fillStyle = 'rgba(232,246,255,0.55)';
     ctx.beginPath();
@@ -2490,9 +2517,16 @@
     ctx.fill();
     ctx.globalAlpha = 0.32;
     ctx.beginPath();
-    ctx.ellipse(-r * 2.15, swim * r * 0.16, r * 0.5, r * 0.3, 0, 0, TAU);
+    ctx.ellipse(-r * 2.15, 0, r * 0.5, r * 0.3, 0, 0, TAU);
     ctx.fill();
-    ctx.restore();
+  }
+
+  function drawOrcaBody(ctx, e, r, col, t) {
+    const swim = Math.sin(t * 3.4 + e.wob);
+    const ink = '#0b1119';
+
+    blitSprite(ctx, sprite('orcawake|' + e.type, [r * 2.75, r * 0.1, r * 0.6, r * 0.6],
+      (c) => paintOrcaWake(c, r)));
 
     // tail stock + flukes
     const wag = swim * 0.34;
@@ -2510,22 +2544,7 @@
     ctx.closePath(); ctx.fill(); ctx.stroke();
     ctx.restore();
 
-    // pectoral fins, swept back and paddling gently
-    for (const side of [-1, 1]) {
-      ctx.save();
-      ctx.translate(r * 0.18, side * r * 0.42);
-      ctx.rotate(side * (0.5 + swim * 0.12));
-      ctx.fillStyle = shade(col, -10);
-      ctx.strokeStyle = ink; ctx.lineWidth = Math.max(1.2, r * 0.045);
-      ctx.beginPath();
-      ctx.moveTo(0, 0);
-      ctx.quadraticCurveTo(-r * 0.1, side * r * 0.42, -r * 0.5, side * r * 0.56);
-      ctx.quadraticCurveTo(-r * 0.28, side * r * 0.16, -r * 0.16, 0);
-      ctx.closePath(); ctx.fill(); ctx.stroke();
-      ctx.restore();
-    }
-
-    blitSprite(ctx, sprite('orca|' + e.type, [r * 1.15, r * 1.2, r * 1.35, r * 0.7],
+    blitSprite(ctx, sprite('orca|' + e.type, [r * 1.15, r * 1.2, r * 1.35, r * 0.85],
       (c) => paintOrcaBody(c, e.type, r, col)));
   }
 
