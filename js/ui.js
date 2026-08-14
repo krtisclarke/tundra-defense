@@ -3007,7 +3007,17 @@
        the way most people turn a phone. Held the other way it sits over the far
        end of the tray, and a player will turn the phone back — a cheaper thing
        to ask once than smaller tiles forever. */
-    const [gutL, gutR] = spendMargin(vw - blockW, sa.left, 0);
+    /* Clear the island and then stop. spendMargin was splitting what was left
+       over AFTER clearing it evenly between the two edges, which put half of it
+       back on the side that already had the cutout: 78px of black down the left
+       of a phone where the island only needs 62, and the whole block shoved
+       that much further right for no reason. The block now sits as far toward
+       the cutout as the cutout allows, and everything spare goes to the far
+       side. A screen with nothing sticking into it still centres exactly as
+       before — that is the second branch, and it is what a desktop takes. */
+    const spare = Math.max(0, vw - blockW);
+    const clear = Math.min(spare, sa.left);
+    const [gutL, gutR] = sa.left > 0 ? [clear, spare - clear] : spendMargin(spare, 0, 0);
     const [gutT, gutB] = spendMargin(vh - mapH, sa.top, sa.bottom);
     root.style.setProperty('--gut-l', Math.round(gutL) + 'px');
     root.style.setProperty('--gut-r', Math.round(gutR) + 'px');
