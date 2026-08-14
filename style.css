@@ -788,6 +788,35 @@ html.touch #btn-fs { display: none; }
 .ds-upgs {
   display: flex; flex-direction: column; gap: 6px;
   flex: 1 1 auto; min-height: 0;
+  /* The rows scroll HERE, and this is the one thing standing between a finger
+     and a purchase it did not ask for.
+
+     On a phone the card does not fit its own contents and cannot be made to.
+     Measured at 874x402: the card is the tray's 238px, which is 220px of
+     content once the border and padding are off it, and the parts below it
+     cannot give any of that back — three rows at their 40px floor plus two 6px
+     gaps is 132, the sell row's floor is 38, this column's own two gaps are 12,
+     and the head is 47 even with a one-line name and a one-line stat line.
+     That is 230 wanted against 220 available in the BEST case, and 256 for a
+     penguin whose name takes three lines in a 56px column. The only slack in
+     that list is the size of a finger.
+
+     Without this line the deficit came out of nowhere: .ds-upgs is the only
+     child that can shrink, so it shrank, and its rows — floored at 40px and
+     overflow:visible — carried on drawing outside it. The third one landed on
+     top of the sell button, and .ds-path is position:relative against a plain
+     .btn, so it painted above it AND took its taps. A press on the top of
+     "Sell +270" bought a 270-fish upgrade instead. Nothing overflowed the card
+     itself, so no scrollbar ever appeared to say so.
+
+     Scrolling costs about a third of the third row on a phone, which is the
+     right thing to lose: the head says which penguin this is and the foot sells
+     it, and both stay put and stay honest. No gutter is reserved — iOS and
+     macOS draw this as an overlay while it moves — so the rows keep their full
+     width on every screen that has the room. */
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
 }
 /* The rows GROW into the column's spare height rather than being pushed apart
    by it. space-between did the second thing: three 94px rows in a 531px column
